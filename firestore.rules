@@ -1,0 +1,207 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Helper Functions ──────────────────────────────────────
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isParticipant(userIds) {
+      return isAuthenticated() && request.auth.uid in userIds;
+    }
+
+    function isPropertyOwner(propertyId) {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/properties/$(propertyId)).data.userId == request.auth.uid;
+    }
+
+    function isValidEmail(email) {
+      return email.matches('.*@.*\\..*');
+    }
+
+    function isValidPrice(price) {
+      return price is number && price > 0;
+    }
+
+    function hasMinLength(value, minLen) {
+      return value is string && value.size() >= minLen;
+    }
+
+    function userDataIsValid() {
+      return request.resource.data.keys().hasAll([
+        'uid', 'email', 'displayName', 'phoneNumber', 'photoURL',
+        'bio', 'role', 'favorites', 'createdAt', 'updatedAt'
+      ]) &&
+      request.resource.data.email is string &&
+      request.resource.data.displayName is string &&
+      request.resource.data.role in ['buyer', 'seller', 'agent'];
+    }
+
+    function propertyDataIsValid() {
+      return request.resource.data.keys().hasAll([
+        'title', 'description', 'price', 'listingType', 'propertyType',
+        'status', 'address', 'city', 'state', 'zipCode', 'country',
+        'latitude', 'longitude', 'bedrooms', 'bathrooms', 'area',
+        'areaUnit', 'yearBuilt', 'images', 'features', 'amenities',
+        'userId', 'userName', 'userPhoto', 'userPhone',
+        'views', 'inquiries', 'createdAt', 'updatedAt'
+      ]) &&
+      request.resource.data.listingType in ['sale', 'rent'] &&
+      request.resource.data.propertyType in [
+        'house', 'apartment', 'condo', 'townhouse', 'land', 'commercial'
+      ] &&
+      request.resource.data.status in ['active', 'pending', 'sold', 'rented', 'inactive'] &&
+      request.resource.data.images is list;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // USERS COLLECTION
+    // ═══════════════════════════════════════════════════════════
+    match /users/{userId} {
+      // Anyone authenticated can read any user profile (for chat, listings, etc.)
+      allow read: if isAuthenticated();
+
+      // Users can only create their own profile with correct doc ID
+      allow create: if isOwner(userId) && userDataIsValid();
+
+      // Users can only update their own profile
+      allow update: if isOwner(userId) && (
+        // Allow updating any valid fields
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'displayName', 'phoneNumber', 'photoURL', 'bio', 'role',
+          'favorites', 'updatedAt'
+        ])
+      );
+
+      // Users can only delete their own account
+      allow delete: if isOwner(userId);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // PROPERTIES COLLECTION
+    // ═══════════════════════════════════════════════════════════
+    match /properties/{propertyId} {
+      // Anyone can read active properties; authenticated users can read all
+      allow read: if isAuthenticated();
+
+      // Authenticated users can create properties for themselves
+      allow create: if isAuthenticated() &&
+        propertyDataIsValid() &&
+        request.resource.data.userId == request.auth.uid;
+
+      // Only the property owner can update
+      allow update: if isPropertyOwner(propertyId) && (
+        // Allow updating listing-specific fields
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'title', 'description', 'price', 'listingType', 'propertyType',
+          'status', 'address', 'city', 'state', 'zipCode', 'country',
+          'latitude', 'longitude', 'bedrooms', 'bathrooms', 'area',
+          'areaUnit', 'yearBuilt', 'images', 'features', 'amenities',
+          'views', 'inquiries', 'updatedAt'
+        ])
+      );
+
+      // Only the property owner can delete
+      allow delete: if isPropertyOwner(propertyId);
+
+      // ─── Messages Subcollection (under properties for direct messaging) ───
+      match /messages/{messageId} {
+        allow read, write: if false; // Messages are in conversations subcollection
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // CONVERSATIONS COLLECTION
+    // ═══════════════════════════════════════════════════════════
+    match /conversations/{conversationId} {
+      // Only participants can read conversations
+      allow read: if isAuthenticated() &&
+        isParticipant(resource.data.participants);
+
+      // Any authenticated user can create a conversation
+      // (they must be one of the participants)
+      allow create: if isAuthenticated() &&
+        isParticipant(request.resource.data.participants) &&
+        request.resource.data.participants.size() == 2 &&
+        request.resource.data.keys().hasAll([
+          'participants', 'participantNames', 'participantPhotos',
+          'lastMessage', 'lastMessageTime', 'lastMessageSenderId',
+          'unreadCount', 'propertyId', 'propertyTitle', 'propertyImage',
+          'createdAt', 'updatedAt'
+        ]);
+
+      // Participants can update conversation metadata (last message, unread counts)
+      allow update: if isAuthenticated() &&
+        isParticipant(resource.data.participants);
+
+      // No one should delete conversations directly
+      allow delete: if false;
+
+      // ─── Messages Subcollection ───
+      match /messages/{messageId} {
+        // Only participants can read messages
+        allow read: if isAuthenticated() &&
+          isParticipant(get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants);
+
+        // Participants can create messages (must be the sender)
+        allow create: if isAuthenticated() &&
+          isParticipant(get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants) &&
+          request.resource.data.senderId == request.auth.uid &&
+          request.resource.data.keys().hasAll([
+            'conversationId', 'senderId', 'text', 'read', 'createdAt'
+          ]);
+
+        // Participants can update messages (for read receipts)
+        allow update: if isAuthenticated() &&
+          isParticipant(get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants) &&
+          // Only allow updating 'read' field and optionally 'image'
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'read', 'image'
+          ]);
+
+        // No deleting messages
+        allow delete: if false;
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // NOTIFICATIONS COLLECTION
+    // ═══════════════════════════════════════════════════════════
+    match /notifications/{notificationId} {
+      // Users can only read their own notifications
+      allow read: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid;
+
+      // Any authenticated user can create notifications for others
+      // (system sends notifications, or users notify each other)
+      allow create: if isAuthenticated() &&
+        request.resource.data.keys().hasAll([
+          'userId', 'title', 'body', 'type', 'data', 'read', 'createdAt'
+        ]) &&
+        request.resource.data.type in [
+          'message', 'inquiry', 'price_drop', 'new_listing', 'favorite'
+        ];
+
+      // Users can only update their own notifications (mark as read)
+      allow update: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+
+      // Users can delete their own notifications
+      allow delete: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // DEFAULT: DENY ALL OTHER PATHS
+    // ═══════════════════════════════════════════════════════════
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,27 @@
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native build artifacts
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Environment variables (never commit secrets)
+.env
+.env.local
+.env.*.local
+
+# Misc
+.DS_Store
+npm-debug.*
+yarn-debug.*
+yarn-error.*
