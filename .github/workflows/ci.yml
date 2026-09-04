@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  quality:
+    name: Typecheck & bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        # This project's React Native / React peer versions require legacy deps.
+        run: npm ci --legacy-peer-deps
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      # Verifies the app actually bundles (catches import/runtime-resolve
+      # errors that a typecheck alone misses).
+      - name: Export web bundle
+        run: npx expo export --platform web
+
+      # Enable once ESLint is configured (see docs/PRODUCTION_READINESS.md §4.3).
+      # - name: Lint
+      #   run: npm run lint

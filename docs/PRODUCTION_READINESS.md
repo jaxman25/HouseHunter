@@ -49,6 +49,7 @@ removed from `helpers.ts`.
 | `SearchScreen` search input | debounce (`useDebouncedCallback`) | 300ms | ✅ |
 | `ExploreScreen` filter changes | debounce (`useDebouncedCallback`) | 300ms | ✅ |
 | `ExploreScreen` load-more (`onEndReached`) | throttle (`useThrottledCallback`) | 500ms | ✅ |
+| `HomeScreen` New Listings “Load More” | pagination cursor | — | ✅ (button, not scroll) |
 | FlatList `onScroll` (Home) | throttle | 500ms | ⏳ apply when a scroll-driven feature exists |
 | Map region-change → marker fetch | throttle | 500ms | ⏳ needs geohash/region queries first |
 
@@ -77,25 +78,22 @@ which supports native offline persistence. Until then, the AsyncStorage cache
 
 ### 3.1 Sentry integration
 
-1. `npm install @sentry/react-native --legacy-peer-deps`
-2. Init once in `App.tsx` (or `src/config/sentry.ts`):
+**Status: done (steps 1–4); step 5+ pending a real DSN.**
 
-```ts
-import * as Sentry from '@sentry/react-native';
-Sentry.init({
-  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
-  environment: __DEV__ ? 'development' : 'production',
-  tracesSampleRate: 0.2,
-  enabled: !__DEV__ || !!process.env.EXPO_PUBLIC_SENTRY_DSN,
-});
-```
+1. ✅ `@sentry/react-native` installed (`npx expo install`) and registered in
+   `app.json` `plugins`.
+2. ✅ `src/utils/monitoring/sentry.ts` — `initSentry()` guarded by
+   `EXPO_PUBLIC_SENTRY_DSN` (no-op without it), plus `captureError` and
+   `addBreadcrumb` helpers; `initSentry()` runs at the top of `App`.
+3. ✅ `ErrorBoundary.componentDidCatch` reports to Sentry via `captureError`
+   with the component stack attached.
+4. ✅ Retries leave breadcrumbs: `withRetry` calls `addBreadcrumb` (category
+   `network`, attempt + delay + error code) before each backoff.
+5. ⏳ Performance spans: wrap slow ops with `Sentry.startSpan` once a DSN is live.
+6. ⏳ Source maps: `eas build` with `sentry: { url, authToken, org, project }`
+   in the Expo config.
 
-3. Hook the existing `ErrorBoundary` `onError` prop → `Sentry.captureException(error)`.
-4. Add breadcrumbs: `Sentry.addBreadcrumb({ category: 'firestore', message })` in
-   `withRetry`'s `onRetry` and in the service layer on uploads/creates.
-5. Performance: wrap slow ops with `Sentry.startSpan` (upload, first listing load).
-6. Upload source maps: `eas build` with `sentry: { url, authToken, org, project }`
-   in `app.json`.
+**To enable:** set `EXPO_PUBLIC_SENTRY_DSN` in `.env` (Sentry project DSN).
 
 ### 3.2 Performance metrics
 
@@ -143,23 +141,16 @@ enforcement; rely on client caching (Phase 1) to cut read volume.
 
 ### 4.3 CI/CD pipeline
 
-Create `.github/workflows/ci.yml`:
+**Status: CI done — `.github/workflows/ci.yml` runs on push/PR:**
 
-```yaml
-name: CI
-on: [push, pull_request]
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm }
-      - run: npm ci --legacy-peer-deps
-      - run: npx tsc --noEmit
-      - run: npm run lint
-      - run: npx expo export --platform web   # verifies the bundle builds
-```
+- `npm ci --legacy-peer-deps`
+- `npx tsc --noEmit`
+- `npx expo export --platform web` (verifies the bundle builds)
+
+> Lint step intentionally commented out until ESLint is configured (the repo
+> has no ESLint config/package yet — see the commented step in `ci.yml`).
+
+Deployment (add `firebase.json` hosting section + `deploy.yml`):
 
 Deployment (add `firebase.json` hosting section + `deploy.yml`):
 1. `npx expo export --platform web` → `dist/`

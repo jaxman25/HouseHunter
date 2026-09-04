@@ -6,6 +6,7 @@ import { AuthProvider } from './src/context/AuthContext';
 import { ThemeProvider } from './src/context/ThemeContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import ErrorBoundary from './src/utils/errors/ErrorBoundary';
+import { initSentry } from './src/utils/monitoring/sentry';
 
 LogBox.ignoreLogs([
   'Non-serializable values were found in the navigation state',
@@ -13,6 +14,8 @@ LogBox.ignoreLogs([
 ]);
 
 export default function App() {
+  initSentry();
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>

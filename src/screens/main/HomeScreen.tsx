@@ -8,7 +8,9 @@ import {
   StyleSheet,
   RefreshControl,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
+import { DocumentSnapshot } from 'firebase/firestore';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -50,27 +52,48 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [recentLastDoc, setRecentLastDoc] = useState<DocumentSnapshot | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const recentFilter = useCallback<() => PropertyFilter>(
+    () =>
+      selectedCategory
+        ? { propertyType: [selectedCategory as any], sortBy: 'newest' }
+        : { sortBy: 'newest' },
+    [selectedCategory]
+  );
 
   const loadProperties = useCallback(async () => {
     try {
       const [featured, recent] = await Promise.all([
         getProperties({ sortBy: 'popular', status: 'active' }, 10),
-        getProperties(
-          selectedCategory
-            ? { propertyType: [selectedCategory as any], sortBy: 'newest' }
-            : { sortBy: 'newest' },
-          10
-        ),
+        getProperties(recentFilter(), 10),
       ]);
       setFeaturedProperties(featured.properties);
       setRecentProperties(recent.properties);
+      setRecentLastDoc(recent.lastDoc);
     } catch (error) {
       console.error('Error loading properties:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [selectedCategory]);
+  }, [recentFilter]);
+
+  // "Load More" for the New Listings section, using the pagination cursor.
+  const loadMoreRecent = useCallback(async () => {
+    if (loadingMore || !recentLastDoc) return;
+    setLoadingMore(true);
+    try {
+      const result = await getProperties(recentFilter(), 10, recentLastDoc);
+      setRecentProperties((prev) => [...prev, ...result.properties]);
+      setRecentLastDoc(result.lastDoc);
+    } catch (error) {
+      console.error('Error loading more properties:', error);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, recentLastDoc, recentFilter]);
 
   useEffect(() => {
     loadProperties();
@@ -366,6 +389,42 @@ export default function HomeScreen() {
             ))
           )}
         </View>
+
+        {/* Load More (New Listings) */}
+        {!loading && recentLastDoc && (
+          <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.md }}>
+            <TouchableOpacity
+              style={[
+                styles.loadMoreBtn,
+                {
+                  backgroundColor: colors.primaryLight,
+                  borderRadius: radius.round,
+                },
+              ]}
+              onPress={loadMoreRecent}
+              activeOpacity={0.8}
+              disabled={loadingMore}
+            >
+              {loadingMore ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <>
+                  <MaterialCommunityIcons name="chevron-down" size={18} color={colors.primary} />
+                  <Text
+                    style={{
+                      color: colors.primary,
+                      fontSize: fontSize.md,
+                      fontWeight: '700',
+                      marginLeft: 4,
+                    }}
+                  >
+                    Load More
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -434,6 +493,12 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontWeight: '700',
+  },
+  loadMoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
   },
   featuredCard: {
     overflow: 'hidden',

@@ -13,6 +13,7 @@
 
 import React, { Component, ReactNode } from 'react';
 import { ErrorScreen } from './fallbacks';
+import { captureError, addBreadcrumb } from '../monitoring/sentry';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -38,8 +39,17 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo): void {
-    // Development logging; swap for Sentry in production (see Phase 3 plan).
+    // Development logging + Sentry capture (no-op without a configured DSN).
     console.error('[ErrorBoundary] Uncaught error:', error, info);
+    addBreadcrumb({
+      category: 'error-boundary',
+      message: 'Error boundary caught a render/lifecycle error',
+      level: 'error',
+      data: { componentStack: info.componentStack },
+    });
+    captureError(error, {
+      extra: { componentStack: info.componentStack },
+    });
     this.props.onError?.(error, info);
   }
 

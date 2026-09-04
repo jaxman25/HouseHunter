@@ -53,7 +53,8 @@
           "color": "#1B6EF3"
         }
       ],
-      "expo-font"
+      "expo-font",
+      "@sentry/react-native"
     ],
     "extra": {
       "eas": {

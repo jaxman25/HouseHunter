@@ -11,6 +11,7 @@
  */
 
 import { TimeoutError } from './timeout';
+import { addBreadcrumb } from '../monitoring/sentry';
 
 export interface RetryOptions {
   /** Total number of attempts including the first (default 4 → 3 retries). */
@@ -108,6 +109,17 @@ export async function withRetry<T>(
       const variance = base * jitter;
       const delayMs = Math.max(0, base + (Math.random() * 2 - 1) * variance);
       onRetry?.(attempt, delayMs, error);
+      // Leave a breadcrumb trail for Sentry (no-op when monitoring is off).
+      addBreadcrumb({
+        category: 'network',
+        message: `Retrying operation after failure (attempt ${attempt}/${maxAttempts})`,
+        level: 'warning',
+        data: {
+          delayMs: Math.round(delayMs),
+          error: error instanceof Error ? error.message : String(error),
+          code: (error as { code?: unknown } | null)?.code ?? undefined,
+        },
+      });
       await sleep(delayMs);
     }
   }

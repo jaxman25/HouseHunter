@@ -10,6 +10,7 @@ export * from './network';
 export * from './cache';
 export * from './errors';
 export * from './performance';
+export * from './monitoring';
 
 export * from './constants';
 export * from './helpers';
