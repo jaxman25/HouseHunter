@@ -186,6 +186,8 @@ gsutil cors set cors.json gs://YOUR-PROJECT.firebasestorage.app
 | `npx expo start --clear` | Start with a cleared Metro cache |
 | `npx tsc --noEmit` | Type-check the project |
 | `npm run lint` | Run ESLint |
+| `npm run build:web` | Export the web bundle to `dist/` |
+| `npm run check:indexes` | Verify Firestore indexes cover all queries |
 
 > **Installing dependencies:** always use `npm install --legacy-peer-deps` — the project's React Native / React peer versions require it.
 
@@ -201,6 +203,8 @@ HouseHunter/
 ├── firestore.rules              # Firestore security rules
 ├── firestore.indexes.json       # Required composite indexes
 ├── cors.json                    # Storage CORS rules for web uploads
+├── public/                      # PWA assets (manifest, icon, service worker)
+├── scripts/                     # check-indexes.js (CI index coverage)
 └── src/
     ├── config/
     │   ├── firebase.ts          # Firebase init (reads .env)

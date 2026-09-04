@@ -206,40 +206,51 @@ the previous build.
 
 ### 5.1 Database indexing
 
+**Status: done.**
+
 - ✅ `firestore.indexes.json` defines every composite index the app queries
   (`status+createdAt`, `listingType+status+price`, `userId+createdAt`,
   `participants+updatedAt`, etc.). Deploy with
   `npx firebase-tools deploy --only firestore:indexes`.
-- Add a CI script that fails the build if a new `orderBy`/range query is added
-  without a matching entry in `firestore.indexes.json`.
+- ✅ CI coverage check: `scripts/check-indexes.js` (wired into `ci.yml` and
+  `npm run check:indexes`) fails the build if a required index is missing from
+  `firestore.indexes.json`. **Keep the REQUIRED list in the script in sync when
+  adding queries.**
 
 ### 5.2 Caching strategy
+
+**Status: done except image-CDN migration.**
 
 - ✅ `firebase.json` hosting headers: immutable `max-age=31536000` for hashed
   js/css/images/fonts, `no-cache` for `index.html` (CDN served by Firebase
   Hosting automatically).
-- ⏳ Add a service worker for web (PWA): `expo start` web + `workbox` (or Expo's
-  web service worker support) to cache images and shell assets.
-- ⏳ Image CDN: migrate property photos to a CDN-backed URL (Firebase Storage +
-  `firebasestorage.googleapis.com` is already CDN-backed).
+- ✅ PWA offline support: `public/manifest.json`, `public/icon.svg`, and a
+  conservative `public/sw.js` (network-first navigations so deploys aren't
+  stuck, cache-first Firebase Storage images, stale-while-revalidate hashed
+  assets), registered from the `public/index.html` template. Files are copied
+  into `dist/` by `npx expo export`.
+- ⏳ Image CDN: property photos already live on `firebasestorage.googleapis.com`
+  (CDN-backed); nothing to migrate unless a custom domain is added.
 
 ### 5.3 Backup & recovery
 
-Automated Firestore backups with Cloud Scheduler + Storage export:
+**Status: runbook done — automation is ready to deploy (needs GCP access).**
+
+- ✅ `docs/DISASTER_RECOVERY.md`: RPO/RTO targets, daily backup architecture
+  (Cloud Scheduler → Pub/Sub → Cloud Function calling the Firestore
+  `exportDocuments` REST API), GCS retention lifecycle, full restore runbook
+  with verification checklists, partial-restore guidance, and quarterly drill
+  ownership.
+- ⏳ Deploy the exporter + scheduler in GCP (commands are in the doc) and run
+  the first restore drill.
 
 ```bash
-# One-time export
-gcloud firestore export gs://<project>-backups/firestore/$(date +%F)
+# One-time manual export
+gcloud firestore export gs://househunter-backups/firestore/$(date +%F)
 
-# Scheduled (Cloud Scheduler → Cloud Run/PubSub task that runs the export)
 # Restore
-gcloud firestore import gs://<project>-backups/firestore/<export-timestamp>
+gcloud firestore import gs://househunter-backups/firestore/<export-timestamp>
 ```
-
-Document in `docs/DISASTER_RECOVERY.md`:
-- RPO: daily export; RTO: < 1 hour (import is minutes for this data size).
-- Restore runbook: import to a scratch project first, verify, then point app to it.
-- Test the restore quarterly.
 
 ---
 

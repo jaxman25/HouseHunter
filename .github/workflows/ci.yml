@@ -25,6 +25,9 @@ jobs:
         # This project's React Native / React peer versions require legacy deps.
         run: npm ci --legacy-peer-deps
 
+      - name: Check Firestore index coverage
+        run: node scripts/check-indexes.js
+
       - name: Typecheck
         run: npx tsc --noEmit
 

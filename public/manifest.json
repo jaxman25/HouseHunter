@@ -1,0 +1,19 @@
+{
+  "name": "House Hunter",
+  "short_name": "HouseHunter",
+  "description": "Browse, search, and list real estate properties with real-time chat.",
+  "start_url": ".",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F5F7FA",
+  "theme_color": "#1B6EF3",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
