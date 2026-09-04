@@ -21,6 +21,7 @@ import Button from '../../components/common/Button';
 import LoadingOverlay from '../../components/common/LoadingOverlay';
 import { deleteAccountData } from '../../services/accountService';
 import { deleteAuthAccount } from '../../services/authService';
+import { sendAccountDeletionConfirmationEmail } from '../../services/emailService';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -64,6 +65,14 @@ export default function DeleteAccountScreen() {
     try {
       // Data first (needs the auth token), auth account last.
       await deleteAccountData(user.uid);
+      // Best-effort confirmation email — sent while the auth token still
+      // validates. If the Cloud Function isn't deployed this fails silently
+      // and deletion still completes.
+      try {
+        await sendAccountDeletionConfirmationEmail();
+      } catch (error) {
+        console.warn('Deletion confirmation email not sent:', error);
+      }
       await deleteAuthAccount(isEmailAccount ? password : undefined);
       // Auth state change unmounts the signed-in tree automatically.
       navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });

@@ -62,13 +62,39 @@ be required — confirm before deciding.
 
 Channels available today:
 
-1. **In-app notice** — highest priority for active users. Implement via a
-   Remote Config boolean + text field rendered as a top banner in the app
-   (pattern: extend `CookieConsentBanner` into a generic notice banner). No
-   deploy needed to show it.
-2. **Email** — user emails are in `users/{uid}.email`. Export the affected
-   `uid`s, look up emails, and send through a transactional email provider
-   (add one before you need it). See template below.
+1. **In-app notice** — highest priority for active users. Implemented:
+   `src/components/common/NoticeBanner.tsx` renders a dismissible top banner
+   driven by the Firestore doc `config/app_notice`. Publishing is a single
+   console write (no app release, no deploy):
+
+   ```
+   config/app_notice = {
+     active: true,
+     title: "Security notice",   // optional
+     body: "…",                   // shown to every user
+     version: 2,                  // bump to force re-display after dismissal
+     dismissible: true,
+   }
+   ```
+
+   Rules give it public read / console-write (see `firestore.rules` `/config`),
+   so it reaches signed-out users on the login screen too.
+2. **Email** — user emails are in `users/{uid}.email`. Implemented: Firebase
+   Cloud Functions (`functions/`) send through Resend. To email affected
+   users, write a breach-broadcast doc (see `functions/README.md`):
+
+   ```
+   admin/breach_broadcasts/{id} = {
+     status: "pending",
+     subject: "…",
+     body: "…",                 // template below
+     recipientUids: ["uid1", …], // omit to email every user
+   }
+   ```
+
+   The trigger emails each recipient, then records `sent`/`partial`/`failed`
+   with counts back on the doc. Deploy once: `firebase deploy --only functions`
+   (requires the Resend env vars in `functions/.env.example`).
 3. **App-store / web notice** — update the app description or site with a
    notice for users who do not open the app.
 
@@ -92,7 +118,16 @@ Rules for accurate notices: do not speculate; if the full picture is unknown,
 notify with what is known and follow up; never pay or acknowledge extortion;
 coordinate with law enforcement before publishing if they ask.
 
-## 6. Owners
+## 6. Operator alerting (before user notification)
+
+The same email channel pages the on-call owner first. Writing a doc to
+`admin/security_alerts/{id}` emails `ADMIN_ALERT_EMAILS` (or the doc's
+`recipientEmails`) with severity/title/body — use it to notify the team the
+moment a breach is suspected, before deciding whether users must be told.
+(Sentry remains the primary automated detector; this is the human paging
+channel and a backup if Sentry is down.)
+
+## 7. Owners
 
 - Detection owner: person on call per `docs/INCIDENT_RESPONSE.md` §4.
 - Notification approver (named before an incident): repository maintainer.
@@ -100,7 +135,7 @@ coordinate with law enforcement before publishing if they ask.
   - On-call / detection: ______
   - Notification approver: ______
 
-## 7. Practice
+## 8. Practice
 
 Rehearse during the quarterly restore drill: simulate a leaked export, run
 the checklist, draft the user email, and time it against the 72 h clock.

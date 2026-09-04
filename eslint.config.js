@@ -15,6 +15,7 @@ module.exports = defineConfig([
       'ios/**',
       'public/**',
       'node_modules/**',
+      'functions/**',
     ],
   },
   {

@@ -1,0 +1,122 @@
+# House Hunter — Cloud Functions (email channel)
+
+Transactional email for the workflows documented in `docs/BREACH_NOTIFICATION.md`:
+
+1. **Security alerts** — writing a doc to `admin/security_alerts/{id}` emails the
+   on-call inbox (Sentry stays the primary real-time detector; this is the
+   paging/email channel).
+2. **Breach broadcasts** — writing a doc to `admin/breach_broadcasts/{id}`
+   emails every affected user (or an explicit recipient list).
+3. **Deletion confirmation** — the app calls `sendAccountDeletionConfirmation`
+   right before an account is deleted so the user gets a confirmation email.
+
+Emails are sent through [Resend](https://resend.com) using plain `fetch`
+(`functions/src/email.ts`).
+
+## Why Resend
+
+Chosen via the Gravity Index for a developer-friendly transactional email API
+with a generous free tier and no server management. Resend supports API-key
+auth and is designed to run from serverless functions.
+
+## Setup (one time)
+
+1. Create an account at https://resend.com and verify your sending domain.
+2. Create an API key: Resend → API Keys.
+3. Configure the functions environment variables (see `.env.example`):
+
+   | Variable                | Purpose                                        |
+   | ----------------------- | ---------------------------------------------- |
+   | `RESEND_API_KEY`        | Resend API key (required to send)              |
+   | `NOTIFICATION_FROM_EMAIL` | Verified sender, e.g. `House Hunter <no-reply@your-domain.com>` |
+   | `ADMIN_ALERT_EMAILS`    | Comma-separated on-call inbox(es) for alerts   |
+
+   Prefer Firebase Secrets for production:
+   ```bash
+   firebase functions:secrets:set RESEND_API_KEY
+   firebase functions:secrets:set NOTIFICATION_FROM_EMAIL
+   firebase functions:secrets:set ADMIN_ALERT_EMAILS
+   ```
+   (This package reads plain `process.env`, so `functions.config()` is not
+   used. Secrets set with `firebase functions:secrets:set` are injected as
+   environment variables automatically.)
+
+## Local development
+
+```bash
+cd functions
+npm install
+cp .env.example .env   # fill in real values
+npm run typecheck
+```
+
+To run locally with the emulator, load `.env` into the shell before
+`firebase emulators:start` (Functions v2 reads `process.env`).
+
+## Deploy
+
+```bash
+cd functions
+npm install
+cd ..
+firebase deploy --only functions
+```
+
+The root `firebase.json` already points at `functions/`. Runtime is Node 20
+(declared in `functions/package.json` — keep in sync with `firebase.json`).
+
+## Usage
+
+### Alert the on-call inbox (security event)
+
+From the Firebase console (or an Admin SDK script), create:
+
+```
+Collection: admin/security_alerts
+Doc id:     <anything unique>
+Fields:
+  severity:   "critical" | "high" | "medium" | "low"
+  title:      "Repeated failed sign-ins detected"
+  body:       "What happened, what was checked, current status."
+  source:     optional — where the alert originated
+  recipientEmails: optional — overrides ADMIN_ALERT_EMAILS
+```
+
+The function emails the recipients and sets `status: sent` (or `failed` with
+an `error` field).
+
+### Broadcast a breach notice to users
+
+```
+Collection: admin/breach_broadcasts
+Doc id:     <anything unique>
+Fields:
+  status:   "pending"
+  subject:  "Security notice regarding your House Hunter account"
+  body:     "Plain-text message for users (see the template in docs/BREACH_NOTIFICATION.md §5)."
+  recipientUids:    optional — email only these uids
+  recipientEmails:  optional — explicit email list (overrides uids)
+```
+
+Omitting both recipient lists emails **every user who has an email address**.
+The function writes back `status: sent | partial | failed`, `sentCount`,
+`failedCount`, and (up to 50) `failures`.
+
+Clients cannot write to `admin/**` (firestore.rules denies it) — only you,
+via the console or an Admin SDK, can trigger these.
+
+### Deletion confirmation email
+
+The app calls `sendAccountDeletionConfirmation` automatically during
+Delete Account (best-effort — if the function isn't deployed, deletion still
+proceeds). The recipient is the signed-in user's own email from the auth
+token, never caller-supplied, so the endpoint cannot be used to relay spam.
+
+## Notes
+
+- Firestore triggers retry on transient failure; config errors (e.g. missing
+  `RESEND_API_KEY`) are recorded on the doc as `status: failed` instead of
+  retrying forever.
+- Very large broadcasts run under bounded concurrency (10 parallel sends);
+  Cloud Functions' default timeout is enough for thousands of recipients. For
+  a large user base, chunk by `recipientUids`.

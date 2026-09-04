@@ -259,6 +259,28 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════════════════════
+    // CONFIG COLLECTION (public, read-only app configuration)
+    // ═══════════════════════════════════════════════════════════
+    // Public docs the app renders — currently `config/app_notice` (the
+    // in-app notice banner, see src/components/common/NoticeBanner.tsx).
+    // Writes happen only through the Firebase console / Admin SDK, never
+    // from clients, so rules deny all client writes.
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // ADMIN COLLECTION (server/operator only — Cloud Functions triggers)
+    // ═══════════════════════════════════════════════════════════
+    // Firestore triggers in functions/ watch `admin/security_alerts` and
+    // `admin/breach_broadcasts`. Clients must never write here; only the
+    // console / Admin SDK (which bypass rules) creates these docs.
+    match /admin/{document=**} {
+      allow read, write: if false;
+    }
+
+    // ═══════════════════════════════════════════════════════════
     // DEFAULT: DENY ALL OTHER PATHS
     // ═══════════════════════════════════════════════════════════
     match /{document=**} {

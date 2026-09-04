@@ -8,7 +8,7 @@ collects, update BOTH this document and the in-app policy text.
 
 | Data | Where it lives | Why it exists | Kept until |
 |---|---|---|---|
-| Email, display name, role, favorites | `users/{uid}` (Firestore) | Running the account | Account deletion |
+| Email, display name, role, favorites | `users/{uid}` (Firestore) | Running the account; transactional notices (deletion confirmation, security/breach emails) | Account deletion |
 | Optional phone, bio, photo | `users/{uid}` + Storage | Shown to people you message/deal with | Account deletion |
 | Terms acceptance (`termsAcceptedAt`, `termsAcceptedVersion`) | `users/{uid}` | Legal consent record | 30 days after account deletion (see below) |
 | Listings + photos | `properties/{id}` + Storage | Core product | Listing deletion / account deletion |
@@ -59,7 +59,11 @@ runs `accountService.deleteAccountData(uid)` then `authService.deleteAuthAccount
 4. Own chat messages, and removal of the user from conversation participant /
    unread metadata (shared conversation documents are kept for the other
    participant).
-5. User profile document, then the Firebase Auth account.
+5. A best-effort **deletion confirmation email** is sent to the user's own
+   address (via `emailService` → the `sendAccountDeletionConfirmation` Cloud
+   Function) while the session is still valid. If the function is not
+   deployed this is skipped — it never blocks deletion.
+6. User profile document, then the Firebase Auth account.
 
 Security rules permit a user to delete their own messages
 (`firestore.rules`), which is required for step 4. If any category fails the

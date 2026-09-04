@@ -7,6 +7,7 @@ import { ThemeProvider } from './src/context/ThemeContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import ErrorBoundary from './src/utils/errors/ErrorBoundary';
 import CookieConsentBanner from './src/components/common/CookieConsentBanner';
+import NoticeBanner from './src/components/common/NoticeBanner';
 import { initSentry } from './src/utils/monitoring/sentry';
 import { validateEnv } from './src/utils/env';
 
@@ -30,6 +31,8 @@ export default function App() {
             </AuthProvider>
             {/* Web-only cookie/local-storage consent banner. */}
             <CookieConsentBanner />
+            {/* Config-driven in-app notice banner (config/app_notice doc). */}
+            <NoticeBanner />
           </ErrorBoundary>
         </ThemeProvider>
       </SafeAreaProvider>

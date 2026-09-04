@@ -1,0 +1,22 @@
+{
+  "name": "househunter-functions",
+  "version": "1.0.0",
+  "private": true,
+  "description": "House Hunter transactional email channel (security alerts, breach broadcasts, account notices) via Resend.",
+  "main": "lib/index.js",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.0",
+    "firebase-functions": "^6.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.0"
+  }
+}

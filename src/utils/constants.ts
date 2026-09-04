@@ -5,6 +5,10 @@ export const TERMS_VERSION = '1';
 export const TERMS_EFFECTIVE_DATE = 'September 4, 2026';
 export const CONTACT_EMAIL = 'support@househunter.com';
 export const CONSENT_STORAGE_KEY = '@househunter/cookie_consent';
+/** AsyncStorage key holding the version of the app-notice the user dismissed. */
+export const NOTICE_DISMISSED_KEY = '@househunter/notice_dismissed_v';
+/** Firestore path of the app-notice banner config (rules: public read, console/Admin write). */
+export const APP_NOTICE_CONFIG_PATH = 'config/app_notice';
 export const DEFAULT_AVATAR = 'https://ui-avatars.com/api/?name=User&background=1B6EF3&color=fff&size=200';
 export const DEFAULT_PROPERTY_IMAGE = 'https://via.placeholder.com/400x300/E5E7EB/9CA3AF?text=No+Image';
 export const MAX_IMAGES_PER_PROPERTY = 10;
