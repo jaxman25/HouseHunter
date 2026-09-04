@@ -9,7 +9,13 @@
  *
  * For runtime (no-rebuild) flag changes in production, move these to
  * Firebase Remote Config — the API below is the seam to swap out.
+ *
+ * Env values are read statically (see `env` in utils/env.ts): dynamic
+ * `process.env[key]` lookups are not inlined by Metro and always read
+ * `undefined` in a production web bundle.
  */
+
+import { env } from './env';
 
 interface FlagDefinition {
   /** Env var read at build time (empty/missing → defaultValue). */
@@ -49,10 +55,7 @@ export function isFeatureEnabled(name: FeatureFlagName): boolean {
   const flag = FEATURE_FLAGS[name];
   if (!flag) return false;
 
-  // Env vars are statically declared on each flag above (FEATURE_FLAGS), so
-  // the dynamic lookup is against a fixed allowlist, not arbitrary input.
-  // eslint-disable-next-line expo/no-dynamic-env-var
-  const raw = process.env[flag.envVar];
+  const raw = env[flag.envVar];
   if (raw === undefined || raw.trim() === '') return flag.defaultValue;
   return ['1', 'true', 'yes', 'on'].includes(raw.trim().toLowerCase());
 }
