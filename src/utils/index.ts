@@ -13,6 +13,7 @@ export * from './performance';
 export * from './monitoring';
 
 export * from './constants';
+export * from './env';
 export * from './helpers';
 export * from './formatters';
 export * from './validators';

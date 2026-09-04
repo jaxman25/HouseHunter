@@ -77,8 +77,8 @@ npm install --legacy-peer-deps
 cp .env.example .env
 
 # 3. Deploy the Firestore indexes (⚠️ required — see below)
-npx firebase login
-npx firebase deploy --only firestore:indexes
+npx firebase-tools login
+npx firebase-tools deploy --only firestore:indexes
 
 # 4. Start the dev server
 npx expo start
@@ -138,8 +138,8 @@ The app queries Firestore with combined `where` + `orderBy` clauses (sorted list
 - Deploy them to your Firebase project **once**:
 
 ```bash
-npx firebase login
-npx firebase deploy --only firestore:indexes
+npx firebase-tools login
+npx firebase-tools deploy --only firestore:indexes
 ```
 
 **Without this step you'll see errors like `FirebaseError: The query requires an index` in the console, and property lists / chat will fail to load.** Each such error also prints a one-click link to create the individual index in the Firebase console.
@@ -149,7 +149,7 @@ npx firebase deploy --only firestore:indexes
 For development, the repo ships permissive rules (`firestore.rules`). Deploy them:
 
 ```bash
-npx firebase deploy --only firestore:rules
+npx firebase-tools deploy --only firestore:rules
 ```
 
 > ⚠️ **Production:** tighten these rules so users can only read/write their own data.
@@ -223,7 +223,7 @@ HouseHunter/
 ## ❓ Troubleshooting
 
 **`FirebaseError: The query requires an index`**
-You haven't deployed the composite indexes yet. Run `npx firebase deploy --only firestore:indexes` (or click the index link in the error message and hit **Create index**). See [Firebase Setup → Step 5](#5-deploy-firestore-indexes--dont-skip).
+You haven't deployed the composite indexes yet. Run `npx firebase-tools deploy --only firestore:indexes` (or click the index link in the error message and hit **Create index**). See [Firebase Setup → Step 5](#5-deploy-firestore-indexes--dont-skip).
 
 **`npm install` fails with peer dependency errors**
 ```bash

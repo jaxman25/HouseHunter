@@ -59,6 +59,73 @@ service cloud.firestore {
       request.resource.data.images is list;
     }
 
+    function propertyEditFieldsAreValid() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'title', 'description', 'price', 'listingType', 'propertyType',
+        'status', 'address', 'city', 'state', 'zipCode', 'country',
+        'latitude', 'longitude', 'bedrooms', 'bathrooms', 'area',
+        'areaUnit', 'yearBuilt', 'images', 'features', 'amenities',
+        'views', 'inquiries', 'updatedAt'
+      ]);
+    }
+
+    // ─── Rate limiting ─────────────────────────────────────────
+    // Per-user write budget: max WRITE_LIMIT writes per wall-clock minute.
+    // Every rate-limited write MUST be accompanied, in the same batch, by a
+    // write to counters/{uid} shaped { minute: <epochMinute>, writes: <int> }.
+    // The client bumps it with merge + increment(1). See
+    // src/services/propertyService.ts (withWriteCount) for the client side.
+    function writeBudgetRef() {
+      return /databases/$(database)/documents/counters/$(request.auth.uid);
+    }
+
+    function currentMinute() {
+      // Integer division of epoch millis by 60000 yields the minute bucket.
+      return request.time.toMillis() / 60000;
+    }
+
+    // Enforces:
+    //  - the counter was written with the current minute bucket,
+    //  - the running count stays in [1, WRITE_LIMIT],
+    //  - same-minute writes increment the count by exactly 1, and
+    //  - a new minute bucket starts fresh (any rollover count <= limit is OK).
+    function withinWriteLimit() {
+      let bucket = currentMinute();
+      let after = getAfter(writeBudgetRef());
+      if (!after.exists() || after.data.minute != bucket) {
+        return false;
+      }
+      let count = after.data.writes;
+      if (count < 1 || count > 100) {
+        return false;
+      }
+      if (!exists(writeBudgetRef())) {
+        // First counter ever — must start at 1.
+        return count == 1;
+      }
+      let before = get(writeBudgetRef());
+      if (before.data.minute != bucket) {
+        // Rolled into a new minute — client rewrote the bucket.
+        return true;
+      }
+      // Same minute — must be a clean +1 (atomic increments serialize).
+      return count == before.data.writes + 1;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // COUNTERS COLLECTION (rate limiting bookkeeping)
+    // ═══════════════════════════════════════════════════════════
+    match /counters/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // HEALTH CHECK COLLECTION (empty; used to probe connectivity)
+    // ═══════════════════════════════════════════════════════════
+    match /healthcheck/{doc} {
+      allow read: if isAuthenticated();
+    }
+
     // ═══════════════════════════════════════════════════════════
     // USERS COLLECTION
     // ═══════════════════════════════════════════════════════════
@@ -92,22 +159,22 @@ service cloud.firestore {
       // Authenticated users can create properties for themselves
       allow create: if isAuthenticated() &&
         propertyDataIsValid() &&
-        request.resource.data.userId == request.auth.uid;
+        request.resource.data.userId == request.auth.uid &&
+        withinWriteLimit();
 
-      // Only the property owner can update
-      allow update: if isPropertyOwner(propertyId) && (
-        // Allow updating listing-specific fields
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'title', 'description', 'price', 'listingType', 'propertyType',
-          'status', 'address', 'city', 'state', 'zipCode', 'country',
-          'latitude', 'longitude', 'bedrooms', 'bathrooms', 'area',
-          'areaUnit', 'yearBuilt', 'images', 'features', 'amenities',
-          'views', 'inquiries', 'updatedAt'
-        ])
+      // Owner can edit listing fields; ANY authenticated user may bump views.
+      // (Rate limiting applies to owner edits but not passive view bumps.)
+      allow update: if isAuthenticated() && (
+        (isPropertyOwner(propertyId) &&
+          propertyEditFieldsAreValid() &&
+          withinWriteLimit())
+        ||
+        // Passive view counting on detail views.
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views'])
       );
 
       // Only the property owner can delete
-      allow delete: if isPropertyOwner(propertyId);
+      allow delete: if isPropertyOwner(propertyId) && withinWriteLimit();
 
       // ─── Messages Subcollection (under properties for direct messaging) ───
       match /messages/{messageId} {

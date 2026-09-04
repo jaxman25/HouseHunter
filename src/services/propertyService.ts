@@ -1,8 +1,7 @@
 import {
   collection,
-  addDoc,
-  updateDoc,
-  deleteDoc,
+  writeBatch,
+  WriteBatch,
   doc,
   getDoc,
   getDocs,
@@ -13,6 +12,7 @@ import {
   startAfter,
   increment,
   serverTimestamp,
+  updateDoc,
   DocumentSnapshot,
   QueryConstraint,
 } from 'firebase/firestore';
@@ -41,43 +41,72 @@ import {
   invalidatePropertyDetail,
 } from '../utils/cache/cacheInvalidation';
 
+/** Collection storing per-user write budgets (see firestore.rules). */
+const COUNTERS_COLLECTION = 'counters';
+
+/** Current wall-clock minute bucket (epoch millis / 60000). */
+function currentMinute(): number {
+  return Math.floor(Date.now() / 60_000);
+}
+
+/**
+ * Attach a rate-limit counter bump to `batch` for `uid`. Firestore rules
+ * (`withinWriteLimit()` in firestore.rules) require every property write to be
+ * accompanied, in the same batch, by a `counters/{uid}` write shaped
+ * `{ minute: <epochMinute>, writes: increment(1) }`. Call before commit.
+ */
+function withWriteCount(batch: WriteBatch, uid: string): void {
+  batch.set(
+    doc(db, COUNTERS_COLLECTION, uid),
+    { minute: currentMinute(), writes: increment(1) },
+    { merge: true }
+  );
+}
+
 export async function createProperty(
   property: Omit<Property, 'id' | 'views' | 'inquiries' | 'createdAt' | 'updatedAt'>
 ): Promise<string> {
-  const docRef = await firestoreCircuitBreaker.execute(() =>
-    withRetry(() =>
-      withTimeout(
-        addDoc(collection(db, PROPERTIES_COLLECTION), {
-          ...property,
-          views: 0,
-          inquiries: 0,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        }),
-        DEFAULT_TIMEOUT_MS
-      )
-    )
+  const propRef = doc(collection(db, PROPERTIES_COLLECTION));
+  const batch = writeBatch(db);
+  batch.set(propRef, {
+    ...property,
+    views: 0,
+    inquiries: 0,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  withWriteCount(batch, property.userId);
+
+  await firestoreCircuitBreaker.execute(() =>
+    withRetry(() => withTimeout(batch.commit(), DEFAULT_TIMEOUT_MS))
   );
 
   // Mutations invalidate cached listing pages so the next read is fresh.
   await invalidatePropertiesCache();
-  return docRef.id;
+  return propRef.id;
 }
 
 export async function updateProperty(
   id: string,
   data: Partial<Property>
 ): Promise<void> {
+  const docRef = doc(db, PROPERTIES_COLLECTION, id);
+
+  // The write budget is charged to the property owner, so read the doc first.
+  const existing = await firestoreCircuitBreaker.execute(() =>
+    withRetry(() => withTimeout(getDoc(docRef), DEFAULT_TIMEOUT_MS))
+  );
+  const ownerId = existing.exists() ? existing.data().userId : data.userId;
+  if (!ownerId) {
+    throw new Error('Cannot update property: missing owner');
+  }
+
+  const batch = writeBatch(db);
+  batch.update(docRef, { ...data, updatedAt: serverTimestamp() });
+  withWriteCount(batch, ownerId);
+
   await firestoreCircuitBreaker.execute(() =>
-    withRetry(() =>
-      withTimeout(
-        updateDoc(doc(db, PROPERTIES_COLLECTION, id), {
-          ...data,
-          updatedAt: serverTimestamp(),
-        }),
-        DEFAULT_TIMEOUT_MS
-      )
-    )
+    withRetry(() => withTimeout(batch.commit(), DEFAULT_TIMEOUT_MS))
   );
 
   await invalidatePropertiesCache();
@@ -85,13 +114,14 @@ export async function updateProperty(
 }
 
 export async function deleteProperty(id: string): Promise<void> {
+  const docRef = doc(db, PROPERTIES_COLLECTION, id);
+
   // Delete associated images from storage
   const propDoc = await firestoreCircuitBreaker.execute(() =>
-    withRetry(() =>
-      withTimeout(getDoc(doc(db, PROPERTIES_COLLECTION, id)), DEFAULT_TIMEOUT_MS)
-    )
+    withRetry(() => withTimeout(getDoc(docRef), DEFAULT_TIMEOUT_MS))
   );
   if (propDoc.exists()) {
+    const ownerId = propDoc.data().userId;
     const images = propDoc.data().images || [];
     for (const imageUrl of images) {
       try {
@@ -101,13 +131,16 @@ export async function deleteProperty(id: string): Promise<void> {
         // Image might not be in storage (external URLs)
       }
     }
-  }
 
-  await firestoreCircuitBreaker.execute(() =>
-    withRetry(() =>
-      withTimeout(deleteDoc(doc(db, PROPERTIES_COLLECTION, id)), DEFAULT_TIMEOUT_MS)
-    )
-  );
+    const batch = writeBatch(db);
+    batch.delete(docRef);
+    withWriteCount(batch, ownerId);
+    await firestoreCircuitBreaker.execute(() =>
+      withRetry(() => withTimeout(batch.commit(), DEFAULT_TIMEOUT_MS))
+    );
+  }
+  // Document already gone — nothing to delete (and the rate limiter requires
+  // a counter bump alongside a delete, so don't fire an empty one).
 
   await invalidatePropertiesCache();
   await invalidatePropertyDetail(id);

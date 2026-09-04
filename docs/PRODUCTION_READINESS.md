@@ -118,54 +118,74 @@ local tracker when Sentry is absent.
 
 ### 4.1 Rate limiting (Firestore rules)
 
-Firestore rules can't do sliding-window rate limits; use a **burst budget**
-pattern in `firestore.rules`:
+**Status: done for property writes (create/update/delete) — the app's main write
+surface. Reads can't be counted in rules.**
 
-- Add a `counters/{uid}` doc with `writes: timestamp` array.
-- Rule: allow `create`/`update` only if the write count in the last 60s is
-  `< 100` (writes) / `< 1000` (reads), else `deny`.
-- Reads are harder to rate-limit in rules — combine with **Firebase App Check**
-  (enforce real clients only) and `firestore.rules` `getAfter` checks.
+Firestore rules can't do sliding-window rate limits, so `firestore.rules` now
+enforces a **per-user minute budget** (burst-window pattern, 100 writes/min):
 
-Practical scope for this app: enforce write limits (100/min) in rules + App Check
-enforcement; rely on client caching (Phase 1) to cut read volume.
+- `counters/{uid}` holds `{ minute: <epochMinute>, writes: <count> }`.
+- `withinWriteLimit()` (rules helper) compares the counter **after** a batched
+  write against its state **before**: same-minute writes must increment by
+  exactly 1; a new minute bucket restarts the budget; counts over 100 deny.
+- Every property create/update/delete **must** include the counter bump in the
+  same `writeBatch` (client side: `withWriteCount()` in `propertyService.ts`,
+  atomic `increment(1)` with `merge` — no extra reads, no client clocks).
+- Reads can't be rate-limited in rules — rely on Phase 1 caching for read
+  volume and add **Firebase App Check** before public launch.
+
+> ⚠️ Rules and client must be deployed together: old clients that don't bump the
+> counter will be denied property writes once these rules are live. Chat,
+> notifications, and user-profile writes are not rate-limited yet — reuse
+> `withWriteCount()` + `withinWriteLimit()` to extend.
 
 ### 4.2 Health checks & degraded mode
 
-- `src/utils/network/healthCheck.ts` (Phase 1) already pings Firestore with a
-  bounded timeout.
-- Add a "Service status" row in `SettingsScreen` calling `checkFirebaseHealth()`.
-- Degraded mode: when `firestoreCircuitBreaker.currentState === 'open'`, show a
-  banner ("You're offline — showing saved listings") and serve from the Phase 1
-  cache instead of the network.
+**Status: done.**
+
+- ✅ `src/utils/network/healthCheck.ts` (Phase 1) pings Firestore with a bounded
+  timeout; `firestore.rules` now allows authenticated reads of the
+  `healthcheck` collection so the probe isn't denied.
+- ✅ Settings → **System → Firebase Status** row runs `checkFirebaseHealth()` on
+  mount and on tap, showing latency when healthy or the error (plus circuit
+  state) when not.
+- ⏳ Full degraded mode (offline banner + serve from Phase 1 cache app-wide)
+  still to build when offline support lands (see 2.3).
 
 ### 4.3 CI/CD pipeline
 
-**Status: CI done — `.github/workflows/ci.yml` runs on push/PR:**
+**Status: CI + deploy workflows done.**
 
-- `npm ci --legacy-peer-deps`
-- `npx tsc --noEmit`
-- `npx expo export --platform web` (verifies the bundle builds)
+- ✅ `.github/workflows/ci.yml` — on push/PR: `npm ci --legacy-peer-deps` →
+  `npx tsc --noEmit` → `npx expo export --platform web`.
+- ✅ `.github/workflows/deploy.yml` — on push to `main`: export + `firebase-tools
+  deploy --only hosting` (needs `FIREBASE_PROJECT_ID` + `FIREBASE_TOKEN`
+  secrets from `npx firebase-tools login:ci`).
+- ✅ `firebase.json` hosting block: `dist/` public dir, SPA rewrite, immutable
+  CDN caching for hashed assets, `no-cache` for `index.html`.
 
-> Lint step intentionally commented out until ESLint is configured (the repo
-> has no ESLint config/package yet — see the commented step in `ci.yml`).
+> Lint step intentionally commented out until ESLint is configured (see
+> `ci.yml`). Use `npx firebase-tools deploy` (not `npx firebase deploy`) so the
+> CLI doesn't need a global install.
 
-Deployment (add `firebase.json` hosting section + `deploy.yml`):
+Env-specific builds (dev/staging/prod): duplicate `deploy.yml` per environment
+or parameterize `FIREBASE_PROJECT_ID` as a variable; EAS profiles go in
+`eas.json` when native releases start.
 
-Deployment (add `firebase.json` hosting section + `deploy.yml`):
-1. `npx expo export --platform web` → `dist/`
-2. `firebase deploy --only hosting` with env-specific Firebase projects
-   (`dev`/`staging`/`prod`) via `FIREBASE_PROJECT` matrix + secrets.
-3. Rollbacks: keep prior `dist` versions in Hosting and `firebase hosting:clone`
-   on failure; for EAS builds use `eas build:list` + re-run previous build.
+Rollbacks: Firebase Hosting keeps prior deployments — `firebase-tools
+hosting:clone <prev-version> <site>` reverts the web app; for EAS builds re-run
+the previous build.
 
 ### 4.4 Secret management
 
-- ✅ All keys already live in `.env` (`EXPO_PUBLIC_*`) — never commit real values
+**Status: mostly done.**
+
+- ✅ All keys live in `.env` (`EXPO_PUBLIC_*`) — never commit real values
   (`.gitignore` covers `.env`).
-- Add `src/utils/env.ts` `validateEnv()` called at startup: fail fast in
-  production when required `EXPO_PUBLIC_FIREBASE_*` vars are missing.
-- Sensitive runtime tokens → `expo-secure-store` (install `expo-secure-store`);
+- ✅ `src/utils/env.ts` `validateEnv()` runs at startup in `App`: warns in dev,
+  **throws in production** when required `EXPO_PUBLIC_FIREBASE_*` vars are
+  missing or still placeholders.
+- ⏳ Sensitive runtime tokens → `expo-secure-store` (install + native rebuild);
   never store auth tokens in plain AsyncStorage.
 
 ### 4.5 CORS & security
@@ -189,18 +209,18 @@ Deployment (add `firebase.json` hosting section + `deploy.yml`):
 - ✅ `firestore.indexes.json` defines every composite index the app queries
   (`status+createdAt`, `listingType+status+price`, `userId+createdAt`,
   `participants+updatedAt`, etc.). Deploy with
-  `npx firebase deploy --only firestore:indexes`.
+  `npx firebase-tools deploy --only firestore:indexes`.
 - Add a CI script that fails the build if a new `orderBy`/range query is added
   without a matching entry in `firestore.indexes.json`.
 
 ### 5.2 Caching strategy
 
-- Firebase Hosting serves static assets over a global CDN by default; set
-  `Cache-Control: public, max-age=31536000, immutable` for hashed assets and
-  `no-cache` for `index.html` via `firebase.json` `headers`.
-- Add a service worker for web (PWA): `expo start` web + `workbox` (or Expo's
+- ✅ `firebase.json` hosting headers: immutable `max-age=31536000` for hashed
+  js/css/images/fonts, `no-cache` for `index.html` (CDN served by Firebase
+  Hosting automatically).
+- ⏳ Add a service worker for web (PWA): `expo start` web + `workbox` (or Expo's
   web service worker support) to cache images and shell assets.
-- Image CDN: migrate property photos to a CDN-backed URL (Firebase Storage +
+- ⏳ Image CDN: migrate property photos to a CDN-backed URL (Firebase Storage +
   `firebasestorage.googleapis.com` is already CDN-backed).
 
 ### 5.3 Backup & recovery

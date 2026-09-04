@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,8 @@ import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuthContext } from '../../context/AuthContext';
 import { RootStackParamList } from '../../types';
+import { checkFirebaseHealth, HealthStatus } from '../../utils/network/healthCheck';
+import { firestoreCircuitBreaker } from '../../utils/network/circuitBreaker';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -39,6 +41,19 @@ export default function SettingsScreen() {
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [messageNotifications, setMessageNotifications] = useState(true);
   const [showOnlineStatus, setShowOnlineStatus] = useState(true);
+  const [health, setHealth] = useState<HealthStatus | null>(null);
+  const [checkingHealth, setCheckingHealth] = useState(false);
+
+  const runHealthCheck = async () => {
+    setCheckingHealth(true);
+    const result = await checkFirebaseHealth();
+    setHealth(result);
+    setCheckingHealth(false);
+  };
+
+  useEffect(() => {
+    runHealthCheck();
+  }, []);
 
   const handleLogout = () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
@@ -152,6 +167,37 @@ export default function SettingsScreen() {
           subtitle: 'Rate us on the App Store',
           type: 'link' as const,
           onPress: () => Alert.alert('Thank you!', 'Rate us on the store'),
+        },
+      ],
+    },
+    {
+      title: 'System',
+      items: [
+        {
+          icon:
+            checkingHealth || !health
+              ? 'cloud-sync'
+              : health.healthy
+              ? 'cloud-check'
+              : 'cloud-alert',
+          label: 'Firebase Status',
+          subtitle: checkingHealth
+            ? 'Checking connection…'
+            : !health
+            ? 'Tap to check'
+            : health.healthy
+            ? `All systems operational · ${health.latencyMs}ms`
+            : firestoreCircuitBreaker.currentState === 'open'
+            ? 'Unreachable — circuit open, tap to retry'
+            : 'Unreachable, tap to retry',
+          type: 'action' as const,
+          onPress: runHealthCheck,
+          color:
+            checkingHealth || !health
+              ? colors.textSecondary
+              : health.healthy
+              ? colors.success
+              : colors.error,
         },
       ],
     },

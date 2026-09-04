@@ -1,0 +1,46 @@
+name: Deploy Web to Firebase Hosting
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'App.tsx'
+      - 'app.json'
+      - 'app.config.js'
+      - 'package.json'
+      - 'package-lock.json'
+
+jobs:
+  deploy:
+    name: Export & deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Requires two GitHub secrets (repo → Settings → Secrets and variables):
+    #   FIREBASE_PROJECT_ID — the Firebase project id, e.g. househunter-f3ff3
+    #   FIREBASE_TOKEN      — CI token from `npx firebase-tools login:ci`
+    # For env-specific deploys (staging/prod) duplicate this job with
+    # separate secrets, or parameterize FIREBASE_PROJECT_ID as a variable.
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Export web bundle
+        run: npx expo export --platform web
+
+      - name: Deploy to Firebase Hosting
+        run: npx --yes firebase-tools@latest deploy --only hosting \
+          --project "${{ secrets.FIREBASE_PROJECT_ID }}" \
+          --token "${{ secrets.FIREBASE_TOKEN }}"

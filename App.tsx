@@ -7,6 +7,7 @@ import { ThemeProvider } from './src/context/ThemeContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import ErrorBoundary from './src/utils/errors/ErrorBoundary';
 import { initSentry } from './src/utils/monitoring/sentry';
+import { validateEnv } from './src/utils/env';
 
 LogBox.ignoreLogs([
   'Non-serializable values were found in the navigation state',
@@ -14,6 +15,7 @@ LogBox.ignoreLogs([
 ]);
 
 export default function App() {
+  validateEnv();
   initSentry();
 
   return (
