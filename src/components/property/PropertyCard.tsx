@@ -1,11 +1,11 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import { Image } from 'expo-image';
 import PressableScale from '../common/PressableScale';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { Property } from '../../types';
-import { formatPrice, formatBedrooms, formatBathrooms, formatArea, getTimeAgo } from '../../utils/helpers';
+import { formatPrice, formatBedrooms, formatBathrooms, formatArea } from '../../utils/helpers';
 import Badge from '../common/Badge';
 
 interface PropertyCardProps {
@@ -13,7 +13,9 @@ interface PropertyCardProps {
   onPress: () => void;
   onFavorite?: () => void;
   isFavorite?: boolean;
-  variant?: 'vertical' | 'horizontal';
+  variant?: 'vertical' | 'horizontal' | 'grid';
+  /** Overrides the outer container (width/margins) for grid layouts. */
+  style?: StyleProp<ViewStyle>;
 }
 
 export default function PropertyCard({
@@ -22,8 +24,83 @@ export default function PropertyCard({
   onFavorite,
   isFavorite = false,
   variant = 'vertical',
+  style,
 }: PropertyCardProps) {
   const { colors, radius, fontSize, spacing, shadow } = useTheme();
+
+  if (variant === 'grid') {
+    return (
+      <PressableScale
+        style={[
+          styles.gridCard,
+          {
+            backgroundColor: colors.surface,
+            borderRadius: radius.lg,
+          },
+          shadow.sm,
+          style,
+        ]}
+        onPress={onPress}
+      >
+        <View>
+          <Image
+            source={{ uri: property.images?.[0] || 'https://via.placeholder.com/300x200' }}
+            style={[styles.gridImage, { borderRadius: radius.lg }]}
+          />
+          <View style={styles.imageOverlay}>
+            <Badge
+              label={property.listingType === 'sale' ? 'For Sale' : 'For Rent'}
+              variant={property.listingType === 'sale' ? 'primary' : 'secondary'}
+              size="sm"
+            />
+          </View>
+          {onFavorite && (
+            <TouchableOpacity
+              onPress={onFavorite}
+              style={[styles.heartButton, { backgroundColor: 'rgba(255,255,255,0.9)' }]}
+            >
+              <MaterialCommunityIcons
+                name={isFavorite ? 'heart' : 'heart-outline'}
+                size={16}
+                color={isFavorite ? colors.error : colors.gray500}
+              />
+            </TouchableOpacity>
+          )}
+        </View>
+        <View style={styles.gridContent}>
+          <Text style={[styles.gridPrice, { color: colors.primary, fontSize: fontSize.md }]}>
+            {formatPrice(property.price, property.listingType)}
+          </Text>
+          <Text
+            style={[styles.gridTitle, { color: colors.text, fontSize: fontSize.sm }]}
+            numberOfLines={1}
+          >
+            {property.title}
+          </Text>
+          <View style={styles.gridLocation}>
+            <MaterialCommunityIcons
+              name="map-marker-outline"
+              size={11}
+              color={colors.textSecondary}
+            />
+            <Text
+              style={[styles.gridLocationText, { color: colors.textSecondary, fontSize: fontSize.xs }]}
+              numberOfLines={1}
+            >
+              {property.city}, {property.state}
+            </Text>
+          </View>
+          <Text
+            style={[styles.gridStats, { color: colors.textSecondary, fontSize: fontSize.xs }]}
+            numberOfLines={1}
+          >
+            {formatBedrooms(property.bedrooms)} · {formatBathrooms(property.bathrooms)} ·{' '}
+            {formatArea(property.area, property.areaUnit)}
+          </Text>
+        </View>
+      </PressableScale>
+    );
+  }
 
   if (variant === 'horizontal') {
     return (
@@ -36,6 +113,7 @@ export default function PropertyCard({
             borderColor: colors.border,
           },
           shadow.md,
+          style,
         ]}
         onPress={onPress}
       >
@@ -101,6 +179,7 @@ export default function PropertyCard({
           borderRadius: radius.lg,
         },
         shadow.md,
+        style,
       ]}
       onPress={onPress}
     >
@@ -213,6 +292,38 @@ function FeatureItem({
 }
 
 const styles = StyleSheet.create({
+  // Grid (compact, multi-column) card
+  gridCard: {
+    overflow: 'hidden',
+  },
+  gridImage: {
+    width: '100%',
+    aspectRatio: 1.25,
+    backgroundColor: '#E5E7EB',
+  },
+  gridContent: {
+    padding: 10,
+  },
+  gridPrice: {
+    fontWeight: '700',
+  },
+  gridTitle: {
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  gridLocation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 3,
+    gap: 2,
+  },
+  gridLocationText: {
+    flex: 1,
+  },
+  gridStats: {
+    marginTop: 5,
+    fontWeight: '500',
+  },
   // Vertical card
   verticalCard: {
     marginBottom: 16,
@@ -244,19 +355,19 @@ const styles = StyleSheet.create({
   // Common
   imageOverlay: {
     position: 'absolute',
-    top: 12,
-    left: 12,
+    top: 8,
+    left: 8,
   },
   heartButton: {
     position: 'absolute',
-    top: 12,
-    right: 12,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    top: 8,
+    right: 8,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    boxShadow: '0px 1px 4px rgba(0,0,0,0.1)',
+    boxShadow: '0px 1px 4px rgba(0,0,0,0.15)',
   },
   priceRow: {
     flexDirection: 'row',

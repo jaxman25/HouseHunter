@@ -42,7 +42,7 @@ export default function SettingsScreen() {
   const [messageNotifications, setMessageNotifications] = useState(true);
   const [showOnlineStatus, setShowOnlineStatus] = useState(true);
   const [health, setHealth] = useState<HealthStatus | null>(null);
-  const [checkingHealth, setCheckingHealth] = useState(false);
+  const [checkingHealth, setCheckingHealth] = useState(true);
 
   const runHealthCheck = async () => {
     setCheckingHealth(true);
@@ -52,7 +52,11 @@ export default function SettingsScreen() {
   };
 
   useEffect(() => {
-    runHealthCheck();
+    // The initial state already reads "checking…", so the mount check defers
+    // its state updates instead of setting them synchronously in the effect.
+    checkFirebaseHealth()
+      .then(setHealth)
+      .finally(() => setCheckingHealth(false));
   }, []);
 
   const handleLogout = () => {
@@ -224,7 +228,13 @@ export default function SettingsScreen() {
   ];
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: colors.background },
+        { width: '100%', maxWidth: 720, alignSelf: 'center' },
+      ]}
+    >
       {/* Header */}
       <View
         style={[

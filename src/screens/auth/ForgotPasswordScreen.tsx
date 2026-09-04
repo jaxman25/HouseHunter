@@ -67,11 +67,11 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
             Check Your Email
           </Text>
           <Text style={[styles.message, { color: colors.textSecondary, fontSize: fontSize.md }]}>
-            We've sent a password reset link to{'\n'}
+            We&apos;ve sent a password reset link to{'\n'}
             <Text style={{ fontWeight: '600', color: colors.text }}>{email}</Text>
           </Text>
           <Text style={[styles.hint, { color: colors.textLight, fontSize: fontSize.sm }]}>
-            Didn't receive the email? Check your spam folder or try again.
+            Didn&apos;t receive the email? Check your spam folder or try again.
           </Text>
           <View style={{ marginTop: spacing.xxxl, width: '100%' }}>
             <Button
@@ -105,6 +105,7 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
         contentContainerStyle={[
           styles.scroll,
           { paddingTop: insets.top + 20, paddingHorizontal: spacing.xl },
+          { width: '100%', maxWidth: 520, alignSelf: 'center' },
         ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -126,7 +127,7 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
           Forgot Password?
         </Text>
         <Text style={[styles.message, { color: colors.textSecondary, fontSize: fontSize.md }]}>
-          No worries! Enter your email address and we'll send you a link to reset your password.
+          No worries! Enter your email address and we&apos;ll send you a link to reset your password.
         </Text>
 
         <View style={{ marginTop: spacing.xl }}>

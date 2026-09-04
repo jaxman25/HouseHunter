@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,6 @@ import {
   Share,
   Linking,
   Alert,
-  Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -36,11 +35,10 @@ import {
 } from '../../utils/helpers';
 import { formatCurrency, formatViews, formatNumber } from '../../utils/formatters';
 import { PROPERTY_FEATURES } from '../../config/theme';
+import { useResponsive } from '../../hooks/useResponsive';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'PropertyDetail'>;
 type Route = RouteProp<RootStackParamList, 'PropertyDetail'>;
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function PropertyDetailScreen() {
   const { colors, fontSize, spacing, radius, shadow } = useTheme();
@@ -48,16 +46,21 @@ export default function PropertyDetailScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
   const insets = useSafeAreaInsets();
+  const responsive = useResponsive();
+
+  // Cap the page on large screens so images/content don't stretch; phones
+  // keep the natural full width (maxWidth equals the window there).
+  const detailWidth = responsive.isDesktop ? 1000 : responsive.width;
+  // Gallery height scales with the column but stays touch-friendly on phones.
+  const galleryHeight = Math.round(
+    Math.min(Math.max(detailWidth * 0.42, 280), 460)
+  );
 
   const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
   const [contacting, setContacting] = useState(false);
 
-  useEffect(() => {
-    loadProperty();
-  }, [route.params.propertyId]);
-
-  const loadProperty = async () => {
+  const loadProperty = useCallback(async () => {
     try {
       const data = await getProperty(route.params.propertyId);
       setProperty(data);
@@ -67,7 +70,11 @@ export default function PropertyDetailScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [route.params.propertyId]);
+
+  useEffect(() => {
+    loadProperty();
+  }, [loadProperty]);
 
   const handleShare = async () => {
     if (!property) return;
@@ -151,10 +158,20 @@ export default function PropertyDetailScreen() {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: colors.background },
+        {
+          width: '100%',
+          maxWidth: detailWidth,
+          alignSelf: 'center',
+        },
+      ]}
+    >
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Image Gallery */}
-        <PropertyImageGallery images={property.images} height={320} />
+        <PropertyImageGallery images={property.images} height={galleryHeight} />
 
         {/* Back & Share Buttons */}
         <View

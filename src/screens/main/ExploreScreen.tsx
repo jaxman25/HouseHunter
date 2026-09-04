@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -23,6 +23,7 @@ import EmptyState from '../../components/common/EmptyState';
 import { getProperties } from '../../services/propertyService';
 import { useDebouncedCallback } from '../../utils/performance/debounce';
 import { useThrottledCallback } from '../../utils/performance/throttle';
+import { useResponsive } from '../../hooks/useResponsive';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -42,6 +43,21 @@ export default function ExploreScreen() {
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [lastDoc, setLastDoc] = useState<DocumentSnapshot | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+
+  const responsive = useResponsive();
+
+  // Grid mode: real multi-column grid that reflows with the window. List mode
+  // keeps a single full-width column (a FlatList row per property).
+  const gridColumns = viewMode === 'grid' ? responsive.gridColumns() : 1;
+  const gridCellWidth = responsive.gridCellWidth(gridColumns);
+
+  const rows = useMemo(() => {
+    const out: Property[][] = [];
+    for (let i = 0; i < properties.length; i += gridColumns) {
+      out.push(properties.slice(i, i + gridColumns));
+    }
+    return out;
+  }, [properties, gridColumns]);
 
   const loadProperties = useCallback(async () => {
     try {
@@ -92,15 +108,60 @@ export default function ExploreScreen() {
     setLoading(true);
   };
 
-  const renderProperty = ({ item }: { item: Property }) => (
-    <PropertyCard
-      property={item}
-      onPress={() => navigation.navigate('PropertyDetail', { propertyId: item.id })}
-      onFavorite={() => toggleFavorite(item.id)}
-      isFavorite={isFavorite(item.id)}
-      variant={viewMode === 'grid' ? 'horizontal' : 'vertical'}
-    />
+  const renderRow = ({ item }: { item: Property[] }) => (
+    <View
+      style={
+        viewMode === 'grid'
+          ? [styles.gridRow, { gap: spacing.md, marginBottom: spacing.md }]
+          : undefined
+      }
+    >
+      {item.map((property) => (
+        <PropertyCard
+          key={property.id}
+          property={property}
+          style={viewMode === 'grid' ? { width: gridCellWidth } : undefined}
+          onPress={() => navigation.navigate('PropertyDetail', { propertyId: property.id })}
+          onFavorite={() => toggleFavorite(property.id)}
+          isFavorite={isFavorite(property.id)}
+          variant={viewMode === 'grid' ? 'grid' : 'vertical'}
+        />
+      ))}
+    </View>
   );
+
+  const renderSkeleton = () => {
+    if (viewMode !== 'grid') {
+      return (
+        <View>
+          {[0, 1, 2, 3].map((i) => <PropertyCardSkeleton key={i} />)}
+        </View>
+      );
+    }
+    // Skeleton mirrors the grid rows so loading doesn't cause a jump.
+    const skeletonRows: number[][] = [];
+    for (let r = 0; r < 3; r++) {
+      skeletonRows.push(Array.from({ length: gridColumns }, (_, c) => r * gridColumns + c));
+    }
+    return (
+      <View>
+        {skeletonRows.map((row) => (
+          <View
+            key={row[0]}
+            style={[styles.gridRow, { gap: spacing.md, marginBottom: spacing.md }]}
+          >
+            {row.map((key) => (
+              <PropertyCardSkeleton
+                key={key}
+                width={gridCellWidth}
+                imageHeight={140}
+              />
+            ))}
+          </View>
+        ))}
+      </View>
+    );
+  };
 
   const getActiveFilterCount = (): number => {
     let count = 0;
@@ -230,9 +291,9 @@ export default function ExploreScreen() {
 
       {/* Property List */}
       <FlatList
-        data={properties}
-        renderItem={renderProperty}
-        keyExtractor={(item) => item.id}
+        data={rows}
+        renderItem={renderRow}
+        keyExtractor={(item) => (item[0] ? item[0].id : 'row-empty')}
         contentContainerStyle={[
           styles.listContent,
           { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
@@ -251,11 +312,7 @@ export default function ExploreScreen() {
           ) : null
         }
         ListEmptyComponent={
-          loading ? (
-            <View>
-              {[0, 1, 2, 3].map((i) => <PropertyCardSkeleton key={i} />)}
-            </View>
-          ) : (
+          loading ? renderSkeleton() : (
             <EmptyState
               icon="home-search"
               title="No properties found"
@@ -330,5 +387,8 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 100,
+  },
+  gridRow: {
+    flexDirection: 'row',
   },
 });

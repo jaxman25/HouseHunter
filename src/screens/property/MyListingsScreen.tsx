@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -20,8 +20,12 @@ import PropertyCardSkeleton from '../../components/common/PropertyCardSkeleton';
 import EmptyState from '../../components/common/EmptyState';
 import Badge from '../../components/common/Badge';
 import { getUserProperties, deleteProperty } from '../../services/propertyService';
+import { useResponsive } from '../../hooks/useResponsive';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
+
+/** Content column cap (matches the screen container's maxWidth). */
+const CONTENT_MAX_WIDTH = 960;
 
 export default function MyListingsScreen() {
   const { colors, fontSize, spacing } = useTheme();
@@ -32,6 +36,26 @@ export default function MyListingsScreen() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const responsive = useResponsive();
+  // Grid mirrors Favorites: 1 column on phones, 2 on tablets, 3 on desktop.
+  // Cell widths are computed against the capped column (not the full window)
+  // so rows tile edge-to-edge inside the centered container.
+  const contentWidth = Math.min(responsive.width, CONTENT_MAX_WIDTH);
+  const columns = responsive.isDesktop ? 3 : responsive.isTablet ? 2 : 1;
+  const cellWidth = columns > 1
+    ? Math.floor(
+        (contentWidth - spacing.lg * 2 - spacing.md * (columns - 1)) / columns
+      )
+    : 0;
+
+  const rows = useMemo(() => {
+    const out: Property[][] = [];
+    for (let i = 0; i < properties.length; i += columns) {
+      out.push(properties.slice(i, i + columns));
+    }
+    return out;
+  }, [properties, columns]);
 
   const loadProperties = useCallback(async () => {
     if (!user) return;
@@ -72,8 +96,81 @@ export default function MyListingsScreen() {
     );
   };
 
+  const renderCell = (property: Property) => (
+    <View
+      key={property.id}
+      style={columns > 1 ? { width: cellWidth } : undefined}
+    >
+      <PropertyCard
+        property={property}
+        style={columns > 1 ? { width: cellWidth, marginBottom: 0 } : undefined}
+        onPress={() => navigation.navigate('PropertyDetail', { propertyId: property.id })}
+      />
+      <View style={styles.actions}>
+        <Badge
+          label={property.status.charAt(0).toUpperCase() + property.status.slice(1)}
+          variant={property.status === 'active' ? 'success' : property.status === 'pending' ? 'warning' : 'info'}
+        />
+        <View style={styles.actionBtns}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('EditProperty', { property })}
+            style={[styles.actionBtn, { backgroundColor: colors.primaryLight }]}
+          >
+            <MaterialCommunityIcons name="pencil" size={16} color={colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => handleDelete(property)}
+            style={[styles.actionBtn, { backgroundColor: '#FEE2E2' }]}
+          >
+            <MaterialCommunityIcons name="delete-outline" size={16} color={colors.error} />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+
+  const renderSkeleton = () => {
+    if (columns === 1) {
+      return (
+        <View>
+          {[0, 1, 2].map((i) => <PropertyCardSkeleton key={i} />)}
+        </View>
+      );
+    }
+    // Mirror the final grid rows so loading doesn't cause a layout jump.
+    const skeletonRows: number[][] = [];
+    for (let r = 0; r < 2; r++) {
+      skeletonRows.push(Array.from({ length: columns }, (_, c) => r * columns + c));
+    }
+    return (
+      <View>
+        {skeletonRows.map((row) => (
+          <View
+            key={row[0]}
+            style={{ flexDirection: 'row', gap: spacing.md, marginBottom: spacing.md }}
+          >
+            {row.map((key) => (
+              <PropertyCardSkeleton
+                key={key}
+                width={cellWidth}
+                imageHeight={140}
+                style={{ marginBottom: 0 }}
+              />
+            ))}
+          </View>
+        ))}
+      </View>
+    );
+  };
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: colors.background },
+        { width: '100%', maxWidth: CONTENT_MAX_WIDTH, alignSelf: 'center' },
+      ]}
+    >
       <View
         style={[
           styles.header,
@@ -102,45 +199,24 @@ export default function MyListingsScreen() {
       </View>
 
       <FlatList
-        data={properties}
-        keyExtractor={(item) => item.id}
+        data={rows}
+        keyExtractor={(item) => (item[0] ? item[0].id : 'row-empty')}
         contentContainerStyle={[styles.list, { paddingHorizontal: spacing.lg, paddingTop: spacing.md }]}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadProperties(); }} tintColor={colors.primary} />}
         renderItem={({ item }) => (
-          <View>
-            <PropertyCard
-              property={item}
-              onPress={() => navigation.navigate('PropertyDetail', { propertyId: item.id })}
-            />
-            <View style={styles.actions}>
-              <Badge
-                label={item.status.charAt(0).toUpperCase() + item.status.slice(1)}
-                variant={item.status === 'active' ? 'success' : item.status === 'pending' ? 'warning' : 'info'}
-              />
-              <View style={styles.actionBtns}>
-                <TouchableOpacity
-                  onPress={() => navigation.navigate('EditProperty', { property: item })}
-                  style={[styles.actionBtn, { backgroundColor: colors.primaryLight }]}
-                >
-                  <MaterialCommunityIcons name="pencil" size={16} color={colors.primary} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => handleDelete(item)}
-                  style={[styles.actionBtn, { backgroundColor: '#FEE2E2' }]}
-                >
-                  <MaterialCommunityIcons name="delete-outline" size={16} color={colors.error} />
-                </TouchableOpacity>
-              </View>
-            </View>
+          <View
+            style={
+              columns > 1
+                ? { flexDirection: 'row', gap: spacing.md }
+                : undefined
+            }
+          >
+            {item.map(renderCell)}
           </View>
         )}
         ListEmptyComponent={
-          loading ? (
-            <View>
-              {[0, 1, 2].map((i) => <PropertyCardSkeleton key={i} />)}
-            </View>
-          ) : (
+          loading ? renderSkeleton() : (
             <EmptyState
               icon="home-plus"
               title="No listings yet"

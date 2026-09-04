@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ import PropertyCard from '../../components/property/PropertyCard';
 import EmptyState from '../../components/common/EmptyState';
 import { searchProperties } from '../../services/propertyService';
 import { useDebouncedCallback } from '../../utils/performance/debounce';
+import { useResponsive } from '../../hooks/useResponsive';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -38,10 +39,18 @@ export default function SearchScreen() {
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
-  React.useEffect(() => {
-    loadRecentSearches();
-    inputRef.current?.focus();
-  }, []);
+  const responsive = useResponsive();
+  // Results: full-width on phones; 2 columns on tablets; 3 on desktop.
+  const columns = responsive.isDesktop ? 3 : responsive.isTablet ? 2 : 1;
+  const cellWidth = responsive.gridCellWidth(columns);
+
+  const rows = useMemo(() => {
+    const out: Property[][] = [];
+    for (let i = 0; i < results.length; i += columns) {
+      out.push(results.slice(i, i + columns));
+    }
+    return out;
+  }, [results, columns]);
 
   const loadRecentSearches = async () => {
     try {
@@ -49,6 +58,13 @@ export default function SearchScreen() {
       if (data) setRecentSearches(JSON.parse(data));
     } catch {}
   };
+
+  React.useEffect(() => {
+    loadRecentSearches();
+    inputRef.current?.focus();
+    // Runs once on mount — recent searches read AsyncStorage, not render state.
+     
+  }, []);
 
   const saveRecentSearch = async (term: string) => {
     const updated = [term, ...recentSearches.filter((s) => s !== term)].slice(0, 10);
@@ -162,8 +178,8 @@ export default function SearchScreen() {
         </View>
       ) : (
         <FlatList
-          data={results}
-          keyExtractor={(item) => item.id}
+          data={rows}
+          keyExtractor={(item) => (item[0] ? item[0].id : 'row-empty')}
           contentContainerStyle={[styles.results, { paddingHorizontal: spacing.lg, paddingTop: spacing.md }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -175,15 +191,27 @@ export default function SearchScreen() {
             ) : null
           }
           renderItem={({ item }) => (
-            <PropertyCard
-              property={item}
-              onPress={() => {
-                Keyboard.dismiss();
-                navigation.navigate('PropertyDetail', { propertyId: item.id });
+            <View
+              style={{
+                flexDirection: columns > 1 ? 'row' : undefined,
+                gap: columns > 1 ? spacing.md : undefined,
+                marginBottom: columns > 1 ? spacing.md : undefined,
               }}
-              onFavorite={() => toggleFavorite(item.id)}
-              isFavorite={isFavorite(item.id)}
-            />
+            >
+              {item.map((property) => (
+                <PropertyCard
+                  key={property.id}
+                  property={property}
+                  style={columns > 1 ? { width: cellWidth, marginBottom: 0 } : undefined}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    navigation.navigate('PropertyDetail', { propertyId: property.id });
+                  }}
+                  onFavorite={() => toggleFavorite(property.id)}
+                  isFavorite={isFavorite(property.id)}
+                />
+              ))}
+            </View>
           )}
           ListEmptyComponent={
             hasSearched && !loading ? (

@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
-  Dimensions,
   ActivityIndicator,
 } from 'react-native';
 import { DocumentSnapshot } from 'firebase/firestore';
@@ -27,8 +26,7 @@ import EmptyState from '../../components/common/EmptyState';
 import { getProperties } from '../../services/propertyService';
 import { PROPERTY_TYPES } from '../../config/theme';
 import { formatPrice, getTimeAgo } from '../../utils/helpers';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+import { useResponsive } from '../../hooks/useResponsive';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -46,6 +44,19 @@ export default function HomeScreen() {
   const { user, isFavorite, toggleFavorite } = useAuthContext();
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
+  const responsive = useResponsive();
+
+  // Featured cards: ~72% of the viewport but never tiny on small phones nor
+  // enormous on large screens; recalculates on rotation/resize.
+  const featuredCardWidth = Math.min(
+    Math.max(responsive.width * 0.72, 250),
+    340
+  );
+  // New Listings: 1 column on phones, 2 on tablets, 3 on desktop.
+  const recentColumns = responsive.isDesktop ? 3 : responsive.isTablet ? 2 : 1;
+  const recentCellWidth =
+    (responsive.width - spacing.lg * 2 - spacing.md * (recentColumns - 1)) /
+    recentColumns;
 
   const [featuredProperties, setFeaturedProperties] = useState<Property[]>([]);
   const [recentProperties, setRecentProperties] = useState<Property[]>([]);
@@ -247,7 +258,7 @@ export default function HomeScreen() {
                 {[0, 1].map((i) => (
                   <PropertyCardSkeleton
                     key={i}
-                    width={SCREEN_WIDTH * 0.72}
+                    width={featuredCardWidth}
                     imageHeight={160}
                   />
                 ))}
@@ -269,7 +280,7 @@ export default function HomeScreen() {
                     {
                       backgroundColor: colors.surface,
                       borderRadius: radius.xl,
-                      width: SCREEN_WIDTH * 0.72,
+                      width: featuredCardWidth,
                       marginRight: spacing.md,
                     },
                     shadow.md,
@@ -366,9 +377,28 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.md }}>
+        <View
+          style={{
+            paddingHorizontal: spacing.lg,
+            marginTop: spacing.md,
+            flexDirection: recentColumns > 1 ? 'row' : undefined,
+            flexWrap: recentColumns > 1 ? 'wrap' : undefined,
+            columnGap: recentColumns > 1 ? spacing.md : undefined,
+            rowGap: recentColumns > 1 ? spacing.md : undefined,
+          }}
+        >
           {loading ? (
-            [0, 1, 2].map((i) => <PropertyCardSkeleton key={i} />)
+            recentColumns > 1 ? (
+              Array.from({ length: recentColumns * 2 }, (_, i) => (
+                <PropertyCardSkeleton
+                  key={i}
+                  width={recentCellWidth}
+                  style={{ marginBottom: 0 }}
+                />
+              ))
+            ) : (
+              [0, 1, 2].map((i) => <PropertyCardSkeleton key={i} />)
+            )
           ) : recentProperties.length === 0 ? (
             <EmptyState
               icon="home-search"
@@ -385,6 +415,11 @@ export default function HomeScreen() {
                 }
                 onFavorite={() => toggleFavorite(property.id)}
                 isFavorite={isFavorite(property.id)}
+                style={
+                  recentColumns > 1
+                    ? { width: recentCellWidth, marginBottom: 0 }
+                    : undefined
+                }
               />
             ))
           )}

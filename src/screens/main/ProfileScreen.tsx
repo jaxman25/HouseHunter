@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import { useAuthContext } from '../../context/AuthContext';
 import { RootStackParamList } from '../../types';
 import Avatar from '../../components/common/Avatar';
 import { formatPhoneNumber } from '../../utils/formatters';
+import { getUserProperties } from '../../services/propertyService';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -33,6 +34,24 @@ export default function ProfileScreen() {
   const { user, logout } = useAuthContext();
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
+
+  const [listingCount, setListingCount] = useState<number | null>(null);
+
+  // Live count of the user's own listings (distinct from saved favorites).
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    getUserProperties(user.uid)
+      .then((listings) => {
+        if (active) setListingCount(listings.length);
+      })
+      .catch(() => {
+        // Non-blocking: the stat just shows a placeholder.
+      });
+    return () => {
+      active = false;
+    };
+  }, [user?.uid]);
 
   const handleLogout = () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
@@ -92,7 +111,13 @@ export default function ProfileScreen() {
   ];
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: colors.background },
+        { width: '100%', maxWidth: 820, alignSelf: 'center' },
+      ]}
+    >
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}
@@ -164,7 +189,7 @@ export default function ProfileScreen() {
         >
           <StatItem
             label="Listings"
-            value={String(user?.favorites?.length || 0)}
+            value={listingCount !== null ? String(listingCount) : '—'}
             colors={colors}
             fontSize={fontSize}
           />

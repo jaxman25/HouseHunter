@@ -90,7 +90,12 @@ export default function ChatScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: colors.background }]}
+      style={[
+        styles.container,
+        { backgroundColor: colors.background },
+        // Center the thread in a comfortable column on large screens.
+        { width: '100%', maxWidth: 780, alignSelf: 'center' },
+      ]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={0}
     >

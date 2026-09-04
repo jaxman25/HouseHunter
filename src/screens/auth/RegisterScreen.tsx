@@ -109,6 +109,7 @@ export default function RegisterScreen({ navigation }: Props) {
         contentContainerStyle={[
           styles.scroll,
           { paddingTop: insets.top + 20, paddingHorizontal: spacing.xl },
+          { width: '100%', maxWidth: 520, alignSelf: 'center' },
         ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"

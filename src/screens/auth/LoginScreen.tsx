@@ -90,6 +90,7 @@ export default function LoginScreen({ navigation }: Props) {
         contentContainerStyle={[
           styles.scroll,
           { paddingTop: insets.top + 40, paddingHorizontal: spacing.xl },
+          { width: '100%', maxWidth: 520, alignSelf: 'center' },
         ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -175,7 +176,7 @@ export default function LoginScreen({ navigation }: Props) {
         {/* Register Link */}
         <View style={styles.registerSection}>
           <Text style={{ color: colors.textSecondary, fontSize: fontSize.md }}>
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
           </Text>
           <TouchableOpacity onPress={() => navigation.navigate('Register')}>
             <Text style={{ color: colors.primary, fontSize: fontSize.md, fontWeight: '700' }}>

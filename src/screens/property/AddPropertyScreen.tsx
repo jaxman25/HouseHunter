@@ -171,33 +171,38 @@ export default function AddPropertyScreen() {
         imageUrls.push(url);
       }
 
-      await createProperty({
-        title: title.trim(),
-        description: description.trim(),
-        price: Number(price),
-        listingType,
-        propertyType,
-        status: 'active',
-        address: address.trim(),
-        city: city.trim(),
-        state: state.trim(),
-        zipCode: zipCode.trim(),
-        country: 'US',
-        latitude: latitude || 39.8283,
-        longitude: longitude || -98.5795,
-        bedrooms: Number(bedrooms) || 0,
-        bathrooms: Number(bathrooms) || 0,
-        area: Number(area) || 0,
-        areaUnit: 'sqft',
-        yearBuilt: Number(yearBuilt) || new Date().getFullYear(),
-        images: imageUrls,
-        features,
-        amenities: [],
-        userId: user.uid,
-        userName: user.displayName,
-        userPhoto: user.photoURL,
-        userPhone: user.phoneNumber || '',
-      });
+      // The doc is created under the SAME id used as the image storage folder
+      // so storage.rules can lock writes to the owner once the doc exists.
+      await createProperty(
+        {
+          title: title.trim(),
+          description: description.trim(),
+          price: Number(price),
+          listingType,
+          propertyType,
+          status: 'active',
+          address: address.trim(),
+          city: city.trim(),
+          state: state.trim(),
+          zipCode: zipCode.trim(),
+          country: 'US',
+          latitude: latitude || 39.8283,
+          longitude: longitude || -98.5795,
+          bedrooms: Number(bedrooms) || 0,
+          bathrooms: Number(bathrooms) || 0,
+          area: Number(area) || 0,
+          areaUnit: 'sqft',
+          yearBuilt: Number(yearBuilt) || new Date().getFullYear(),
+          images: imageUrls,
+          features,
+          amenities: [],
+          userId: user.uid,
+          userName: user.displayName,
+          userPhoto: user.photoURL,
+          userPhone: user.phoneNumber || '',
+        },
+        propertyId
+      );
 
       Alert.alert('Success', 'Your property has been listed successfully', [
         { text: 'OK', onPress: () => navigation.goBack() },
@@ -541,7 +546,11 @@ export default function AddPropertyScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: colors.background }]}
+      style={[
+        styles.container,
+        { backgroundColor: colors.background },
+        { width: '100%', maxWidth: 640, alignSelf: 'center' },
+      ]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <LoadingOverlay visible={loading} />

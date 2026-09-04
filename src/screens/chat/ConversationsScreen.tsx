@@ -34,7 +34,14 @@ export default function ConversationsScreen() {
   }, [user?.uid]);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: colors.background },
+        // Center the list in a comfortable column on large screens.
+        { width: '100%', maxWidth: 720, alignSelf: 'center' },
+      ]}
+    >
       {/* Header */}
       <View
         style={[

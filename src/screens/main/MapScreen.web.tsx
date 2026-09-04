@@ -17,6 +17,7 @@ import { RootStackParamList, Property } from '../../types';
 import { getProperties } from '../../services/propertyService';
 import { formatPrice } from '../../utils/helpers';
 import { formatCurrencyCompact } from '../../utils/formatters';
+import { useResponsive } from '../../hooks/useResponsive';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -26,6 +27,7 @@ export default function MapScreen() {
   const { colors, fontSize, spacing, radius, shadow } = useTheme();
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
+  const responsive = useResponsive();
 
   const [properties, setProperties] = useState<Property[]>([]);
   const [selected, setSelected] = useState<Property | null>(null);
@@ -80,136 +82,150 @@ export default function MapScreen() {
         </Text>
       </View>
 
-      {/* Map */}
-      <View style={[styles.mapContainer, { backgroundColor: colors.gray200 }]}>
-        <iframe
-          src={embedSrc}
-          title="Property map"
-          loading="lazy"
-          allowFullScreen
-          style={{ width: '100%', height: '100%', border: 0 }}
-        />
-        {focus && (
-          <TouchableOpacity
-            onPress={openInMaps}
-            style={[
-              styles.openBtn,
-              { backgroundColor: colors.surface, borderRadius: radius.md },
-              shadow.sm,
-            ]}
-          >
-            <MaterialCommunityIcons name="open-in-new" size={16} color={colors.primary} />
-            <Text
-              style={{
-                color: colors.primary,
-                fontSize: fontSize.sm,
-                fontWeight: '600',
-                marginLeft: 6,
-              }}
-            >
-              Open in Google Maps
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Property list */}
-      <ScrollView
-        style={styles.list}
-        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 24 }}
-        showsVerticalScrollIndicator={false}
+      {/* Body: map beside the list on desktop, stacked on phones/tablets */}
+      <View
+        style={[
+          styles.body,
+          { flexDirection: responsive.isDesktop ? 'row' : 'column' },
+        ]}
       >
-        {properties.length === 0 && !loading && (
-          <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-            <MaterialCommunityIcons
-              name="map-marker-off"
-              size={40}
-              color={colors.gray400}
-            />
-            <Text
-              style={{
-                color: colors.textSecondary,
-                fontSize: fontSize.md,
-                marginTop: 8,
-              }}
-            >
-              No properties found
-            </Text>
-          </View>
-        )}
-
-        {properties.map((property) => {
-          const isSelected = selected?.id === property.id;
-          return (
+        {/* Map */}
+        <View
+          style={[
+            styles.mapPane,
+            { backgroundColor: colors.gray200 },
+            responsive.isDesktop ? styles.mapPaneDesktop : styles.mapPaneMobile,
+          ]}
+        >
+          <iframe
+            src={embedSrc}
+            title="Property map"
+            loading="lazy"
+            allowFullScreen
+            style={{ width: '100%', height: '100%', border: 0 }}
+          />
+          {focus && (
             <TouchableOpacity
-              key={property.id}
-              onPress={() => setSelected(property)}
+              onPress={openInMaps}
               style={[
-                styles.card,
-                {
-                  backgroundColor: colors.surface,
-                  borderRadius: radius.lg,
-                  borderColor: isSelected ? colors.primary : colors.border,
-                },
+                styles.openBtn,
+                { backgroundColor: colors.surface, borderRadius: radius.md },
                 shadow.sm,
               ]}
-              activeOpacity={0.85}
             >
-              <View
-                style={[
-                  styles.cardImage,
-                  { backgroundColor: colors.gray200, borderRadius: radius.md },
-                ]}
+              <MaterialCommunityIcons name="open-in-new" size={16} color={colors.primary} />
+              <Text
+                style={{
+                  color: colors.primary,
+                  fontSize: fontSize.sm,
+                  fontWeight: '600',
+                  marginLeft: 6,
+                }}
               >
-                <Image
-                  source={{ uri: property.images?.[0] }}
-                  contentFit="cover"
-                  style={[styles.cardImageContent, { borderRadius: radius.md }]}
-                />
-              </View>
-              <View style={styles.cardBody}>
-                <Text style={[styles.cardPrice, { color: colors.primary, fontSize: fontSize.lg }]}>
-                  {formatPrice(property.price, property.listingType)}
-                </Text>
-                <Text
-                  style={[styles.cardTitle, { color: colors.text, fontSize: fontSize.md }]}
-                  numberOfLines={1}
-                >
-                  {property.title}
-                </Text>
-                <Text
-                  style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}
-                  numberOfLines={1}
-                >
-                  {property.address}, {property.city}, {property.state}
-                </Text>
-                <View style={styles.cardFooter}>
-                  <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>
-                    {formatCurrencyCompact(property.price)}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() =>
-                      navigation.navigate('PropertyDetail', {
-                        propertyId: property.id,
-                      })
-                    }
-                  >
-                    <Text
-                      style={{
-                        color: colors.primary,
-                        fontSize: fontSize.sm,
-                        fontWeight: '700',
-                      }}
-                    >
-                      View Details
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
+                Open in Google Maps
+              </Text>
             </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+          )}
+        </View>
+
+        {/* Property list */}
+        <ScrollView
+          style={[styles.list, responsive.isDesktop ? styles.listDesktop : null]}
+          contentContainerStyle={{ padding: spacing.lg, paddingBottom: 24 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {properties.length === 0 && !loading && (
+            <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+              <MaterialCommunityIcons
+                name="map-marker-off"
+                size={40}
+                color={colors.gray400}
+              />
+              <Text
+                style={{
+                  color: colors.textSecondary,
+                  fontSize: fontSize.md,
+                  marginTop: 8,
+                }}
+              >
+                No properties found
+              </Text>
+            </View>
+          )}
+
+          {properties.map((property) => {
+            const isSelected = selected?.id === property.id;
+            return (
+              <TouchableOpacity
+                key={property.id}
+                onPress={() => setSelected(property)}
+                style={[
+                  styles.card,
+                  {
+                    backgroundColor: colors.surface,
+                    borderRadius: radius.lg,
+                    borderColor: isSelected ? colors.primary : colors.border,
+                  },
+                  shadow.sm,
+                ]}
+                activeOpacity={0.85}
+              >
+                <View
+                  style={[
+                    styles.cardImage,
+                    { backgroundColor: colors.gray200, borderRadius: radius.md },
+                  ]}
+                >
+                  <Image
+                    source={{ uri: property.images?.[0] }}
+                    contentFit="cover"
+                    style={[styles.cardImageContent, { borderRadius: radius.md }]}
+                  />
+                </View>
+                <View style={styles.cardBody}>
+                  <Text style={[styles.cardPrice, { color: colors.primary, fontSize: fontSize.lg }]}>
+                    {formatPrice(property.price, property.listingType)}
+                  </Text>
+                  <Text
+                    style={[styles.cardTitle, { color: colors.text, fontSize: fontSize.md }]}
+                    numberOfLines={1}
+                  >
+                    {property.title}
+                  </Text>
+                  <Text
+                    style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}
+                    numberOfLines={1}
+                  >
+                    {property.address}, {property.city}, {property.state}
+                  </Text>
+                  <View style={styles.cardFooter}>
+                    <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>
+                      {formatCurrencyCompact(property.price)}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() =>
+                        navigation.navigate('PropertyDetail', {
+                          propertyId: property.id,
+                        })
+                      }
+                    >
+                      <Text
+                        style={{
+                          color: colors.primary,
+                          fontSize: fontSize.sm,
+                          fontWeight: '700',
+                        }}
+                      >
+                        View Details
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
     </View>
   );
 }
@@ -229,9 +245,17 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontWeight: '700',
   },
-  mapContainer: {
-    height: 280,
+  body: {
+    flex: 1,
+  },
+  mapPane: {
     position: 'relative',
+  },
+  mapPaneDesktop: {
+    flex: 1,
+  },
+  mapPaneMobile: {
+    height: 280,
   },
   openBtn: {
     position: 'absolute',
@@ -244,6 +268,10 @@ const styles = StyleSheet.create({
   },
   list: {
     flex: 1,
+  },
+  listDesktop: {
+    flex: 0,
+    width: 380,
   },
   card: {
     flexDirection: 'row',

@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  Dimensions,
   FlatList,
 } from 'react-native';
 import { Image } from 'expo-image';
@@ -21,8 +20,6 @@ import { formatCurrencyCompact } from '../../utils/formatters';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
 export default function MapScreen() {
   const { colors, fontSize, spacing, radius, shadow } = useTheme();
   const navigation = useNavigation<Nav>();
@@ -33,11 +30,7 @@ export default function MapScreen() {
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadProperties();
-  }, []);
-
-  const loadProperties = async () => {
+  const loadProperties = useCallback(async () => {
     try {
       const result = await getProperties({ sortBy: 'newest' }, 50);
       setProperties(result.properties);
@@ -46,7 +39,11 @@ export default function MapScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadProperties();
+  }, [loadProperties]);
 
   const centerOnProperties = () => {
     if (properties.length === 0) return;
@@ -177,65 +174,72 @@ export default function MapScreen() {
 
       {/* Selected Property Card */}
       {selectedProperty && (
-        <TouchableOpacity
+        <View
+          pointerEvents="box-none"
           style={[
-            styles.propertyPreview,
-            {
-              backgroundColor: colors.surface,
-              borderRadius: radius.xl,
-              bottom: insets.bottom + 20,
-            },
-            shadow.lg,
+            styles.previewWrap,
+            { paddingBottom: insets.bottom + 20 },
           ]}
-          onPress={() =>
-            navigation.navigate('PropertyDetail', {
-              propertyId: selectedProperty.id,
-            })
-          }
-          activeOpacity={0.85}
         >
-          <View style={[styles.previewImage, { backgroundColor: colors.gray200, borderRadius: radius.lg }]}>
-            <Image
-              source={{ uri: selectedProperty.images?.[0] }}
-              style={[styles.previewImageContent, { borderRadius: radius.lg }]}
-            />
-          </View>
-          <View style={styles.previewContent}>
-            <Text style={[styles.previewPrice, { color: colors.primary, fontSize: fontSize.lg }]}>
-              {formatPrice(selectedProperty.price, selectedProperty.listingType)}
-            </Text>
-            <Text
-              style={[styles.previewTitle, { color: colors.text, fontSize: fontSize.md }]}
-              numberOfLines={1}
-            >
-              {selectedProperty.title}
-            </Text>
-            <View style={styles.previewLocation}>
-              <MaterialCommunityIcons
-                name="map-marker-outline"
-                size={12}
-                color={colors.textSecondary}
+          <TouchableOpacity
+            style={[
+              styles.propertyPreview,
+              {
+                backgroundColor: colors.surface,
+                borderRadius: radius.xl,
+              },
+              shadow.lg,
+            ]}
+            onPress={() =>
+              navigation.navigate('PropertyDetail', {
+                propertyId: selectedProperty.id,
+              })
+            }
+            activeOpacity={0.85}
+          >
+            <View style={[styles.previewImage, { backgroundColor: colors.gray200, borderRadius: radius.lg }]}>
+              <Image
+                source={{ uri: selectedProperty.images?.[0] }}
+                style={[styles.previewImageContent, { borderRadius: radius.lg }]}
               />
+            </View>
+            <View style={styles.previewContent}>
+              <Text style={[styles.previewPrice, { color: colors.primary, fontSize: fontSize.lg }]}>
+                {formatPrice(selectedProperty.price, selectedProperty.listingType)}
+              </Text>
               <Text
-                style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginLeft: 2 }}
+                style={[styles.previewTitle, { color: colors.text, fontSize: fontSize.md }]}
                 numberOfLines={1}
               >
-                {selectedProperty.address}
+                {selectedProperty.title}
               </Text>
+              <View style={styles.previewLocation}>
+                <MaterialCommunityIcons
+                  name="map-marker-outline"
+                  size={12}
+                  color={colors.textSecondary}
+                />
+                <Text
+                  style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginLeft: 2 }}
+                  numberOfLines={1}
+                >
+                  {selectedProperty.address}
+                </Text>
+              </View>
+              <View style={styles.previewFeatures}>
+                <Text style={[styles.previewFeature, { color: colors.textSecondary, fontSize: fontSize.xs }]}>
+                  {selectedProperty.bedrooms} Bed · {selectedProperty.bathrooms} Bath · {selectedProperty.area.toLocaleString()} sqft
+                </Text>
+              </View>
             </View>
-            <View style={styles.previewFeatures}>
-              <Text style={[styles.previewFeature, { color: colors.textSecondary, fontSize: fontSize.xs }]}>
-                {selectedProperty.bedrooms} Bed · {selectedProperty.bathrooms} Bath · {selectedProperty.area.toLocaleString()} sqft
-              </Text>
-            </View>
-          </View>
-          <TouchableOpacity
-            style={[styles.closePreview, { backgroundColor: colors.gray100 }]}
-            onPress={() => setSelectedProperty(null)}
-          >
-            <MaterialCommunityIcons name="close" size={16} color={colors.gray500} />
+            <TouchableOpacity
+              style={[styles.closePreview, { backgroundColor: colors.gray100 }]}
+              onPress={() => setSelectedProperty(null)}
+            >
+              <MaterialCommunityIcons name="close" size={16} color={colors.gray500} />
+            </TouchableOpacity>
           </TouchableOpacity>
-        </TouchableOpacity>
+        </View>
       )}
     </View>
   );
@@ -294,10 +298,21 @@ const styles = StyleSheet.create({
     borderRightColor: 'transparent',
     alignSelf: 'center',
   },
-  propertyPreview: {
+  previewWrap: {
     position: 'absolute',
-    left: 16,
-    right: 16,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 16,
+  },
+  propertyPreview: {
+    // Full width on phones (minus the wrap's padding), capped + centered on
+    // larger screens so the sheet doesn't span the whole window.
+    width: '100%',
+    maxWidth: 600,
     flexDirection: 'row',
     padding: 10,
     alignItems: 'center',

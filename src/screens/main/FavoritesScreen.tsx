@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import PropertyCard from '../../components/property/PropertyCard';
 import PropertyCardSkeleton from '../../components/common/PropertyCardSkeleton';
 import EmptyState from '../../components/common/EmptyState';
 import { getPropertiesByIds } from '../../services/propertyService';
+import { useResponsive } from '../../hooks/useResponsive';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -29,15 +30,23 @@ export default function FavoritesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  const responsive = useResponsive();
+  // 1 column on phones; 2 on tablets; 3 on desktop.
+  const columns = responsive.isDesktop ? 3 : responsive.isTablet ? 2 : 1;
+  const cellWidth = responsive.gridCellWidth(columns);
+
+  const rows = useMemo(() => {
+    const out: Property[][] = [];
+    for (let i = 0; i < favorites.length; i += columns) {
+      out.push(favorites.slice(i, i + columns));
+    }
+    return out;
+  }, [favorites, columns]);
+
   const loadFavorites = useCallback(async () => {
     const favIds = user?.favorites || [];
-    if (favIds.length === 0) {
-      setFavorites([]);
-      setLoading(false);
-      setRefreshing(false);
-      return;
-    }
-
+    // getPropertiesByIds resolves [] immediately for empty input, so the
+    // no-favorites case needs no synchronous setState here.
     try {
       const properties = await getPropertiesByIds(favIds);
       setFavorites(properties);
@@ -82,18 +91,30 @@ export default function FavoritesScreen() {
       </View>
 
       <FlatList
-        data={favorites}
+        data={rows}
+        keyExtractor={(item) => (item[0] ? item[0].id : 'row-empty')}
         renderItem={({ item }) => (
-          <PropertyCard
-            property={item}
-            onPress={() =>
-              navigation.navigate('PropertyDetail', { propertyId: item.id })
-            }
-            onFavorite={() => toggleFavorite(item.id)}
-            isFavorite={isFavorite(item.id)}
-          />
+          <View
+            style={{
+              flexDirection: columns > 1 ? 'row' : undefined,
+              gap: columns > 1 ? spacing.md : undefined,
+              marginBottom: columns > 1 ? spacing.md : undefined,
+            }}
+          >
+            {item.map((property) => (
+              <PropertyCard
+                key={property.id}
+                property={property}
+                style={columns > 1 ? { width: cellWidth, marginBottom: 0 } : undefined}
+                onPress={() =>
+                  navigation.navigate('PropertyDetail', { propertyId: property.id })
+                }
+                onFavorite={() => toggleFavorite(property.id)}
+                isFavorite={isFavorite(property.id)}
+              />
+            ))}
+          </View>
         )}
-        keyExtractor={(item) => item.id}
         contentContainerStyle={[
           styles.list,
           { paddingHorizontal: spacing.lg, paddingTop: spacing.md },

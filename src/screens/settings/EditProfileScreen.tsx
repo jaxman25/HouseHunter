@@ -99,7 +99,11 @@ export default function EditProfileScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: colors.background }]}
+      style={[
+        styles.container,
+        { backgroundColor: colors.background },
+        { width: '100%', maxWidth: 640, alignSelf: 'center' },
+      ]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <LoadingOverlay visible={loading} />
