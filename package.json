@@ -9,7 +9,7 @@
     "web": "expo start --web",
     "build:web": "expo export --platform web",
     "check:indexes": "node scripts/check-indexes.js",
-    "lint": "eslint . --ext .ts,.tsx"
+    "lint": "eslint ."
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -50,6 +50,8 @@
     "@babel/core": "^7.20.0",
     "@types/react": "~19.2.4",
     "@types/uuid": "^9.0.8",
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "^57.0.2",
     "typescript": "~6.0.3"
   },
   "private": true

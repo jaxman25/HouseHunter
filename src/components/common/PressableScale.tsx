@@ -1,3 +1,5 @@
+/* eslint-disable react-hooks/refs -- intentional: keep a single Animated.Value
+   alive for the component's lifetime (standard react-native pattern). */
 import React, { useRef } from 'react';
 import {
   Animated,

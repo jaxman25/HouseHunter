@@ -49,6 +49,9 @@ export function isFeatureEnabled(name: FeatureFlagName): boolean {
   const flag = FEATURE_FLAGS[name];
   if (!flag) return false;
 
+  // Env vars are statically declared on each flag above (FEATURE_FLAGS), so
+  // the dynamic lookup is against a fixed allowlist, not arbitrary input.
+  // eslint-disable-next-line expo/no-dynamic-env-var
   const raw = process.env[flag.envVar];
   if (raw === undefined || raw.trim() === '') return flag.defaultValue;
   return ['1', 'true', 'yes', 'on'].includes(raw.trim().toLowerCase());

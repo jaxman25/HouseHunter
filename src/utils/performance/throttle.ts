@@ -1,3 +1,6 @@
+/* eslint-disable react-hooks/refs -- this hook's API is a stable wrapper
+   around a ref-held throttled function; returning ref.current is the point. */
+
 /**
  * Throttle utilities.
  *

@@ -1,11 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { auth } from '../config/firebase';
+import { auth , db } from '../config/firebase';
 import { User } from '../types';
 import * as authService from '../services/authService';
 import { USERS_COLLECTION } from '../utils/constants';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { db } from '../config/firebase';
 
 interface AuthContextType {
   user: User | null;

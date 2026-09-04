@@ -36,6 +36,6 @@ jobs:
       - name: Export web bundle
         run: npx expo export --platform web
 
-      # Enable once ESLint is configured (see docs/PRODUCTION_READINESS.md §4.3).
-      # - name: Lint
-      #   run: npm run lint
+      # ESLint now has a flat config (eslint.config.js) wired into CI.
+      - name: Lint
+        run: npm run lint
