@@ -97,20 +97,25 @@ which supports native offline persistence. Until then, the AsyncStorage cache
 
 ### 3.2 Performance metrics
 
-Create `src/utils/monitoring/metrics.ts` — a tiny in-memory tracker (name →
-{count, totalMs, avgMs, p95}) with a `reportMetric(name, durationMs)` helper and
-a dev-only console dump. Instrument:
+**Status: done** — `src/utils/monitoring/metrics.ts` is an in-memory tracker
+(name → count/avg/p95/max, bounded samples) with `reportMetric()` and
+`trackMetric()` helpers, exported from `src/utils/monitoring/index.ts`.
+`trackMetric` wraps the whole retry chain, so measured times are the latency the
+user actually sees. Instrumented:
 
 | Metric | Where |
 |---|---|
-| Property list load | around `getProperties` |
-| Property detail load | around `getProperty` |
-| Image upload | around `uploadPropertyImage` / `uploadImage` |
-| Search latency | around `searchProperties` |
-| Screen render | navigation `focus` listener timestamps |
+| Property list load | `getProperties` → `properties.list` |
+| Property detail load | `getProperty` → `properties.detail` |
+| Property search | `searchProperties` → `properties.search` |
+| My listings | `getUserProperties` → `properties.byUser` |
+| Property image upload | `uploadPropertyImage` → `properties.uploadImage` |
+| Profile read | `getUserProfile` → `users.profile` |
+| Chat send / image upload | `sendMessage` → `chat.sendMessage`, `uploadChatImage` → `chat.uploadImage` |
 
-`monitoring/sentry.ts` becomes a thin wrapper choosing between Sentry and the
-local tracker when Sentry is absent.
+Dev console dump via `logMetricsReport()`; samples go to Sentry breadcrumbs
+when the `perfSpans` feature flag (`EXPO_PUBLIC_ENABLE_PERF_SPANS`) is on.
+Still ⏳: screen-render timing and shipping samples to a real metrics backend.
 
 ---
 
@@ -132,7 +137,17 @@ enforces a **per-user minute budget** (burst-window pattern, 100 writes/min):
   same `writeBatch` (client side: `withWriteCount()` in `propertyService.ts`,
   atomic `increment(1)` with `merge` — no extra reads, no client clocks).
 - Reads can't be rate-limited in rules — rely on Phase 1 caching for read
-  volume and add **Firebase App Check** before public launch.
+  volume and **Firebase App Check**.
+
+**App Check status: web wired, enforcement is console-side.**
+`src/config/firebase.ts` initializes App Check on web with a reCAPTCHA v3 (or
+Enterprise) provider when `EXPO_PUBLIC_RECAPTCHA_SITE_KEY` is set; without a
+key it no-ops. To turn it on: (1) Firebase console → **App Check** → register
+the web app and add a reCAPTCHA site key, (2) set the key in `.env`, (3) enable
+**Enforce** for Firestore + Storage. Native (Expo Go) has no JS provider —
+production iOS/Android builds need a dev build with
+`@react-native-firebase/app-check` (Play Integrity / App Attest); keep
+enforcement off for platforms that can't mint tokens.
 
 > ⚠️ Rules and client must be deployed together: old clients that don't bump the
 > counter will be denied property writes once these rules are live. Chat,
@@ -192,6 +207,10 @@ the previous build.
 
 - ✅ `cors.json` ships; deploy with
   `gsutil cors set cors.json gs://<project>.firebasestorage.app`.
+- ✅ **Storage security rules added** (`storage.rules`, wired into `firebase.json`):
+  owner-only profile writes; property images writable only while the property
+  doc is missing or by its owner; chat images only by conversation participants;
+  deny-all default. Deploy with `npx firebase-tools deploy --only storage:rules`.
 - XSS: React Native escapes text by default; for web-rendered HTML (rich text),
   sanitize with a whitelist before `dangerouslySetInnerHTML`.
 - CSRF: app uses Firebase Auth ID tokens (no cookies), so CSRF surface is
@@ -251,6 +270,24 @@ gcloud firestore export gs://househunter-backups/firestore/$(date +%F)
 # Restore
 gcloud firestore import gs://househunter-backups/firestore/<export-timestamp>
 ```
+
+---
+
+## Phase 6 (done) — Concurrency & idempotency
+
+Hardening applied on top of Phase 1–5 (see `docs/SYSTEM_DESIGN_AUDIT.md`):
+
+| Item | Change | Location |
+|---|---|---|
+| Idempotent conversation creation | Deterministic doc ID (SHA-256 of sorted participant IDs + property ID) + `setDoc` merge — concurrent "Contact Seller" taps converge on one conversation instead of duplicating | `chatService.ts` `getOrCreateConversation` |
+| Atomic message send | Message + conversation metadata + unread bump in a single `writeBatch` (was 4 sequential round-trips with partial-failure states); optional `recipientId` param avoids an extra read | `chatService.ts` `sendMessage` |
+| Race-free favorites | `arrayUnion`/`arrayRemove` server-side transforms replace read-modify-write (no lost updates, idempotent) | `authService.ts` `addFavorite`/`removeFavorite` |
+| Retryable batch commits | Property create/update/delete and message-send batches are now rebuilt **per retry attempt** — a Firestore `WriteBatch` can only be committed once, so a retried commit previously failed with "write batch can no longer be used" and masked the original transient error | `propertyService.ts`, `chatService.ts` `sendMessage` |
+| Batched read receipts | `markAsRead` = one query + chunked `writeBatch` (≤400/batch) instead of N updateDoc round-trips | `chatService.ts` `markAsRead` |
+| Optimistic locking (property edits) | `properties.version` counter: client bumps by 1 from the read; rules (`versionBumpedExactlyOnce()`) deny stale writes; legacy docs without `version` act as version 0 | `propertyService.ts` `updateProperty`, `firestore.rules` |
+| Server-clock message ordering | `messages.createdAt` writes `serverTimestamp()`; `subscribeToMessages` normalizes `Timestamp` → ISO for the UI — no more device-clock misordering | `chatService.ts` `sendMessage`/`subscribeToMessages` |
+| Canary preview deploys | `.github/workflows/preview.yml` — every PR gets a 7-day Firebase Hosting preview channel + URL comment | `.github/workflows/preview.yml` |
+| Feature flags | Env-driven `src/utils/featureFlags.ts` (used by metrics; swap to Remote Config for runtime flips) | `src/utils/featureFlags.ts` |
 
 ---
 

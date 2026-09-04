@@ -40,6 +40,7 @@ import {
   invalidatePropertiesCache,
   invalidatePropertyDetail,
 } from '../utils/cache/cacheInvalidation';
+import { trackMetric } from '../utils/monitoring/metrics';
 
 /** Collection storing per-user write budgets (see firestore.rules). */
 const COUNTERS_COLLECTION = 'counters';
@@ -67,18 +68,25 @@ export async function createProperty(
   property: Omit<Property, 'id' | 'views' | 'inquiries' | 'createdAt' | 'updatedAt'>
 ): Promise<string> {
   const propRef = doc(collection(db, PROPERTIES_COLLECTION));
-  const batch = writeBatch(db);
-  batch.set(propRef, {
-    ...property,
-    views: 0,
-    inquiries: 0,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-  withWriteCount(batch, property.userId);
+
+  // NB: the batch is rebuilt per attempt — a Firestore WriteBatch can only be
+  // committed once, so a retried commit needs a fresh batch.
+  const commitCreate = () => {
+    const batch = writeBatch(db);
+    batch.set(propRef, {
+      ...property,
+      views: 0,
+      inquiries: 0,
+      version: 1,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    withWriteCount(batch, property.userId);
+    return batch.commit();
+  };
 
   await firestoreCircuitBreaker.execute(() =>
-    withRetry(() => withTimeout(batch.commit(), DEFAULT_TIMEOUT_MS))
+    withRetry(() => withTimeout(commitCreate(), DEFAULT_TIMEOUT_MS))
   );
 
   // Mutations invalidate cached listing pages so the next read is fresh.
@@ -93,6 +101,7 @@ export async function updateProperty(
   const docRef = doc(db, PROPERTIES_COLLECTION, id);
 
   // The write budget is charged to the property owner, so read the doc first.
+  // The read also gives us the current `version` for optimistic locking.
   const existing = await firestoreCircuitBreaker.execute(() =>
     withRetry(() => withTimeout(getDoc(docRef), DEFAULT_TIMEOUT_MS))
   );
@@ -101,13 +110,31 @@ export async function updateProperty(
     throw new Error('Cannot update property: missing owner');
   }
 
-  const batch = writeBatch(db);
-  batch.update(docRef, { ...data, updatedAt: serverTimestamp() });
-  withWriteCount(batch, ownerId);
+  // Optimistic locking: docs without a `version` are treated as version 0, so
+  // the first edit bumps them to 1 (matches the rules fallback below).
+  const nextVersion = (existing.exists() ? existing.data().version ?? 0 : 0) + 1;
 
-  await firestoreCircuitBreaker.execute(() =>
-    withRetry(() => withTimeout(batch.commit(), DEFAULT_TIMEOUT_MS))
-  );
+  // Rebuild the batch per retry attempt (a committed batch can't be reused).
+  const commitUpdate = () => {
+    const batch = writeBatch(db);
+    // `version` is set AFTER the spread so caller-supplied data can't override it.
+    batch.update(docRef, { ...data, version: nextVersion, updatedAt: serverTimestamp() });
+    withWriteCount(batch, ownerId);
+    return batch.commit();
+  };
+
+  try {
+    await firestoreCircuitBreaker.execute(() =>
+      withRetry(() => withTimeout(commitUpdate(), DEFAULT_TIMEOUT_MS))
+    );
+  } catch (error) {
+    // firestore.rules denies a stale write (version mismatch) with
+    // failed-precondition — surface a friendly conflict instead of a raw error.
+    if ((error as { code?: unknown } | null)?.code === 'failed-precondition') {
+      throw new Error('This listing was modified elsewhere. Refresh and try again.');
+    }
+    throw error;
+  }
 
   await invalidatePropertiesCache();
   await invalidatePropertyDetail(id);
@@ -132,11 +159,15 @@ export async function deleteProperty(id: string): Promise<void> {
       }
     }
 
-    const batch = writeBatch(db);
-    batch.delete(docRef);
-    withWriteCount(batch, ownerId);
+    // Rebuild the batch per retry attempt (a committed batch can't be reused).
+    const commitDelete = () => {
+      const batch = writeBatch(db);
+      batch.delete(docRef);
+      withWriteCount(batch, ownerId);
+      return batch.commit();
+    };
     await firestoreCircuitBreaker.execute(() =>
-      withRetry(() => withTimeout(batch.commit(), DEFAULT_TIMEOUT_MS))
+      withRetry(() => withTimeout(commitDelete(), DEFAULT_TIMEOUT_MS))
     );
   }
   // Document already gone — nothing to delete (and the rate limiter requires
@@ -162,9 +193,11 @@ export async function getProperty(id: string): Promise<Property | null> {
   const result = await getCachedOrFetch(
     buildCacheKey('properties', 'detail', id),
     () =>
-      firestoreCircuitBreaker.execute(() =>
-        withRetry(() =>
-          withTimeout(fetchProperty(id), DEFAULT_TIMEOUT_MS)
+      trackMetric('properties.detail', () =>
+        firestoreCircuitBreaker.execute(() =>
+          withRetry(() =>
+            withTimeout(fetchProperty(id), DEFAULT_TIMEOUT_MS)
+          )
         )
       ),
     PROPERTY_CACHE_TTL_MS
@@ -271,9 +304,11 @@ export async function getProperties(
   lastDoc?: DocumentSnapshot
 ): Promise<{ properties: Property[]; lastDoc: DocumentSnapshot | null }> {
   const fetchPage = () =>
-    firestoreCircuitBreaker.execute(() =>
-      withRetry(() =>
-        withTimeout(fetchPropertiesPage(filter, pageSize, lastDoc), DEFAULT_TIMEOUT_MS)
+    trackMetric('properties.list', () =>
+      firestoreCircuitBreaker.execute(() =>
+        withRetry(() =>
+          withTimeout(fetchPropertiesPage(filter, pageSize, lastDoc), DEFAULT_TIMEOUT_MS)
+        )
       )
     );
 
@@ -298,36 +333,38 @@ export async function searchProperties(
 ): Promise<Property[]> {
   // Firestore doesn't support full-text search natively,
   // so we search on the client side
-  const result = await firestoreCircuitBreaker.execute(() =>
-    withRetry(() =>
-      withTimeout(
-        (async () => {
-          const q = query(
-            collection(db, PROPERTIES_COLLECTION),
-            where('status', '==', 'active'),
-            orderBy('createdAt', 'desc'),
-            limit(100)
-          );
-          const querySnapshot = await getDocs(q);
-          const term = searchTerm.toLowerCase();
+  const result = await trackMetric('properties.search', () =>
+    firestoreCircuitBreaker.execute(() =>
+      withRetry(() =>
+        withTimeout(
+          (async () => {
+            const q = query(
+              collection(db, PROPERTIES_COLLECTION),
+              where('status', '==', 'active'),
+              orderBy('createdAt', 'desc'),
+              limit(100)
+            );
+            const querySnapshot = await getDocs(q);
+            const term = searchTerm.toLowerCase();
 
-          const results: Property[] = [];
-          querySnapshot.forEach((doc) => {
-            const data = doc.data() as Property;
-            if (
-              data.title.toLowerCase().includes(term) ||
-              data.address.toLowerCase().includes(term) ||
-              data.city.toLowerCase().includes(term) ||
-              data.state.toLowerCase().includes(term) ||
-              data.description.toLowerCase().includes(term)
-            ) {
-              results.push({ ...data, id: doc.id });
-            }
-          });
+            const results: Property[] = [];
+            querySnapshot.forEach((doc) => {
+              const data = doc.data() as Property;
+              if (
+                data.title.toLowerCase().includes(term) ||
+                data.address.toLowerCase().includes(term) ||
+                data.city.toLowerCase().includes(term) ||
+                data.state.toLowerCase().includes(term) ||
+                data.description.toLowerCase().includes(term)
+              ) {
+                results.push({ ...data, id: doc.id });
+              }
+            });
 
-          return results;
-        })(),
-        DEFAULT_TIMEOUT_MS
+            return results;
+          })(),
+          DEFAULT_TIMEOUT_MS
+        )
       )
     )
   );
@@ -335,23 +372,25 @@ export async function searchProperties(
 }
 
 export async function getUserProperties(userId: string): Promise<Property[]> {
-  const result = await firestoreCircuitBreaker.execute(() =>
-    withRetry(() =>
-      withTimeout(
-        (async () => {
-          const q = query(
-            collection(db, PROPERTIES_COLLECTION),
-            where('userId', '==', userId),
-            orderBy('createdAt', 'desc')
-          );
-          const querySnapshot = await getDocs(q);
-          const properties: Property[] = [];
-          querySnapshot.forEach((doc) => {
-            properties.push({ id: doc.id, ...doc.data() } as Property);
-          });
-          return properties;
-        })(),
-        DEFAULT_TIMEOUT_MS
+  const result = await trackMetric('properties.byUser', () =>
+    firestoreCircuitBreaker.execute(() =>
+      withRetry(() =>
+        withTimeout(
+          (async () => {
+            const q = query(
+              collection(db, PROPERTIES_COLLECTION),
+              where('userId', '==', userId),
+              orderBy('createdAt', 'desc')
+            );
+            const querySnapshot = await getDocs(q);
+            const properties: Property[] = [];
+            querySnapshot.forEach((doc) => {
+              properties.push({ id: doc.id, ...doc.data() } as Property);
+            });
+            return properties;
+          })(),
+          DEFAULT_TIMEOUT_MS
+        )
       )
     )
   );
@@ -402,14 +441,14 @@ export async function uploadPropertyImage(
   const url = await storageCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        (async () => {
+        trackMetric('properties.uploadImage', async () => {
           const response = await fetch(uri);
           const blob = await response.blob();
           const filename = `properties/${propertyId}/image_${index}_${Date.now()}`;
           const storageRef = ref(storage, filename);
           await uploadBytes(storageRef, blob);
           return getDownloadURL(storageRef);
-        })(),
+        }),
         UPLOAD_TIMEOUT_MS
       )
     )

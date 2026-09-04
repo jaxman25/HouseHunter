@@ -36,7 +36,7 @@ export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const flatListRef = useRef<FlatList>(null);
 
-  const { conversationId, recipientName } = route.params;
+  const { conversationId, recipientId, recipientName } = route.params;
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [sending, setSending] = useState(false);
@@ -67,7 +67,7 @@ export default function ChatScreen() {
     if (!user) return;
     setSending(true);
     try {
-      await sendMessage(conversationId, user.uid, text);
+      await sendMessage(conversationId, user.uid, text, undefined, recipientId);
     } catch (error) {
       console.error('Error sending message:', error);
     } finally {
@@ -80,7 +80,7 @@ export default function ChatScreen() {
     setSending(true);
     try {
       const imageUrl = await uploadChatImage(uri, conversationId);
-      await sendMessage(conversationId, user.uid, '', imageUrl);
+      await sendMessage(conversationId, user.uid, '', imageUrl, recipientId);
     } catch (error) {
       console.error('Error sending image:', error);
     } finally {

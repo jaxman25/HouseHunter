@@ -58,6 +58,8 @@ export interface Property {
   userPhone: string;
   views: number;
   inquiries: number;
+  /** Optimistic-lock counter — bumped on every owner edit (see firestore.rules). */
+  version?: number;
   createdAt: string;
   updatedAt: string;
 }

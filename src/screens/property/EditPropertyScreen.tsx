@@ -121,7 +121,13 @@ export default function EditPropertyScreen() {
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (error) {
-      Alert.alert('Error', 'Failed to update property');
+      // Optimistic-lock conflicts carry a user-facing message (modified
+      // elsewhere) — show it, otherwise fall back to the generic error.
+      const message =
+        error instanceof Error && error.message.includes('modified elsewhere')
+          ? error.message
+          : 'Failed to update property';
+      Alert.alert('Error', message);
     } finally {
       setLoading(false);
     }

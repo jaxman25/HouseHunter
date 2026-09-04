@@ -65,8 +65,17 @@ service cloud.firestore {
         'status', 'address', 'city', 'state', 'zipCode', 'country',
         'latitude', 'longitude', 'bedrooms', 'bathrooms', 'area',
         'areaUnit', 'yearBuilt', 'images', 'features', 'amenities',
-        'views', 'inquiries', 'updatedAt'
+        'views', 'inquiries', 'version', 'updatedAt'
       ]);
+    }
+
+    // Optimistic locking: the client must bump `version` by exactly 1 from the
+    // version it read. Docs created before versioning (no `version` field) are
+    // treated as version 0, so their first edit writes version 1.
+    function versionBumpedExactlyOnce() {
+      return !('version' in resource.data)
+        ? request.resource.data.version == 1
+        : request.resource.data.version == resource.data.version + 1;
     }
 
     // ─── Rate limiting ─────────────────────────────────────────
@@ -167,6 +176,7 @@ service cloud.firestore {
       allow update: if isAuthenticated() && (
         (isPropertyOwner(propertyId) &&
           propertyEditFieldsAreValid() &&
+          versionBumpedExactlyOnce() &&
           withinWriteLimit())
         ||
         // Passive view counting on detail views.

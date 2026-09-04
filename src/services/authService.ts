@@ -12,7 +12,15 @@ import {
   EmailAuthProvider,
   User,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import {
+  doc,
+  setDoc,
+  getDoc,
+  updateDoc,
+  serverTimestamp,
+  arrayUnion,
+  arrayRemove,
+} from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { User as AppUser, UserProfile } from '../types';
 import { USERS_COLLECTION, DEFAULT_AVATAR } from '../utils/constants';
@@ -28,6 +36,7 @@ import {
   invalidateUserProfile,
   invalidateFavorites,
 } from '../utils/cache/cacheInvalidation';
+import { trackMetric } from '../utils/monitoring/metrics';
 
 export async function register(
   email: string,
@@ -173,18 +182,20 @@ export async function getUserProfile(uid: string): Promise<AppUser | null> {
   const result = await getCachedOrFetch(
     buildCacheKey('users', 'profile', uid),
     () =>
-      authCircuitBreaker.execute(() =>
-        withRetry(() =>
-          withTimeout(
-            (async () => {
-              const docRef = doc(db, USERS_COLLECTION, uid);
-              const docSnap = await getDoc(docRef);
-              if (docSnap.exists()) {
-                return { uid: docSnap.id, ...docSnap.data() } as AppUser;
-              }
-              return null;
-            })(),
-            DEFAULT_TIMEOUT_MS
+      trackMetric('users.profile', () =>
+        authCircuitBreaker.execute(() =>
+          withRetry(() =>
+            withTimeout(
+              (async () => {
+                const docRef = doc(db, USERS_COLLECTION, uid);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                  return { uid: docSnap.id, ...docSnap.data() } as AppUser;
+                }
+                return null;
+              })(),
+              DEFAULT_TIMEOUT_MS
+            )
           )
         )
       ),
@@ -249,44 +260,29 @@ export async function changePassword(
 }
 
 export async function addFavorite(uid: string, propertyId: string): Promise<void> {
-  const userRef = doc(db, USERS_COLLECTION, uid);
-  const userSnap = await authCircuitBreaker.execute(() =>
-    withRetry(() => withTimeout(getDoc(userRef), DEFAULT_TIMEOUT_MS))
-  );
-  if (!userSnap.exists()) return;
-
-  const favorites = userSnap.data().favorites || [];
-  if (!favorites.includes(propertyId)) {
-    await authCircuitBreaker.execute(() =>
-      withRetry(() =>
-        withTimeout(
-          updateDoc(userRef, {
-            favorites: [...favorites, propertyId],
-            updatedAt: serverTimestamp(),
-          }),
-          DEFAULT_TIMEOUT_MS
-        )
+  // arrayUnion is an atomic server-side transform: no read-modify-write, so
+  // concurrent toggles on different devices can't lose updates (and it's
+  // idempotent — toggling the same favorite twice is a no-op).
+  await authCircuitBreaker.execute(() =>
+    withRetry(() =>
+      withTimeout(
+        updateDoc(doc(db, USERS_COLLECTION, uid), {
+          favorites: arrayUnion(propertyId),
+          updatedAt: serverTimestamp(),
+        }),
+        DEFAULT_TIMEOUT_MS
       )
-    );
-  }
+    )
+  );
   await invalidateFavorites(uid);
 }
 
 export async function removeFavorite(uid: string, propertyId: string): Promise<void> {
-  const userRef = doc(db, USERS_COLLECTION, uid);
-  const userSnap = await authCircuitBreaker.execute(() =>
-    withRetry(() => withTimeout(getDoc(userRef), DEFAULT_TIMEOUT_MS))
-  );
-  if (!userSnap.exists()) return;
-
-  const favorites = (userSnap.data().favorites || []).filter(
-    (id: string) => id !== propertyId
-  );
   await authCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        updateDoc(userRef, {
-          favorites,
+        updateDoc(doc(db, USERS_COLLECTION, uid), {
+          favorites: arrayRemove(propertyId),
           updatedAt: serverTimestamp(),
         }),
         DEFAULT_TIMEOUT_MS

@@ -3,6 +3,7 @@ import { storage } from '../config/firebase';
 import { storageCircuitBreaker } from '../utils/network/circuitBreaker';
 import { withRetry } from '../utils/network/retry';
 import { withTimeout, UPLOAD_TIMEOUT_MS } from '../utils/network/timeout';
+import { trackMetric } from '../utils/monitoring/metrics';
 
 export async function uploadImage(
   uri: string,
@@ -12,13 +13,13 @@ export async function uploadImage(
   const url = await storageCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        (async () => {
+        trackMetric('storage.upload', async () => {
           const response = await fetch(uri);
           const blob = await response.blob();
           const storageRef = ref(storage, path);
           await uploadBytes(storageRef, blob);
           return getDownloadURL(storageRef);
-        })(),
+        }),
         UPLOAD_TIMEOUT_MS
       )
     )

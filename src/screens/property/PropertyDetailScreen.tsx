@@ -102,7 +102,9 @@ export default function PropertyDetailScreen() {
       await sendMessage(
         conversationId,
         user.uid,
-        `Hi, I'm interested in "${property.title}" listed at ${formatPrice(property.price, property.listingType)}. Is this still available?`
+        `Hi, I'm interested in "${property.title}" listed at ${formatPrice(property.price, property.listingType)}. Is this still available?`,
+        undefined,
+        property.userId
       );
       await createNotification(
         property.userId,

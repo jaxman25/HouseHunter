@@ -14,6 +14,7 @@ export * from './monitoring';
 
 export * from './constants';
 export * from './env';
+export * from './featureFlags';
 export * from './helpers';
 export * from './formatters';
 export * from './validators';

@@ -1,0 +1,80 @@
+name: Deploy Preview Channel (canary)
+
+# Canary-style preview deploys: every PR (and manual runs) gets a short-lived
+# Firebase Hosting preview channel with its own URL, so changes can be
+# smoke-tested before they reach production. Promotion to production stays the
+# job of deploy.yml (push to main). Channels expire automatically.
+#
+# Requires the same secrets as deploy.yml:
+#   FIREBASE_PROJECT_ID — the Firebase project id
+#   FIREBASE_TOKEN      — CI token from `npx firebase-tools login:ci`
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  workflow_dispatch:
+
+jobs:
+  preview:
+    name: Export & deploy preview channel
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Export web bundle
+        run: npx expo export --platform web
+
+      - name: Deploy preview channel
+        id: deploy
+        env:
+          CHANNEL_ID: pr-${{ github.event.pull_request.number || github.run_number }}
+        run: |
+          npx --yes firebase-tools@latest hosting:channel:deploy "$CHANNEL_ID" \
+            --expires 7d \
+            --project "${{ secrets.FIREBASE_PROJECT_ID }}" \
+            --token "${{ secrets.FIREBASE_TOKEN }}" \
+            --json > channel.json
+          URL=$(node -e "
+            const c = require('./channel.json');
+            const r = c && c.result;
+            const url = (r && (r.url || (r.urls && r.urls[0]))) || '';
+            process.stdout.write(url);
+          ")
+          if [ -z "$URL" ]; then
+            echo "::error::Could not parse preview URL from channel deploy output"
+            cat channel.json
+            exit 1
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Comment preview URL on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = '${{ steps.deploy.outputs.url }}';
+            const channel = `pr-${context.issue.number}`;
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🚀 **Preview ready** (canary channel \`${channel}\`): ${url}\n\n` +
+                    `Expires in 7 days. Promote to production by merging to \`main\` ` +
+                    `(deploy.yml) or with \`firebase hosting:channel:deploy\` + \`hosting:clone\`.`,
+            });
+
+      - name: Echo preview URL
+        if: github.event_name != 'pull_request'
+        run: echo "Preview channel: ${{ steps.deploy.outputs.url }}"

@@ -1,0 +1,44 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // ─── Profile avatars: owner-only writes ──────────────────────────────
+    match /profiles/{userId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // ─── Property images ─────────────────────────────────────────────────
+    // The AddProperty flow uploads images BEFORE the property document
+    // exists (client generates the id first), so writes are allowed while
+    // the doc is missing; once the property exists, only its owner may
+    // write. This blocks overwriting an existing listing's photos.
+    function isPropertyImageOwner(propertyId) {
+      let doc = firestore.get(/databases/(default)/documents/properties/$(propertyId));
+      return !doc.exists || doc.data.userId == request.auth.uid;
+    }
+    match /properties/{propertyId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isPropertyImageOwner(propertyId);
+    }
+
+    // ─── Chat images: participants only ──────────────────────────────────
+    function isChatParticipant(conversationId) {
+      let doc = firestore.get(/databases/(default)/documents/conversations/$(conversationId));
+      return doc.exists && request.auth.uid in doc.data.participants;
+    }
+    match /chat/{conversationId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isChatParticipant(conversationId);
+    }
+
+    // ─── Default: deny everything else ───────────────────────────────────
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

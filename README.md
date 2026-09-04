@@ -144,15 +144,18 @@ npx firebase-tools deploy --only firestore:indexes
 
 **Without this step you'll see errors like `FirebaseError: The query requires an index` in the console, and property lists / chat will fail to load.** Each such error also prints a one-click link to create the individual index in the Firebase console.
 
-### 6. Deploy Firestore security rules
+### 6. Deploy security rules
 
-For development, the repo ships permissive rules (`firestore.rules`). Deploy them:
+The repo ships rules for **both** Firestore (`firestore.rules`) and Storage
+(`storage.rules` — owner/participant-scoped writes with a deny-all default).
+Deploy them:
 
 ```bash
-npx firebase-tools deploy --only firestore:rules
+npx firebase-tools deploy --only firestore:rules,storage:rules
 ```
 
-> ⚠️ **Production:** tighten these rules so users can only read/write their own data.
+> ⚠️ **Production:** review and tighten these rules so users can only read/write
+their own data.
 
 ### 7. Storage CORS (only needed for web uploads)
 
@@ -202,6 +205,7 @@ HouseHunter/
 ├── firebase.json                # Firebase CLI config (rules + indexes)
 ├── firestore.rules              # Firestore security rules
 ├── firestore.indexes.json       # Required composite indexes
+├── storage.rules                # Storage security rules (owner/participant-scoped)
 ├── cors.json                    # Storage CORS rules for web uploads
 ├── public/                      # PWA assets (manifest, icon, service worker)
 ├── scripts/                     # check-indexes.js (CI index coverage)

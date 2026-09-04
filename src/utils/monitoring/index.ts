@@ -1,4 +1,5 @@
 /**
- * Monitoring & observability: Sentry error tracking.
+ * Monitoring & observability: Sentry error tracking + in-memory metrics.
  */
 export * from './sentry';
+export * from './metrics';
