@@ -18,8 +18,10 @@ service firebase.storage {
     // the doc is missing; once the property exists, only its owner may
     // write. This blocks overwriting an existing listing's photos.
     function isPropertyImageOwner(propertyId) {
-      let doc = firestore.get(/databases/(default)/documents/properties/$(propertyId));
-      return !doc.exists || doc.data.userId == request.auth.uid;
+      // Written while the doc is missing (AddProperty uploads first), then
+      // owner-only once the property doc exists with the same id.
+      return !firestore.exists(/databases/(default)/documents/properties/$(propertyId))
+        || firestore.get(/databases/(default)/documents/properties/$(propertyId)).data.userId == request.auth.uid;
     }
     match /properties/{propertyId}/{fileName} {
       allow read: if isAuthenticated();
@@ -28,8 +30,8 @@ service firebase.storage {
 
     // ─── Chat images: participants only ──────────────────────────────────
     function isChatParticipant(conversationId) {
-      let doc = firestore.get(/databases/(default)/documents/conversations/$(conversationId));
-      return doc.exists && request.auth.uid in doc.data.participants;
+      return firestore.exists(/databases/(default)/documents/conversations/$(conversationId))
+        && request.auth.uid in firestore.get(/databases/(default)/documents/conversations/$(conversationId)).data.participants;
     }
     match /chat/{conversationId}/{fileName} {
       allow read: if isAuthenticated();

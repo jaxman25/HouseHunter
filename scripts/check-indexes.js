@@ -33,8 +33,16 @@ const REQUIRED_INDEXES = [
   { collectionGroup: 'properties', fields: [['listingType', 'ASCENDING'], ['status', 'ASCENDING'], ['views', 'DESCENDING']] },
   // properties — propertyType + status
   { collectionGroup: 'properties', fields: [['propertyType', 'ASCENDING'], ['status', 'ASCENDING'], ['createdAt', 'DESCENDING']] },
+  { collectionGroup: 'properties', fields: [['propertyType', 'ASCENDING'], ['status', 'ASCENDING'], ['createdAt', 'ASCENDING']] },
   { collectionGroup: 'properties', fields: [['propertyType', 'ASCENDING'], ['status', 'ASCENDING'], ['price', 'ASCENDING']] },
+  { collectionGroup: 'properties', fields: [['propertyType', 'ASCENDING'], ['status', 'ASCENDING'], ['price', 'DESCENDING']] },
+  { collectionGroup: 'properties', fields: [['propertyType', 'ASCENDING'], ['status', 'ASCENDING'], ['price', 'ASCENDING'], ['createdAt', 'DESCENDING']] },
+  { collectionGroup: 'properties', fields: [['propertyType', 'ASCENDING'], ['status', 'ASCENDING'], ['price', 'ASCENDING'], ['createdAt', 'ASCENDING']] },
+  { collectionGroup: 'properties', fields: [['propertyType', 'ASCENDING'], ['status', 'ASCENDING'], ['price', 'ASCENDING'], ['views', 'DESCENDING']] },
   { collectionGroup: 'properties', fields: [['propertyType', 'ASCENDING'], ['status', 'ASCENDING'], ['views', 'DESCENDING']] },
+  // properties — price range + createdAt-asc/views sorts (no property type)
+  { collectionGroup: 'properties', fields: [['status', 'ASCENDING'], ['price', 'ASCENDING'], ['createdAt', 'ASCENDING']] },
+  { collectionGroup: 'properties', fields: [['status', 'ASCENDING'], ['price', 'ASCENDING'], ['views', 'DESCENDING']] },
   // properties — city/state + status
   { collectionGroup: 'properties', fields: [['status', 'ASCENDING'], ['city', 'ASCENDING'], ['createdAt', 'DESCENDING']] },
   { collectionGroup: 'properties', fields: [['status', 'ASCENDING'], ['city', 'ASCENDING'], ['price', 'ASCENDING']] },

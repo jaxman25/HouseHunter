@@ -162,21 +162,17 @@ export function stableStringify(value: unknown): string {
 }
 
 /**
- * Serialize a cache entry, converting Firestore `Timestamp`-shaped objects
- * ({ seconds, nanoseconds }) into ISO date strings so cached documents remain
- * date-parseable without the Firebase SDK.
+ * Serialize a cache entry, converting Firestore `Timestamp` values — both
+ * live instances and plain `{ seconds, nanoseconds }` shapes — into ISO date
+ * strings so cached documents remain date-parseable without the Firebase SDK.
  */
 function serialize(value: unknown): string {
   return JSON.stringify(value, (_key, v) => {
-    if (
-      v &&
-      typeof v === 'object' &&
-      typeof (v as { seconds?: unknown }).seconds === 'number' &&
-      typeof (v as { nanoseconds?: unknown }).nanoseconds === 'number' &&
-      typeof (v as { toDate?: unknown }).toDate !== 'function'
-    ) {
-      const { seconds, nanoseconds } = v as { seconds: number; nanoseconds: number };
-      return new Date(seconds * 1000 + nanoseconds / 1_000_000).toISOString();
+    if (v && typeof v === 'object') {
+      const { seconds, nanoseconds } = v as { seconds?: unknown; nanoseconds?: unknown };
+      if (typeof seconds === 'number' && typeof nanoseconds === 'number') {
+        return new Date(seconds * 1000 + nanoseconds / 1_000_000).toISOString();
+      }
     }
     return v;
   });

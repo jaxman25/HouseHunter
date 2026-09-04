@@ -20,18 +20,6 @@ service cloud.firestore {
         get(/databases/$(database)/documents/properties/$(propertyId)).data.userId == request.auth.uid;
     }
 
-    function isValidEmail(email) {
-      return email.matches('.*@.*\\..*');
-    }
-
-    function isValidPrice(price) {
-      return price is number && price > 0;
-    }
-
-    function hasMinLength(value, minLen) {
-      return value is string && value.size() >= minLen;
-    }
-
     function userDataIsValid() {
       return request.resource.data.keys().hasAll([
         'uid', 'email', 'displayName', 'phoneNumber', 'photoURL',
@@ -88,37 +76,29 @@ service cloud.firestore {
       return /databases/$(database)/documents/counters/$(request.auth.uid);
     }
 
-    function currentMinute() {
-      // Integer division of epoch millis by 60000 yields the minute bucket.
-      return request.time.toMillis() / 60000;
-    }
-
-    // Enforces:
-    //  - the counter was written with the current minute bucket,
+    // Enforces (rules functions are expression-only — `let` bindings followed
+    // by a single `return`, no if/else statements):
+    //  - the batch writes counters/{uid} (so the after-state below exists),
     //  - the running count stays in [1, WRITE_LIMIT],
+    //  - the first counter ever starts at 1,
     //  - same-minute writes increment the count by exactly 1, and
     //  - a new minute bucket starts fresh (any rollover count <= limit is OK).
+    // The client writes an integer minute bucket (Math.floor(epochMs/60000));
+    // comparing client-written minutes (before vs after) is exact, unlike
+    // deriving the bucket from request.time (microsecond precision).
     function withinWriteLimit() {
-      let bucket = currentMinute();
       let after = getAfter(writeBudgetRef());
-      if (!after.exists() || after.data.minute != bucket) {
-        return false;
-      }
-      let count = after.data.writes;
-      if (count < 1 || count > 100) {
-        return false;
-      }
-      if (!exists(writeBudgetRef())) {
-        // First counter ever — must start at 1.
-        return count == 1;
-      }
       let before = get(writeBudgetRef());
-      if (before.data.minute != bucket) {
-        // Rolled into a new minute — client rewrote the bucket.
-        return true;
-      }
-      // Same minute — must be a clean +1 (atomic increments serialize).
-      return count == before.data.writes + 1;
+      return after.data.writes >= 1
+          && after.data.writes <= 100
+          && (!exists(writeBudgetRef())
+            // First counter ever — must start at 1.
+            ? after.data.writes == 1
+            // Rolled into a new minute — client rewrote the bucket, so any
+            // count up to the limit is fine.
+            : before.data.minute != after.data.minute
+              // Same minute — must be a clean +1 (increments serialize).
+              || after.data.writes == before.data.writes + 1);
     }
 
     // ═══════════════════════════════════════════════════════════

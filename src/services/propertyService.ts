@@ -14,7 +14,9 @@ import {
   serverTimestamp,
   updateDoc,
   DocumentSnapshot,
+  DocumentData,
   QueryConstraint,
+  Timestamp,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '../config/firebase';
@@ -51,6 +53,39 @@ function currentMinute(): number {
 }
 
 /**
+ * Normalize a Firestore timestamp to an ISO string.
+ *
+ * Properties are written with `serverTimestamp()`, so raw docs carry `Timestamp`
+ * instances (and cached copies serialize to `{ seconds, nanoseconds }` objects).
+ * The `Property` type declares ISO strings and the UI feeds them to
+ * `new Date(...)`/date-fns, so convert at the service boundary — same pattern
+ * as `subscribeToMessages` in chatService.ts.
+ */
+function toISO(value: unknown): string {
+  if (value instanceof Timestamp) {
+    return value.toDate().toISOString();
+  }
+  if (value && typeof value === 'object') {
+    const t = value as { seconds?: unknown; nanoseconds?: unknown };
+    if (typeof t.seconds === 'number' && typeof t.nanoseconds === 'number') {
+      return new Date(t.seconds * 1000 + t.nanoseconds / 1_000_000).toISOString();
+    }
+  }
+  return value as string;
+}
+
+/** Map a Firestore property document to the `Property` type with ISO dates. */
+function toProperty(docSnap: DocumentSnapshot<DocumentData>): Property {
+  const data = docSnap.data() as Property;
+  return {
+    ...data,
+    id: docSnap.id,
+    createdAt: toISO(data.createdAt),
+    updatedAt: toISO(data.updatedAt),
+  };
+}
+
+/**
  * Attach a rate-limit counter bump to `batch` for `uid`. Firestore rules
  * (`withinWriteLimit()` in firestore.rules) require every property write to be
  * accompanied, in the same batch, by a `counters/{uid}` write shaped
@@ -65,9 +100,18 @@ function withWriteCount(batch: WriteBatch, uid: string): void {
 }
 
 export async function createProperty(
-  property: Omit<Property, 'id' | 'views' | 'inquiries' | 'createdAt' | 'updatedAt'>
+  property: Omit<Property, 'id' | 'views' | 'inquiries' | 'createdAt' | 'updatedAt'>,
+  /**
+   * Optional document id. The AddProperty flow uploads images to
+   * `properties/{id}/...` BEFORE the doc exists (see storage.rules), so it
+   * passes the id it already used as the storage folder to keep both in sync.
+   * Without it an auto-generated id is used.
+   */
+  docId?: string
 ): Promise<string> {
-  const propRef = doc(collection(db, PROPERTIES_COLLECTION));
+  const propRef = docId
+    ? doc(db, PROPERTIES_COLLECTION, docId)
+    : doc(collection(db, PROPERTIES_COLLECTION));
 
   // NB: the batch is rebuilt per attempt — a Firestore WriteBatch can only be
   // committed once, so a retried commit needs a fresh batch.
@@ -184,7 +228,7 @@ async function fetchProperty(id: string): Promise<Property | null> {
   if (docSnap.exists()) {
     // Increment views
     await updateDoc(docRef, { views: increment(1) });
-    return { id: docSnap.id, ...docSnap.data() } as Property;
+    return toProperty(docSnap);
   }
   return null;
 }
@@ -267,7 +311,7 @@ async function fetchPropertiesPage(
 
   const properties: Property[] = [];
   querySnapshot.forEach((doc) => {
-    properties.push({ id: doc.id, ...doc.data() } as Property);
+    properties.push(toProperty(doc));
   });
 
   // Client-side filtering for fields that can't be indexed easily
@@ -349,15 +393,15 @@ export async function searchProperties(
 
             const results: Property[] = [];
             querySnapshot.forEach((doc) => {
-              const data = doc.data() as Property;
+              const property = toProperty(doc);
               if (
-                data.title.toLowerCase().includes(term) ||
-                data.address.toLowerCase().includes(term) ||
-                data.city.toLowerCase().includes(term) ||
-                data.state.toLowerCase().includes(term) ||
-                data.description.toLowerCase().includes(term)
+                property.title.toLowerCase().includes(term) ||
+                property.address.toLowerCase().includes(term) ||
+                property.city.toLowerCase().includes(term) ||
+                property.state.toLowerCase().includes(term) ||
+                property.description.toLowerCase().includes(term)
               ) {
-                results.push({ ...data, id: doc.id });
+                results.push(property);
               }
             });
 
@@ -385,7 +429,7 @@ export async function getUserProperties(userId: string): Promise<Property[]> {
             const querySnapshot = await getDocs(q);
             const properties: Property[] = [];
             querySnapshot.forEach((doc) => {
-              properties.push({ id: doc.id, ...doc.data() } as Property);
+              properties.push(toProperty(doc));
             });
             return properties;
           })(),
@@ -419,7 +463,7 @@ export async function getPropertiesByIds(ids: string[]): Promise<Property[]> {
             const querySnapshot = await getDocs(q);
             const docs: Property[] = [];
             querySnapshot.forEach((doc) => {
-              docs.push({ id: doc.id, ...doc.data() } as Property);
+              docs.push(toProperty(doc));
             });
             return docs;
           })(),
