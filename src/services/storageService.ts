@@ -1,15 +1,29 @@
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage } from '../config/firebase';
+import { storageCircuitBreaker } from '../utils/network/circuitBreaker';
+import { withRetry } from '../utils/network/retry';
+import { withTimeout, UPLOAD_TIMEOUT_MS } from '../utils/network/timeout';
 
 export async function uploadImage(
   uri: string,
   path: string
 ): Promise<string> {
-  const response = await fetch(uri);
-  const blob = await response.blob();
-  const storageRef = ref(storage, path);
-  await uploadBytes(storageRef, blob);
-  return getDownloadURL(storageRef);
+  // Uploads get a 30s budget and retry with backoff on transient failures.
+  const url = await storageCircuitBreaker.execute(() =>
+    withRetry(() =>
+      withTimeout(
+        (async () => {
+          const response = await fetch(uri);
+          const blob = await response.blob();
+          const storageRef = ref(storage, path);
+          await uploadBytes(storageRef, blob);
+          return getDownloadURL(storageRef);
+        })(),
+        UPLOAD_TIMEOUT_MS
+      )
+    )
+  );
+  return url;
 }
 
 export async function uploadProfileImage(
@@ -36,7 +50,9 @@ export async function uploadMultipleImages(
 export async function deleteImage(url: string): Promise<void> {
   try {
     const imageRef = ref(storage, url);
-    await deleteObject(imageRef);
+    await storageCircuitBreaker.execute(() =>
+      withRetry(() => withTimeout(deleteObject(imageRef), UPLOAD_TIMEOUT_MS))
+    );
   } catch (error) {
     console.warn('Failed to delete image:', error);
   }

@@ -5,6 +5,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { RootStackParamList } from '../types';
+import ErrorBoundary from '../utils/errors/ErrorBoundary';
 import AuthNavigator from './AuthNavigator';
 import MainTabNavigator from './MainTabNavigator';
 import PropertyDetailScreen from '../screens/property/PropertyDetailScreen';
@@ -17,6 +18,23 @@ import ConversationsScreen from '../screens/chat/ConversationsScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import EditProfileScreen from '../screens/settings/EditProfileScreen';
 import ChangePasswordScreen from '../screens/settings/ChangePasswordScreen';
+
+/**
+ * Wrap a screen component in an error boundary so a crash in one screen
+ * shows a themed retry fallback instead of killing the whole navigator.
+ * Called at module scope so each wrapped component is created exactly once.
+ */
+function withErrorBoundary<P extends object>(
+  Component: React.ComponentType<P>
+): React.FC<P> {
+  return function ScreenWithErrorBoundary(props: P) {
+    return (
+      <ErrorBoundary>
+        <Component {...props} />
+      </ErrorBoundary>
+    );
+  };
+}
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -31,17 +49,17 @@ function MainStack() {
         contentStyle: { backgroundColor: colors.background },
       }}
     >
-      <Stack.Screen name="MainTabs" component={MainTabNavigator} />
-      <Stack.Screen name="PropertyDetail" component={PropertyDetailScreen} />
-      <Stack.Screen name="AddProperty" component={AddPropertyScreen} />
-      <Stack.Screen name="EditProperty" component={EditPropertyScreen} />
-      <Stack.Screen name="MyListings" component={MyListingsScreen} />
-      <Stack.Screen name="Search" component={SearchScreen} />
-      <Stack.Screen name="Chat" component={ChatScreen} />
-      <Stack.Screen name="Conversations" component={ConversationsScreen} />
-      <Stack.Screen name="Settings" component={SettingsScreen} />
-      <Stack.Screen name="EditProfile" component={EditProfileScreen} />
-      <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
+      <Stack.Screen name="MainTabs" component={withErrorBoundary(MainTabNavigator)} />
+      <Stack.Screen name="PropertyDetail" component={withErrorBoundary(PropertyDetailScreen)} />
+      <Stack.Screen name="AddProperty" component={withErrorBoundary(AddPropertyScreen)} />
+      <Stack.Screen name="EditProperty" component={withErrorBoundary(EditPropertyScreen)} />
+      <Stack.Screen name="MyListings" component={withErrorBoundary(MyListingsScreen)} />
+      <Stack.Screen name="Search" component={withErrorBoundary(SearchScreen)} />
+      <Stack.Screen name="Chat" component={withErrorBoundary(ChatScreen)} />
+      <Stack.Screen name="Conversations" component={withErrorBoundary(ConversationsScreen)} />
+      <Stack.Screen name="Settings" component={withErrorBoundary(SettingsScreen)} />
+      <Stack.Screen name="EditProfile" component={withErrorBoundary(EditProfileScreen)} />
+      <Stack.Screen name="ChangePassword" component={withErrorBoundary(ChangePasswordScreen)} />
     </Stack.Navigator>
   );
 }
@@ -60,7 +78,7 @@ export default function AppNavigator() {
 
   return (
     <NavigationContainer>
-      {user ? <MainStack /> : <AuthNavigator />}
+      {user ? <MainStack /> : <ErrorBoundary><AuthNavigator /></ErrorBoundary>}
     </NavigationContainer>
   );
 }

@@ -19,7 +19,7 @@ import { RootStackParamList, Property } from '../../types';
 import PropertyCard from '../../components/property/PropertyCard';
 import EmptyState from '../../components/common/EmptyState';
 import { searchProperties } from '../../services/propertyService';
-import { debounce } from '../../utils/helpers';
+import { useDebouncedCallback } from '../../utils/performance/debounce';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -56,27 +56,24 @@ export default function SearchScreen() {
     await AsyncStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
   };
 
-  const handleSearch = useCallback(
-    debounce(async (term: string) => {
-      if (!term.trim()) {
-        setResults([]);
-        setHasSearched(false);
-        return;
-      }
-      setLoading(true);
-      setHasSearched(true);
-      try {
-        const searchResults = await searchProperties(term);
-        setResults(searchResults);
-        saveRecentSearch(term.trim());
-      } catch (error) {
-        console.error('Search error:', error);
-      } finally {
-        setLoading(false);
-      }
-    }, 500),
-    [recentSearches]
-  );
+  const handleSearch = useDebouncedCallback(async (term: string) => {
+    if (!term.trim()) {
+      setResults([]);
+      setHasSearched(false);
+      return;
+    }
+    setLoading(true);
+    setHasSearched(true);
+    try {
+      const searchResults = await searchProperties(term);
+      setResults(searchResults);
+      saveRecentSearch(term.trim());
+    } catch (error) {
+      console.error('Search error:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, 300);
 
   const handleQueryChange = (text: string) => {
     setQuery(text);

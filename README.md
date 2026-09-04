@@ -208,6 +208,10 @@ HouseHunter/
     ├── context/                 # AuthContext, ThemeContext
     ├── types/                   # TypeScript interfaces
     ├── utils/                   # Constants, helpers, validators, formatters
+    │   ├── network/             # retry, timeout, circuit breaker, health check
+    │   ├── cache/               # AsyncStorage TTL cache + invalidation
+    │   ├── errors/              # ErrorBoundary + themed fallbacks
+    │   └── performance/         # debounce + throttle (+ hooks)
     ├── services/                # Auth, property, chat, storage, notifications
     ├── navigation/              # Root, Auth, and Main tab navigators
     ├── components/              # common / property / chat components

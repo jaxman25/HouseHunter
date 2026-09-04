@@ -7,7 +7,6 @@ import {
   signOut,
   sendPasswordResetEmail,
   updateProfile,
-  updateEmail,
   updatePassword,
   reauthenticateWithCredential,
   EmailAuthProvider,
@@ -16,8 +15,19 @@ import {
 import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { User as AppUser, UserProfile } from '../types';
-import { USERS_COLLECTION } from '../utils/constants';
-import { DEFAULT_AVATAR } from '../utils/constants';
+import { USERS_COLLECTION, DEFAULT_AVATAR } from '../utils/constants';
+import { authCircuitBreaker } from '../utils/network/circuitBreaker';
+import { withRetry } from '../utils/network/retry';
+import { withTimeout, DEFAULT_TIMEOUT_MS } from '../utils/network/timeout';
+import {
+  getCachedOrFetch,
+  buildCacheKey,
+  PROFILE_CACHE_TTL_MS,
+} from '../utils/cache/cacheService';
+import {
+  invalidateUserProfile,
+  invalidateFavorites,
+} from '../utils/cache/cacheInvalidation';
 
 export async function register(
   email: string,
@@ -25,9 +35,23 @@ export async function register(
   displayName: string,
   role: 'buyer' | 'seller' | 'agent' = 'buyer'
 ): Promise<AppUser> {
-  const credential = await createUserWithEmailAndPassword(auth, email, password);
+  const credential = await authCircuitBreaker.execute(() =>
+    withRetry(() =>
+      withTimeout(
+        createUserWithEmailAndPassword(auth, email, password),
+        DEFAULT_TIMEOUT_MS
+      )
+    )
+  );
 
-  await updateProfile(credential.user, { displayName, photoURL: DEFAULT_AVATAR });
+  await authCircuitBreaker.execute(() =>
+    withRetry(() =>
+      withTimeout(
+        updateProfile(credential.user, { displayName, photoURL: DEFAULT_AVATAR }),
+        DEFAULT_TIMEOUT_MS
+      )
+    )
+  );
 
   const userData: AppUser = {
     uid: credential.user.uid,
@@ -42,71 +66,131 @@ export async function register(
     updatedAt: new Date().toISOString(),
   };
 
-  await setDoc(doc(db, USERS_COLLECTION, credential.user.uid), {
-    ...userData,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
+  await authCircuitBreaker.execute(() =>
+    withRetry(() =>
+      withTimeout(
+        setDoc(doc(db, USERS_COLLECTION, credential.user.uid), {
+          ...userData,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        }),
+        DEFAULT_TIMEOUT_MS
+      )
+    )
+  );
 
   return userData;
 }
 
 export async function login(email: string, password: string): Promise<User> {
-  const credential = await signInWithEmailAndPassword(auth, email, password);
+  const credential = await authCircuitBreaker.execute(() =>
+    withRetry(() =>
+      withTimeout(signInWithEmailAndPassword(auth, email, password), DEFAULT_TIMEOUT_MS)
+    )
+  );
   return credential.user;
 }
 
 export async function signInWithGoogleWeb(): Promise<User> {
-  const provider = new GoogleAuthProvider();
-  provider.addScope('email');
-  provider.addScope('profile');
-  const credential = await signInWithPopup(auth, provider);
+  const credential = await authCircuitBreaker.execute(() =>
+    withRetry(() =>
+      withTimeout(
+        (async () => {
+          const provider = new GoogleAuthProvider();
+          provider.addScope('email');
+          provider.addScope('profile');
+          return signInWithPopup(auth, provider);
+        })(),
+        DEFAULT_TIMEOUT_MS
+      )
+    )
+  );
   return credential.user;
 }
 
 export async function signInWithGoogleIdToken(idToken: string): Promise<User> {
-  const credential = GoogleAuthProvider.credential(idToken);
-  const userCredential = await signInWithCredential(auth, credential);
-  return userCredential.user;
+  const credential = await authCircuitBreaker.execute(() =>
+    withRetry(() =>
+      withTimeout(
+        (async () => {
+          const provider = GoogleAuthProvider.credential(idToken);
+          const userCredential = await signInWithCredential(auth, provider);
+          return userCredential.user;
+        })(),
+        DEFAULT_TIMEOUT_MS
+      )
+    )
+  );
+  return credential;
 }
 
 export async function ensureUserDocument(fbUser: User): Promise<void> {
   const userRef = doc(db, USERS_COLLECTION, fbUser.uid);
-  const userSnap = await getDoc(userRef);
+  const userSnap = await authCircuitBreaker.execute(() =>
+    withRetry(() => withTimeout(getDoc(userRef), DEFAULT_TIMEOUT_MS))
+  );
   if (userSnap.exists()) return;
 
   const defaultName =
     fbUser.displayName || fbUser.email?.split('@')[0] || 'User';
 
-  await setDoc(userRef, {
-    uid: fbUser.uid,
-    email: fbUser.email || '',
-    displayName: defaultName,
-    phoneNumber: fbUser.phoneNumber || '',
-    photoURL: fbUser.photoURL || DEFAULT_AVATAR,
-    bio: '',
-    role: 'buyer',
-    favorites: [],
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
+  await authCircuitBreaker.execute(() =>
+    withRetry(() =>
+      withTimeout(
+        setDoc(userRef, {
+          uid: fbUser.uid,
+          email: fbUser.email || '',
+          displayName: defaultName,
+          phoneNumber: fbUser.phoneNumber || '',
+          photoURL: fbUser.photoURL || DEFAULT_AVATAR,
+          bio: '',
+          role: 'buyer',
+          favorites: [],
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        }),
+        DEFAULT_TIMEOUT_MS
+      )
+    )
+  );
 }
 
 export async function logout(): Promise<void> {
-  await signOut(auth);
+  await authCircuitBreaker.execute(() =>
+    withRetry(() => withTimeout(signOut(auth), DEFAULT_TIMEOUT_MS))
+  );
 }
 
 export async function resetPassword(email: string): Promise<void> {
-  await sendPasswordResetEmail(auth, email);
+  await authCircuitBreaker.execute(() =>
+    withRetry(() =>
+      withTimeout(sendPasswordResetEmail(auth, email), DEFAULT_TIMEOUT_MS)
+    )
+  );
 }
 
 export async function getUserProfile(uid: string): Promise<AppUser | null> {
-  const docRef = doc(db, USERS_COLLECTION, uid);
-  const docSnap = await getDoc(docRef);
-  if (docSnap.exists()) {
-    return { uid: docSnap.id, ...docSnap.data() } as AppUser;
-  }
-  return null;
+  const result = await getCachedOrFetch(
+    buildCacheKey('users', 'profile', uid),
+    () =>
+      authCircuitBreaker.execute(() =>
+        withRetry(() =>
+          withTimeout(
+            (async () => {
+              const docRef = doc(db, USERS_COLLECTION, uid);
+              const docSnap = await getDoc(docRef);
+              if (docSnap.exists()) {
+                return { uid: docSnap.id, ...docSnap.data() } as AppUser;
+              }
+              return null;
+            })(),
+            DEFAULT_TIMEOUT_MS
+          )
+        )
+      ),
+    PROFILE_CACHE_TTL_MS
+  );
+  return result.data;
 }
 
 export async function updateUserProfile(
@@ -117,16 +201,33 @@ export async function updateUserProfile(
   if (!user || user.uid !== uid) throw new Error('Unauthorized');
 
   if (data.displayName || data.photoURL) {
-    await updateProfile(user, {
-      displayName: data.displayName || user.displayName || '',
-      photoURL: data.photoURL || user.photoURL || '',
-    });
+    await authCircuitBreaker.execute(() =>
+      withRetry(() =>
+        withTimeout(
+          updateProfile(user, {
+            displayName: data.displayName || user.displayName || '',
+            photoURL: data.photoURL || user.photoURL || '',
+          }),
+          DEFAULT_TIMEOUT_MS
+        )
+      )
+    );
   }
 
-  await updateDoc(doc(db, USERS_COLLECTION, uid), {
-    ...data,
-    updatedAt: serverTimestamp(),
-  });
+  await authCircuitBreaker.execute(() =>
+    withRetry(() =>
+      withTimeout(
+        updateDoc(doc(db, USERS_COLLECTION, uid), {
+          ...data,
+          updatedAt: serverTimestamp(),
+        }),
+        DEFAULT_TIMEOUT_MS
+      )
+    )
+  );
+
+  // Profile mutated — drop the cached copy so the next read is fresh.
+  await invalidateUserProfile(uid);
 }
 
 export async function changePassword(
@@ -137,36 +238,62 @@ export async function changePassword(
   if (!user || !user.email) throw new Error('Not authenticated');
 
   const credential = EmailAuthProvider.credential(user.email, currentPassword);
-  await reauthenticateWithCredential(user, credential);
-  await updatePassword(user, newPassword);
+  await authCircuitBreaker.execute(() =>
+    withRetry(() =>
+      withTimeout(reauthenticateWithCredential(user, credential), DEFAULT_TIMEOUT_MS)
+    )
+  );
+  await authCircuitBreaker.execute(() =>
+    withRetry(() => withTimeout(updatePassword(user, newPassword), DEFAULT_TIMEOUT_MS))
+  );
 }
 
 export async function addFavorite(uid: string, propertyId: string): Promise<void> {
   const userRef = doc(db, USERS_COLLECTION, uid);
-  const userSnap = await getDoc(userRef);
+  const userSnap = await authCircuitBreaker.execute(() =>
+    withRetry(() => withTimeout(getDoc(userRef), DEFAULT_TIMEOUT_MS))
+  );
   if (!userSnap.exists()) return;
 
   const favorites = userSnap.data().favorites || [];
   if (!favorites.includes(propertyId)) {
-    await updateDoc(userRef, {
-      favorites: [...favorites, propertyId],
-      updatedAt: serverTimestamp(),
-    });
+    await authCircuitBreaker.execute(() =>
+      withRetry(() =>
+        withTimeout(
+          updateDoc(userRef, {
+            favorites: [...favorites, propertyId],
+            updatedAt: serverTimestamp(),
+          }),
+          DEFAULT_TIMEOUT_MS
+        )
+      )
+    );
   }
+  await invalidateFavorites(uid);
 }
 
 export async function removeFavorite(uid: string, propertyId: string): Promise<void> {
   const userRef = doc(db, USERS_COLLECTION, uid);
-  const userSnap = await getDoc(userRef);
+  const userSnap = await authCircuitBreaker.execute(() =>
+    withRetry(() => withTimeout(getDoc(userRef), DEFAULT_TIMEOUT_MS))
+  );
   if (!userSnap.exists()) return;
 
   const favorites = (userSnap.data().favorites || []).filter(
     (id: string) => id !== propertyId
   );
-  await updateDoc(userRef, {
-    favorites,
-    updatedAt: serverTimestamp(),
-  });
+  await authCircuitBreaker.execute(() =>
+    withRetry(() =>
+      withTimeout(
+        updateDoc(userRef, {
+          favorites,
+          updatedAt: serverTimestamp(),
+        }),
+        DEFAULT_TIMEOUT_MS
+      )
+    )
+  );
+  await invalidateFavorites(uid);
 }
 
 export function getCurrentUser(): User | null {

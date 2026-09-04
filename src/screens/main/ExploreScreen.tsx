@@ -6,7 +6,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
+import { DocumentSnapshot } from 'firebase/firestore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -19,6 +21,8 @@ import PropertyCardSkeleton from '../../components/common/PropertyCardSkeleton';
 import FilterModal from '../../components/property/FilterModal';
 import EmptyState from '../../components/common/EmptyState';
 import { getProperties } from '../../services/propertyService';
+import { useDebouncedCallback } from '../../utils/performance/debounce';
+import { useThrottledCallback } from '../../utils/performance/throttle';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -36,11 +40,14 @@ export default function ExploreScreen() {
     sortBy: 'newest',
   });
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [lastDoc, setLastDoc] = useState<DocumentSnapshot | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const loadProperties = useCallback(async () => {
     try {
       const result = await getProperties(filter, 30);
       setProperties(result.properties);
+      setLastDoc(result.lastDoc);
     } catch (error) {
       console.error('Error loading properties:', error);
     } finally {
@@ -49,14 +56,36 @@ export default function ExploreScreen() {
     }
   }, [filter]);
 
+  // Filter changes trigger a reload, debounced 300ms so rapid filter/sort
+  // taps coalesce into a single request.
+  const debouncedLoad = useDebouncedCallback(loadProperties, 300);
+
   useEffect(() => {
-    loadProperties();
-  }, [loadProperties]);
+    debouncedLoad();
+  }, [filter]);
 
   const onRefresh = () => {
     setRefreshing(true);
     loadProperties();
   };
+
+  // Infinite scroll: fetch the next page using the last-document cursor.
+  // Wrapped in a 500ms throttle so end-of-list events can't fire a storm.
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !lastDoc) return;
+    setLoadingMore(true);
+    try {
+      const result = await getProperties(filter, 30, lastDoc);
+      setProperties((prev) => [...prev, ...result.properties]);
+      setLastDoc(result.lastDoc);
+    } catch (error) {
+      console.error('Error loading more properties:', error);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [filter, lastDoc, loadingMore]);
+
+  const throttledLoadMore = useThrottledCallback(loadMore, 500);
 
   const handleFilterApply = (newFilter: PropertyFilter) => {
     setFilter(newFilter);
@@ -211,6 +240,15 @@ export default function ExploreScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+        }
+        onEndReached={throttledLoadMore}
+        onEndReachedThreshold={0.4}
+        ListFooterComponent={
+          loadingMore ? (
+            <View style={{ paddingVertical: spacing.lg }}>
+              <ActivityIndicator size="small" color={colors.primary} />
+            </View>
+          ) : null
         }
         ListEmptyComponent={
           loading ? (

@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider } from './src/context/AuthContext';
 import { ThemeProvider } from './src/context/ThemeContext';
 import AppNavigator from './src/navigation/AppNavigator';
+import ErrorBoundary from './src/utils/errors/ErrorBoundary';
 
 LogBox.ignoreLogs([
   'Non-serializable values were found in the navigation state',
@@ -16,10 +17,12 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ThemeProvider>
-          <AuthProvider>
-            <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-            <AppNavigator />
-          </AuthProvider>
+          <ErrorBoundary>
+            <AuthProvider>
+              <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+              <AppNavigator />
+            </AuthProvider>
+          </ErrorBoundary>
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
