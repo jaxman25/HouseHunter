@@ -1,13 +1,12 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  FlatList,
 } from 'react-native';
 import { Image } from 'expo-image';
-import MapView, { Marker, PROVIDER_GOOGLE, Callout } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -28,22 +27,21 @@ export default function MapScreen() {
 
   const [properties, setProperties] = useState<Property[]>([]);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const loadProperties = useCallback(async () => {
-    try {
-      const result = await getProperties({ sortBy: 'newest' }, 50);
-      setProperties(result.properties);
-    } catch (error) {
-      console.error('Error loading properties:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
   useEffect(() => {
-    loadProperties();
-  }, [loadProperties]);
+    let ignore = false;
+    (async () => {
+      try {
+        const result = await getProperties({ sortBy: 'newest' }, 50);
+        if (!ignore) setProperties(result.properties);
+      } catch (error) {
+        if (!ignore) console.error('Error loading properties:', error);
+      }
+    })();
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const centerOnProperties = () => {
     if (properties.length === 0) return;

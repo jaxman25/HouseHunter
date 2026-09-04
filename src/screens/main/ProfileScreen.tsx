@@ -39,9 +39,10 @@ export default function ProfileScreen() {
 
   // Live count of the user's own listings (distinct from saved favorites).
   useEffect(() => {
-    if (!user) return;
+    const uid = user?.uid;
+    if (!uid) return;
     let active = true;
-    getUserProperties(user.uid)
+    getUserProperties(uid)
       .then((listings) => {
         if (active) setListingCount(listings.length);
       })

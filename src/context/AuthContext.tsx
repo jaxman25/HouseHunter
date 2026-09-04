@@ -58,10 +58,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Real-time user data subscription
   useEffect(() => {
-    if (!firebaseUser) return;
+    const uid = firebaseUser?.uid;
+    if (!uid) return;
 
     const unsubscribe = onSnapshot(
-      doc(db, USERS_COLLECTION, firebaseUser.uid),
+      doc(db, USERS_COLLECTION, uid),
       (docSnap) => {
         if (docSnap.exists()) {
           setUser({ uid: docSnap.id, ...docSnap.data() } as User);

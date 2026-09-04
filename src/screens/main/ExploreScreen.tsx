@@ -28,7 +28,7 @@ import { useResponsive } from '../../hooks/useResponsive';
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export default function ExploreScreen() {
-  const { colors, fontSize, spacing, radius, shadow } = useTheme();
+  const { colors, fontSize, spacing, radius } = useTheme();
   const { isFavorite, toggleFavorite } = useAuthContext();
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
@@ -78,7 +78,7 @@ export default function ExploreScreen() {
 
   useEffect(() => {
     debouncedLoad();
-  }, [filter]);
+  }, [filter, debouncedLoad]);
 
   const onRefresh = () => {
     setRefreshing(true);

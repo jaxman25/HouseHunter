@@ -28,7 +28,7 @@ import { validateName, validatePhone } from '../../utils/validators';
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export default function EditProfileScreen() {
-  const { colors, fontSize, spacing, radius } = useTheme();
+  const { colors, fontSize, spacing } = useTheme();
   const { user, updateProfile } = useAuthContext();
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
@@ -90,7 +90,7 @@ export default function EditProfileScreen() {
       Alert.alert('Success', 'Profile updated successfully', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to update profile');
     } finally {
       setLoading(false);

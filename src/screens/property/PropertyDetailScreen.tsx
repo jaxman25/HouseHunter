@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -33,7 +33,7 @@ import {
   getPropertyTypeLabel,
   getTimeAgo,
 } from '../../utils/helpers';
-import { formatCurrency, formatViews, formatNumber } from '../../utils/formatters';
+import { formatViews } from '../../utils/formatters';
 import { PROPERTY_FEATURES } from '../../config/theme';
 import { useResponsive } from '../../hooks/useResponsive';
 
@@ -60,21 +60,25 @@ export default function PropertyDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [contacting, setContacting] = useState(false);
 
-  const loadProperty = useCallback(async () => {
-    try {
-      const data = await getProperty(route.params.propertyId);
-      setProperty(data);
-    } catch (error) {
-      console.error('Error loading property:', error);
-      Alert.alert('Error', 'Failed to load property details');
-    } finally {
-      setLoading(false);
-    }
-  }, [route.params.propertyId]);
-
   useEffect(() => {
-    loadProperty();
-  }, [loadProperty]);
+    let ignore = false;
+    (async () => {
+      try {
+        const data = await getProperty(route.params.propertyId);
+        if (!ignore) setProperty(data);
+      } catch (error) {
+        if (!ignore) {
+          console.error('Error loading property:', error);
+          Alert.alert('Error', 'Failed to load property details');
+        }
+      } finally {
+        if (!ignore) setLoading(false);
+      }
+    })();
+    return () => {
+      ignore = true;
+    };
+  }, [route.params.propertyId]);
 
   const handleShare = async () => {
     if (!property) return;

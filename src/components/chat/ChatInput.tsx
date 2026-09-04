@@ -11,7 +11,7 @@ interface ChatInputProps {
 }
 
 export default function ChatInput({ onSend, onSendImage, sending }: ChatInputProps) {
-  const { colors, radius, fontSize, spacing } = useTheme();
+  const { colors, radius, fontSize } = useTheme();
   const [text, setText] = useState('');
 
   const handleSend = () => {

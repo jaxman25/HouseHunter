@@ -9,7 +9,6 @@ import {
   updateDoc,
   doc,
   serverTimestamp,
-  getDoc,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { AppNotification } from '../types';
@@ -19,7 +18,6 @@ import { NOTIFICATIONS_COLLECTION } from '../utils/constants';
 // iOS/Android. On web these functions become safe no-ops.
 type NotificationsModule = typeof import('expo-notifications');
 
-let notificationsModule: NotificationsModule | null = null;
 let notificationsPromise: Promise<NotificationsModule | null> | null = null;
 
 function loadNotifications(): Promise<NotificationsModule | null> {

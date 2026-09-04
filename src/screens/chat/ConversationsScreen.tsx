@@ -26,8 +26,9 @@ export default function ConversationsScreen() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
 
   useEffect(() => {
-    if (!user) return;
-    const unsubscribe = subscribeToConversations(user.uid, (data) => {
+    const uid = user?.uid;
+    if (!uid) return;
+    const unsubscribe = subscribeToConversations(uid, (data) => {
       setConversations(data);
     });
     return () => unsubscribe();

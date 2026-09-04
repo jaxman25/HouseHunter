@@ -12,7 +12,7 @@ interface MessageBubbleProps {
 }
 
 export default function MessageBubble({ message, isOwn }: MessageBubbleProps) {
-  const { colors, radius, fontSize, spacing } = useTheme();
+  const { colors, radius, fontSize } = useTheme();
 
   return (
     <View

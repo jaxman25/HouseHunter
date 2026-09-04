@@ -59,7 +59,12 @@ export default function FavoritesScreen() {
   }, [user?.favorites]);
 
   useEffect(() => {
-    loadFavorites();
+    // setState happens after the awaited service call, never synchronously
+    // during the effect (see react-hooks/set-state-in-effect).
+    const run = async () => {
+      await loadFavorites();
+    };
+    void run();
   }, [loadFavorites]);
 
   const onRefresh = () => {

@@ -13,7 +13,6 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
-import { useAuthContext } from '../../context/AuthContext';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import LoadingOverlay from '../../components/common/LoadingOverlay';
@@ -24,8 +23,7 @@ type Props = {
 };
 
 export default function ForgotPasswordScreen({ navigation }: Props) {
-  const { colors, fontSize, spacing, radius } = useTheme();
-  const { login } = useAuthContext();
+  const { colors, fontSize, spacing } = useTheme();
   const insets = useSafeAreaInsets();
 
   const [email, setEmail] = useState('');

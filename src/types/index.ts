@@ -1,5 +1,3 @@
-import { Timestamp } from 'firebase/firestore';
-
 // ─── User Types ───────────────────────────────────────────
 export interface User {
   uid: string;

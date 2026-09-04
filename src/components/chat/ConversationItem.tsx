@@ -5,7 +5,6 @@ import { Conversation } from '../../types';
 import Avatar from '../common/Avatar';
 import Badge from '../common/Badge';
 import { formatChatDate } from '../../utils/formatters';
-import { truncateText } from '../../utils/helpers';
 
 interface ConversationItemProps {
   conversation: Conversation;
@@ -18,7 +17,7 @@ export default function ConversationItem({
   currentUserId,
   onPress,
 }: ConversationItemProps) {
-  const { colors, radius, fontSize, spacing } = useTheme();
+  const { colors, fontSize } = useTheme();
 
   const otherUserId = conversation.participants.find((id) => id !== currentUserId) || '';
   const otherUserName = conversation.participantNames?.[otherUserId] || 'Unknown';

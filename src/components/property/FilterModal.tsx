@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
-import { PropertyFilter, ListingType, PropertyType } from '../../types';
+import { PropertyFilter, PropertyType } from '../../types';
 import Button from '../common/Button';
 import { PROPERTY_TYPES, SORT_OPTIONS } from '../../config/theme';
 
@@ -26,7 +26,7 @@ export default function FilterModal({
   onApply,
   currentFilter,
 }: FilterModalProps) {
-  const { colors, radius, fontSize, spacing } = useTheme();
+  const { colors, fontSize } = useTheme();
 
   const [filter, setFilter] = useState<PropertyFilter>(currentFilter);
 

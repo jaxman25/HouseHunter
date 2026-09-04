@@ -16,13 +16,12 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../context/ThemeContext';
-import { useAuthContext } from '../../context/AuthContext';
-import { RootStackParamList, PropertyType, ListingType, PropertyStatus } from '../../types';
+import { RootStackParamList, PropertyStatus } from '../../types';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import LoadingOverlay from '../../components/common/LoadingOverlay';
 import { updateProperty, uploadPropertyImage, deletePropertyImage } from '../../services/propertyService';
-import { PROPERTY_FEATURES, PROPERTY_TYPES } from '../../config/theme';
+import { PROPERTY_FEATURES } from '../../config/theme';
 import { MAX_IMAGES_PER_PROPERTY } from '../../utils/constants';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -30,7 +29,6 @@ type Route = RouteProp<RootStackParamList, 'EditProperty'>;
 
 export default function EditPropertyScreen() {
   const { colors, fontSize, spacing, radius } = useTheme();
-  const { user } = useAuthContext();
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
   const insets = useSafeAreaInsets();
@@ -40,8 +38,10 @@ export default function EditPropertyScreen() {
   const [title, setTitle] = useState(prop.title);
   const [description, setDescription] = useState(prop.description);
   const [price, setPrice] = useState(String(prop.price));
-  const [listingType, setListingType] = useState<ListingType>(prop.listingType);
-  const [propertyType, setPropertyType] = useState<PropertyType>(prop.propertyType);
+  // Type/listing type are set when the listing was created and have no edit
+  // affordance here, so they stay fixed for the lifetime of this screen.
+  const listingType = prop.listingType;
+  const propertyType = prop.propertyType;
   const [status, setStatus] = useState<PropertyStatus>(prop.status);
   const [address, setAddress] = useState(prop.address);
   const [city, setCity] = useState(prop.city);

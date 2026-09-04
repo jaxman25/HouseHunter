@@ -58,9 +58,10 @@ export default function MyListingsScreen() {
   }, [properties, columns]);
 
   const loadProperties = useCallback(async () => {
-    if (!user) return;
+    const uid = user?.uid;
+    if (!uid) return;
     try {
-      const result = await getUserProperties(user.uid);
+      const result = await getUserProperties(uid);
       setProperties(result);
     } catch (error) {
       console.error('Error:', error);
@@ -71,7 +72,12 @@ export default function MyListingsScreen() {
   }, [user?.uid]);
 
   useEffect(() => {
-    loadProperties();
+    // setState happens after the awaited service call, never synchronously
+    // during the effect (see react-hooks/set-state-in-effect).
+    const run = async () => {
+      await loadProperties();
+    };
+    void run();
   }, [loadProperties]);
 
   const handleDelete = (property: Property) => {
@@ -87,7 +93,7 @@ export default function MyListingsScreen() {
             try {
               await deleteProperty(property.id);
               setProperties((prev) => prev.filter((p) => p.id !== property.id));
-            } catch (error) {
+            } catch {
               Alert.alert('Error', 'Failed to delete listing');
             }
           },

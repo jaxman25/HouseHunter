@@ -33,7 +33,7 @@ interface SettingItem {
 
 export default function SettingsScreen() {
   const { colors, fontSize, spacing, radius } = useTheme();
-  const { user, logout } = useAuthContext();
+  const { logout } = useAuthContext();
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
 

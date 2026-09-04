@@ -42,10 +42,11 @@ export default function ChatScreen() {
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
+    const uid = user?.uid;
+    if (!uid) return;
 
     // Mark messages as read
-    markAsRead(conversationId, user.uid);
+    markAsRead(conversationId, uid);
 
     const unsubscribe = subscribeToMessages(conversationId, (data) => {
       setMessages(data);

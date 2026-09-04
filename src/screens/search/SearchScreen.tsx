@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -52,18 +52,19 @@ export default function SearchScreen() {
     return out;
   }, [results, columns]);
 
-  const loadRecentSearches = async () => {
-    try {
-      const data = await AsyncStorage.getItem(RECENT_SEARCHES_KEY);
-      if (data) setRecentSearches(JSON.parse(data));
-    } catch {}
-  };
-
   React.useEffect(() => {
-    loadRecentSearches();
-    inputRef.current?.focus();
     // Runs once on mount — recent searches read AsyncStorage, not render state.
-     
+    let ignore = false;
+    (async () => {
+      try {
+        const data = await AsyncStorage.getItem(RECENT_SEARCHES_KEY);
+        if (data && !ignore) setRecentSearches(JSON.parse(data));
+      } catch {}
+    })();
+    inputRef.current?.focus();
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   const saveRecentSearch = async (term: string) => {

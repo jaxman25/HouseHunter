@@ -23,16 +23,14 @@ import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import LoadingOverlay from '../../components/common/LoadingOverlay';
 import { createProperty, uploadPropertyImage } from '../../services/propertyService';
-import { createNotification } from '../../services/notificationService';
-import { PROPERTY_FEATURES, PROPERTY_TYPES, CITIES } from '../../config/theme';
-import { validateRequired, validateNumber } from '../../utils/validators';
+import { PROPERTY_FEATURES, PROPERTY_TYPES } from '../../config/theme';
 import { generateId } from '../../utils/helpers';
 import { MAX_IMAGES_PER_PROPERTY } from '../../utils/constants';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export default function AddPropertyScreen() {
-  const { colors, fontSize, spacing, radius, shadow } = useTheme();
+  const { colors, fontSize, spacing, radius } = useTheme();
   const { user } = useAuthContext();
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();

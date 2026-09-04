@@ -24,8 +24,7 @@ import Avatar from '../../components/common/Avatar';
 import Badge from '../../components/common/Badge';
 import EmptyState from '../../components/common/EmptyState';
 import { getProperties } from '../../services/propertyService';
-import { PROPERTY_TYPES } from '../../config/theme';
-import { formatPrice, getTimeAgo } from '../../utils/helpers';
+import { formatPrice } from '../../utils/helpers';
 import { useResponsive } from '../../hooks/useResponsive';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -107,7 +106,12 @@ export default function HomeScreen() {
   }, [loadingMore, recentLastDoc, recentFilter]);
 
   useEffect(() => {
-    loadProperties();
+    // setState happens after the awaited service call, never synchronously
+    // during the effect (see react-hooks/set-state-in-effect).
+    const run = async () => {
+      await loadProperties();
+    };
+    void run();
   }, [loadProperties]);
 
   const onRefresh = () => {

@@ -32,7 +32,7 @@ export default function Input({
   style,
   ...props
 }: InputProps) {
-  const { colors, radius, fontSize, spacing } = useTheme();
+  const { colors, radius, fontSize } = useTheme();
   const [focused, setFocused] = useState(false);
   const [secureVisible, setSecureVisible] = useState(false);
 
