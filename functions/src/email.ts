@@ -16,6 +16,46 @@ export interface EmailMessage {
   text: string;
 }
 
+/**
+ * Confirmation email sent to a user right before their account is deleted.
+ * Pure builder so the wording can be unit-tested without hitting Resend.
+ */
+export function buildDeletionConfirmationMessage(email: string): EmailMessage {
+  return {
+    to: email,
+    subject: 'Your House Hunter account has been deleted',
+    text:
+      'This confirms that your House Hunter account and the data associated '
+      + 'with it (profile, listings, photos, messages, notifications) have '
+      + 'been permanently deleted.\n\n'
+      + 'If you did not request this deletion, please contact us immediately '
+      + 'at support@househunter.com.\n\n'
+      + 'Thank you for having used House Hunter.',
+  };
+}
+
+/** Inputs to the on-call security alert email. */
+export interface SecurityAlertInput {
+  severity?: string;
+  title?: string;
+  body?: string;
+  source?: string;
+}
+
+/**
+ * Plain-text body of the security alert email sent to the on-call inbox.
+ * Pure builder (unit-tested); recipients are added by the trigger.
+ */
+export function formatSecurityAlertText(data: SecurityAlertInput): string {
+  const severity = data.severity ?? 'unknown';
+  const title = data.title ?? 'Security alert';
+  const body = data.body ?? 'No details provided.';
+  const source = data.source ? `\n\nSource: ${data.source}` : '';
+  return `[${severity.toUpperCase()}] ${title}\n\n${body}${source}\n\n`
+    + 'Investigate per docs/BREACH_NOTIFICATION.md: confirm scope, contain, '
+    + 'then decide whether users must be notified.';
+}
+
 /** Escape text for safe embedding in the lightweight HTML wrapper. */
 function escapeHtml(value: string): string {
   return value

@@ -112,6 +112,44 @@ Delete Account (best-effort — if the function isn't deployed, deletion still
 proceeds). The recipient is the signed-in user's own email from the auth
 token, never caller-supplied, so the endpoint cannot be used to relay spam.
 
+## Testing
+
+Automated unit tests run with Node's built-in test runner (no framework):
+
+```bash
+cd functions
+npm test   # builds then runs test/email.test.js
+```
+
+Coverage: the Resend request shape (auth header, payload, HTML escaping),
+missing-key and non-2xx failures, and the deletion-confirmation + security-
+alert message builders. These also run in CI (`.github/workflows/ci.yml`).
+
+### End-to-end verification after deploy
+
+The unit tests mock the network; a true end-to-end check needs a deployed
+function and a real Resend key. Run this after the first `firebase deploy`:
+
+1. **Deletion confirmation email** — in the app, sign in with a throwaway
+   account and delete it (Settings → Delete Account). Within seconds the
+   account's email should receive "Your House Hunter account has been
+   deleted".
+   - Confirm the callable was invoked: `firebase functions:log --only
+     sendAccountDeletionConfirmation`.
+2. **Security alert email** — from the Firebase console create
+   `admin/security_alerts/smoke-test` with `{ severity: "low",
+   title: "Smoke test", body: "Verifying alert email",
+   recipientEmails: ["you@yourdomain.com"] }`. You should receive the alert
+   email and the doc should flip to `status: sent`.
+3. **Breach broadcast email** — create `admin/breach_broadcasts/smoke-test`
+   with `{ status: "pending", subject: "Test broadcast", body: "Test",
+   recipientEmails: ["you@yourdomain.com"] }` (never omit `recipientEmails`
+   for a smoke test — omitting it emails every user). The doc should end at
+   `status: sent` with `sentCount: 1`.
+
+Watch failures on the docs themselves: each trigger records `status` plus an
+`error` field, which is the first place to look if an email doesn't arrive.
+
 ## Notes
 
 - Firestore triggers retry on transient failure; config errors (e.g. missing

@@ -39,3 +39,10 @@ jobs:
       # ESLint now has a flat config (eslint.config.js) wired into CI.
       - name: Lint
         run: npm run lint
+
+      # Cloud Functions email channel tests (Node built-in test runner).
+      - name: Functions tests
+        run: |
+          cd functions
+          npm ci
+          npm test

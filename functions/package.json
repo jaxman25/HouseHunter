@@ -9,7 +9,8 @@
   },
   "scripts": {
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test"
   },
   "dependencies": {
     "firebase-admin": "^13.0.0",

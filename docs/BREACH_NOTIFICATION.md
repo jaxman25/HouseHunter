@@ -70,10 +70,12 @@ Channels available today:
    ```
    config/app_notice = {
      active: true,
-     title: "Security notice",   // optional
-     body: "…",                   // shown to every user
-     version: 2,                  // bump to force re-display after dismissal
+     title: "Security notice",      // optional
+     body: "…",                      // shown to every user
+     version: 2,                     // bump to force re-display after dismissal
      dismissible: true,
+     actionLabel: "Read the notice", // optional — link button
+     actionUrl: "https://…",         // optional — opened with Linking
    }
    ```
 
@@ -137,7 +139,41 @@ channel and a backup if Sentry is down.)
 
 ## 8. Practice
 
-Rehearse during the quarterly restore drill: simulate a leaked export, run
-the checklist, draft the user email, and time it against the 72 h clock.
-Verify Sentry alerts actually fire by raising a test `captureSecurityEvent`
-in a staging build.
+Run a full notification drill quarterly (pair it with the restore drill in
+`DISASTER_RECOVERY.md`). Use a throwaway test account and the **staging**
+project; never send to real users.
+
+### Drill checklist — notification channels
+
+1. **Deletion confirmation email** — sign in as the throwaway account,
+   delete it, and verify the confirmation email arrives at the account's
+   address (`functions/README.md` → end-to-end verification, step 1).
+2. **Security alert email** — write `admin/security_alerts/drill` with
+   `{ severity: "medium", title: "Drill", body: "…",
+   recipientEmails: ["oncall@yourdomain.com"] }` and confirm the email
+   lands and the doc flips to `status: sent`.
+3. **Breach broadcast doc (the core practice)** — write
+   `admin/breach_broadcasts/drill` with
+   `{ status: "pending", subject: "Security notice regarding your House
+   Hunter account", body: <template from §5>, recipientEmails:
+   ["oncall@yourdomain.com"] }`. Verify the doc ends at `status: sent`
+   with `sentCount: 1` and the email renders correctly. **Never omit
+   `recipientEmails` in a drill** — omitting it emails every user.
+4. **In-app notice banner** — set `config/app_notice` to
+   `{ active: true, title: "Drill notice", body: "…", version: <bump> }`
+   and confirm the banner appears on the login screen and dismisses without
+   a release. Then set `active: false` and confirm it disappears.
+5. **Sentry alert** — raise a test `captureSecurityEvent` in the staging
+   build and confirm the configured alert actually fires (docs §1).
+6. **Time it** — record the wall-clock time from the simulated breach to
+   the last notification sent, and check it against the 72 h clock (docs §3).
+
+A drill counts as passed when every item above completes without a code or
+infrastructure change beyond writing the trigger docs.
+
+### After the drill
+
+- Delete the drill docs (`admin/security_alerts/drill`,
+  `admin/breach_broadcasts/drill`) and reset `config/app_notice`.
+- Note anything that needed manual intervention and fix it before the next
+  drill (e.g. missing Resend env var, alert routing gap).

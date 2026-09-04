@@ -4,6 +4,7 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
+  Linking,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, onSnapshot } from 'firebase/firestore';
@@ -26,6 +27,10 @@ interface AppNotice {
   version?: number;
   /** Whether the user can dismiss it. Defaults to true. */
   dismissible?: boolean;
+  /** Optional action button label (rendered when actionUrl is also set). */
+  actionLabel?: string;
+  /** Optional URL the action button opens (Linking.openURL). */
+  actionUrl?: string;
 }
 
 /**
@@ -44,6 +49,8 @@ interface AppNotice {
  *     body: "…",                          // required when active
  *     version: 2,                         // bump to force re-display
  *     dismissible: true,                  // optional, defaults true
+ *     actionLabel: "Read the notice",     // optional — link button
+ *     actionUrl: "https://…",             // optional — opened with Linking
  *   }
  *
  * The doc is public-read / console-write (see firestore.rules `/config`), so
@@ -103,6 +110,13 @@ export default function NoticeBanner() {
     });
   };
 
+  const openAction = () => {
+    if (!notice.actionUrl) return;
+    Linking.openURL(notice.actionUrl).catch(() => {
+      // No handler for the URL — keep the banner usable.
+    });
+  };
+
   return (
     <View
       style={[styles.wrap, { top: insets.top + 8, zIndex: 1001 }]}
@@ -129,6 +143,20 @@ export default function NoticeBanner() {
           <Text style={[styles.body, { color: colors.textSecondary, fontSize: fontSize.xs }]}>
             {notice.body}
           </Text>
+          {notice.actionLabel && notice.actionUrl ? (
+            <TouchableOpacity
+              onPress={openAction}
+              style={[
+                styles.action,
+                { backgroundColor: colors.primary, borderRadius: radius.md, marginTop: 8 },
+              ]}
+              accessibilityRole="link"
+            >
+              <Text style={{ color: colors.white, fontSize: fontSize.xs, fontWeight: '700' }}>
+                {notice.actionLabel}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
         {notice.dismissible !== false ? (
           <TouchableOpacity
@@ -185,5 +213,10 @@ const styles = StyleSheet.create({
     margin: 8,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  action: {
+    alignSelf: 'flex-start',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
   },
 });

@@ -19,7 +19,12 @@ import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
-import { sendEmail } from './email';
+import {
+  SecurityAlertInput,
+  sendEmail,
+  buildDeletionConfirmationMessage,
+  formatSecurityAlertText,
+} from './email';
 
 initializeApp();
 const db = getFirestore();
@@ -32,22 +37,7 @@ function alertRecipients(): string[] {
     .filter(Boolean);
 }
 
-interface AlertData {
-  severity?: string;
-  title?: string;
-  body?: string;
-  source?: string;
-}
 
-function alertText(data: AlertData): string {
-  const severity = data.severity ?? 'unknown';
-  const title = data.title ?? 'Security alert';
-  const body = data.body ?? 'No details provided.';
-  const source = data.source ? `\n\nSource: ${data.source}` : '';
-  return `[${severity.toUpperCase()}] ${title}\n\n${body}${source}\n\n`
-    + 'Investigate per docs/BREACH_NOTIFICATION.md: confirm scope, contain, '
-    + 'then decide whether users must be notified.';
-}
 
 /**
  * Trigger 1 — a security alert doc was created (by an operator or future
@@ -62,7 +52,7 @@ export const emailOnSecurityAlert = onDocumentCreated(
     const snap = event.data;
     if (!snap) return;
 
-    const data = (snap.data() ?? {}) as AlertData & {
+    const data = (snap.data() ?? {}) as SecurityAlertInput & {
       status?: string;
       recipientEmails?: string[];
     };
@@ -82,7 +72,7 @@ export const emailOnSecurityAlert = onDocumentCreated(
       await sendEmail({
         to: recipients,
         subject: `[House Hunter ${data.severity ?? 'alert'}] ${data.title ?? 'Security alert'}`,
-        text: alertText(data),
+        text: formatSecurityAlertText(data),
       });
       await snap.ref.update({
         status: 'sent',
@@ -241,17 +231,7 @@ export const sendAccountDeletionConfirmation = onCall(async (request) => {
   }
 
   try {
-    await sendEmail({
-      to: email,
-      subject: 'Your House Hunter account has been deleted',
-      text:
-        'This confirms that your House Hunter account and the data associated '
-        + 'with it (profile, listings, photos, messages, notifications) have '
-        + 'been permanently deleted.\n\n'
-        + 'If you did not request this deletion, please contact us immediately '
-        + 'at support@househunter.com.\n\n'
-        + 'Thank you for having used House Hunter.',
-    });
+    await sendEmail(buildDeletionConfirmationMessage(email));
     return { ok: true, email };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
