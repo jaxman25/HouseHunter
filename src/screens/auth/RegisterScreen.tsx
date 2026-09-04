@@ -25,6 +25,7 @@ import {
   validateConfirmPassword,
   validateName,
 } from '../../utils/validators';
+import { TERMS_VERSION } from '../../utils/constants';
 
 type Props = {
   navigation: NativeStackNavigationProp<AuthStackParamList, 'Register'>;
@@ -43,6 +44,8 @@ export default function RegisterScreen({ navigation }: Props) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState<Role>('buyer');
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [termsError, setTermsError] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [generalError, setGeneralError] = useState('');
@@ -64,10 +67,22 @@ export default function RegisterScreen({ navigation }: Props) {
     const confirmErr = validateConfirmPassword(password, confirmPassword);
     if (confirmErr) newErrors.confirmPassword = confirmErr;
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+
+    if (!termsAccepted) {
+      setTermsError('You must accept the Terms of Service to create an account');
+    }
+
+    return (
+      Object.keys(newErrors).length === 0 && termsAccepted
+    );
   };
 
   const handleGoogleSignIn = async () => {
+    if (!termsAccepted) {
+      setTermsError('You must accept the Terms of Service to create an account');
+      return;
+    }
+    setTermsError('');
     try {
       await signInWithGoogle();
     } catch (error: any) {
@@ -83,7 +98,7 @@ export default function RegisterScreen({ navigation }: Props) {
     setLoading(true);
     setGeneralError('');
     try {
-      await register(email, password, displayName, role);
+      await register(email, password, displayName, role, TERMS_VERSION);
     } catch (error: any) {
       let message = 'Registration failed. Please try again.';
       if (error.code === 'auth/email-already-in-use') {
@@ -240,6 +255,44 @@ export default function RegisterScreen({ navigation }: Props) {
           />
         </View>
 
+        {/* Terms agreement */}
+        <View style={[styles.termsRow, { marginTop: spacing.md }]}>
+          <TouchableOpacity
+            onPress={() => {
+              setTermsAccepted((prev) => !prev);
+              if (termsError) setTermsError('');
+            }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <MaterialCommunityIcons
+              name={termsAccepted ? 'checkbox-marked' : 'checkbox-blank-outline'}
+              size={22}
+              color={termsAccepted ? colors.primary : colors.gray500}
+            />
+          </TouchableOpacity>
+          <Text style={{ flex: 1, color: colors.textSecondary, fontSize: fontSize.sm, marginLeft: 8, lineHeight: 18 }}>
+            I agree to the{' '}
+            <Text
+              style={{ color: colors.primary, fontWeight: '700' }}
+              onPress={() => navigation.navigate('Terms')}
+            >
+              Terms of Service
+            </Text>{' '}
+            and{' '}
+            <Text
+              style={{ color: colors.primary, fontWeight: '700' }}
+              onPress={() => navigation.navigate('PrivacyPolicy')}
+            >
+              Privacy Policy
+            </Text>
+          </Text>
+        </View>
+        {termsError ? (
+          <Text style={{ color: colors.error, fontSize: fontSize.xs, marginTop: 4, marginLeft: 30 }}>
+            {termsError}
+          </Text>
+        ) : null}
+
         <View style={{ marginTop: spacing.md }}>
           <Button title="Create Account" onPress={handleRegister} loading={loading} />
         </View>
@@ -321,6 +374,10 @@ const styles = StyleSheet.create({
   roleLabel: {
     fontWeight: '700',
     marginTop: 6,
+  },
+  termsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   roleDesc: {
     marginTop: 2,

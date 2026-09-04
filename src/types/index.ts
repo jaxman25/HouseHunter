@@ -8,6 +8,10 @@ export interface User {
   bio: string;
   role: 'buyer' | 'seller' | 'agent';
   favorites: string[];
+  /** ISO timestamp of when the user accepted the Terms of Service. */
+  termsAcceptedAt?: string;
+  /** Version of the Terms the user agreed to (see TERMS_VERSION). */
+  termsAcceptedVersion?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -124,6 +128,8 @@ export type AuthStackParamList = {
   Login: undefined;
   Register: undefined;
   ForgotPassword: undefined;
+  Terms: undefined;
+  PrivacyPolicy: undefined;
   Onboarding: undefined;
 };
 
@@ -147,6 +153,9 @@ export type RootStackParamList = {
   Settings: undefined;
   EditProfile: undefined;
   ChangePassword: undefined;
+  DeleteAccount: undefined;
+  Terms: undefined;
+  PrivacyPolicy: undefined;
 };
 
 // ─── Theme Types ──────────────────────────────────────────

@@ -76,23 +76,6 @@ export default function SettingsScreen() {
     ]);
   };
 
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      'Delete Account',
-      'This action cannot be undone. All your data will be permanently deleted.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            Alert.alert('Not Available', 'Please contact support to delete your account.');
-          },
-        },
-      ]
-    );
-  };
-
   const sections = [
     {
       title: 'Notifications',
@@ -137,14 +120,16 @@ export default function SettingsScreen() {
         {
           icon: 'shield-lock',
           label: 'Privacy Policy',
+          subtitle: 'How we collect and use your data',
           type: 'link' as const,
-          onPress: () => Alert.alert('Privacy Policy', 'Privacy policy content would be shown here.'),
+          onPress: () => navigation.navigate('PrivacyPolicy'),
         },
         {
           icon: 'file-document',
           label: 'Terms of Service',
+          subtitle: 'The rules for using House Hunter',
           type: 'link' as const,
-          onPress: () => Alert.alert('Terms of Service', 'Terms of service content would be shown here.'),
+          onPress: () => navigation.navigate('Terms'),
         },
       ],
     },
@@ -218,9 +203,9 @@ export default function SettingsScreen() {
         {
           icon: 'delete-forever',
           label: 'Delete Account',
-          subtitle: 'Permanently delete your account',
-          type: 'action' as const,
-          onPress: handleDeleteAccount,
+          subtitle: 'Erase your profile, listings, and data',
+          type: 'link' as const,
+          onPress: () => navigation.navigate('DeleteAccount'),
           color: colors.error,
         },
       ],

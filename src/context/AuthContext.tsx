@@ -15,7 +15,8 @@ interface AuthContextType {
     email: string,
     password: string,
     displayName: string,
-    role?: 'buyer' | 'seller' | 'agent'
+    role?: 'buyer' | 'seller' | 'agent',
+    termsAcceptedVersion?: string
   ) => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
@@ -82,9 +83,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: string,
       password: string,
       displayName: string,
-      role: 'buyer' | 'seller' | 'agent' = 'buyer'
+      role: 'buyer' | 'seller' | 'agent' = 'buyer',
+      termsAcceptedVersion?: string
     ) => {
-      await authService.register(email, password, displayName, role);
+      await authService.register(
+        email,
+        password,
+        displayName,
+        role,
+        termsAcceptedVersion
+      );
     },
     []
   );

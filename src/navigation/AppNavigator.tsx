@@ -18,6 +18,12 @@ import ConversationsScreen from '../screens/chat/ConversationsScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import EditProfileScreen from '../screens/settings/EditProfileScreen';
 import ChangePasswordScreen from '../screens/settings/ChangePasswordScreen';
+import DeleteAccountScreen from '../screens/settings/DeleteAccountScreen';
+import TermsGate from '../screens/legal/TermsGate';
+import {
+  PrivacyPolicyScreen,
+  TermsOfServiceScreen,
+} from '../screens/legal/LegalScreens';
 
 /**
  * Wrap a screen component in an error boundary so a crash in one screen
@@ -60,6 +66,9 @@ function MainStack() {
       <Stack.Screen name="Settings" component={withErrorBoundary(SettingsScreen)} />
       <Stack.Screen name="EditProfile" component={withErrorBoundary(EditProfileScreen)} />
       <Stack.Screen name="ChangePassword" component={withErrorBoundary(ChangePasswordScreen)} />
+      <Stack.Screen name="DeleteAccount" component={withErrorBoundary(DeleteAccountScreen)} />
+      <Stack.Screen name="Terms" component={withErrorBoundary(TermsOfServiceScreen)} />
+      <Stack.Screen name="PrivacyPolicy" component={withErrorBoundary(PrivacyPolicyScreen)} />
     </Stack.Navigator>
   );
 }
@@ -76,9 +85,19 @@ export default function AppNavigator() {
     );
   }
 
+  // Accounts without an explicit terms acceptance (social sign-up, legacy
+  // accounts) must agree before reaching the app.
+  const needsTermsConsent = Boolean(user && !user.termsAcceptedVersion);
+
   return (
     <NavigationContainer>
-      {user ? <MainStack /> : <ErrorBoundary><AuthNavigator /></ErrorBoundary>}
+      {!user ? (
+        <ErrorBoundary><AuthNavigator /></ErrorBoundary>
+      ) : needsTermsConsent ? (
+        <TermsGate userId={user.uid} />
+      ) : (
+        <MainStack />
+      )}
     </NavigationContainer>
   );
 }

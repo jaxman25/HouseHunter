@@ -1,4 +1,10 @@
 export const APP_NAME = 'House Hunter';
+
+/** Version + effective date of the Terms of Service users agree to. */
+export const TERMS_VERSION = '1';
+export const TERMS_EFFECTIVE_DATE = 'September 4, 2026';
+export const CONTACT_EMAIL = 'support@househunter.com';
+export const CONSENT_STORAGE_KEY = '@househunter/cookie_consent';
 export const DEFAULT_AVATAR = 'https://ui-avatars.com/api/?name=User&background=1B6EF3&color=fff&size=200';
 export const DEFAULT_PROPERTY_IMAGE = 'https://via.placeholder.com/400x300/E5E7EB/9CA3AF?text=No+Image';
 export const MAX_IMAGES_PER_PROPERTY = 10;

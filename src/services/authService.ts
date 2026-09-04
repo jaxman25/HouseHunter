@@ -10,6 +10,7 @@ import {
   updatePassword,
   reauthenticateWithCredential,
   EmailAuthProvider,
+  deleteUser,
   User,
 } from 'firebase/auth';
 import {
@@ -23,7 +24,11 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { User as AppUser, UserProfile } from '../types';
-import { USERS_COLLECTION, DEFAULT_AVATAR } from '../utils/constants';
+import {
+  USERS_COLLECTION,
+  DEFAULT_AVATAR,
+  TERMS_VERSION,
+} from '../utils/constants';
 import { authCircuitBreaker } from '../utils/network/circuitBreaker';
 import { withRetry } from '../utils/network/retry';
 import { withTimeout, DEFAULT_TIMEOUT_MS } from '../utils/network/timeout';
@@ -42,7 +47,9 @@ export async function register(
   email: string,
   password: string,
   displayName: string,
-  role: 'buyer' | 'seller' | 'agent' = 'buyer'
+  role: 'buyer' | 'seller' | 'agent' = 'buyer',
+  /** Terms version the user agreed to (undefined = did not agree). */
+  termsAcceptedVersion?: string
 ): Promise<AppUser> {
   const credential = await authCircuitBreaker.execute(() =>
     withRetry(() =>
@@ -71,6 +78,12 @@ export async function register(
     bio: '',
     role,
     favorites: [],
+    ...(termsAcceptedVersion
+      ? {
+          termsAcceptedAt: new Date().toISOString(),
+          termsAcceptedVersion,
+        }
+      : {}),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -294,4 +307,57 @@ export async function removeFavorite(uid: string, propertyId: string): Promise<v
 
 export function getCurrentUser(): User | null {
   return auth.currentUser;
+}
+
+/**
+ * Record that the signed-in user accepted the current Terms of Service.
+ * Used by the post-login consent gate for accounts created through flows
+ * that have no checkbox (e.g. social sign-in).
+ */
+export async function acceptTerms(uid: string): Promise<void> {
+  const user = auth.currentUser;
+  if (!user || user.uid !== uid) throw new Error('Unauthorized');
+  await authCircuitBreaker.execute(() =>
+    withRetry(() =>
+      withTimeout(
+        updateDoc(doc(db, USERS_COLLECTION, uid), {
+          termsAcceptedAt: new Date().toISOString(),
+          termsAcceptedVersion: TERMS_VERSION,
+          updatedAt: serverTimestamp(),
+        }),
+        DEFAULT_TIMEOUT_MS
+      )
+    )
+  );
+  await invalidateUserProfile(uid);
+}
+
+/**
+ * Permanently delete the Firebase Auth account. Firestore/Storage data is
+ * wiped first by `accountService.deleteAccountData` (this must run last,
+ * while the auth token still validates the deletions).
+ *
+ * For email/password accounts the current password is required so the
+ * session is re-authenticated (Firebase refuses destructive calls on stale
+ * sessions); social accounts rely on a recent sign-in.
+ */
+export async function deleteAuthAccount(password?: string): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Not authenticated');
+
+  if (user.email && password) {
+    const credential = EmailAuthProvider.credential(user.email, password);
+    await authCircuitBreaker.execute(() =>
+      withRetry(() =>
+        withTimeout(
+          reauthenticateWithCredential(user, credential),
+          DEFAULT_TIMEOUT_MS
+        )
+      )
+    );
+  }
+
+  await authCircuitBreaker.execute(() =>
+    withRetry(() => withTimeout(deleteUser(user), DEFAULT_TIMEOUT_MS))
+  );
 }

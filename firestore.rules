@@ -127,10 +127,12 @@ service cloud.firestore {
 
       // Users can only update their own profile
       allow update: if isOwner(userId) && (
-        // Allow updating any valid fields
+        // Allow updating any valid fields (terms fields record consent;
+        // acceptTerms() writes them after the post-login consent gate).
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'displayName', 'phoneNumber', 'photoURL', 'bio', 'role',
-          'favorites', 'updatedAt'
+          'favorites', 'termsAcceptedAt', 'termsAcceptedVersion',
+          'updatedAt'
         ])
       );
 
@@ -221,8 +223,10 @@ service cloud.firestore {
             'read', 'image'
           ]);
 
-        // No deleting messages
-        allow delete: if false;
+        // Data-erasure: users can delete their own messages (account
+        // deletion wipes chat history per-sender).
+        allow delete: if isAuthenticated() &&
+          resource.data.senderId == request.auth.uid;
       }
     }
 

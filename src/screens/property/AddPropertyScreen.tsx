@@ -122,23 +122,39 @@ export default function AddPropertyScreen() {
 
   const validateStep = (stepNum: number): boolean => {
     const newErrors: Record<string, string> = {};
+    const currentYear = new Date().getFullYear();
 
     if (stepNum === 1) {
       if (!title.trim()) newErrors.title = 'Title is required';
+      else if (title.trim().length > 120) newErrors.title = 'Title must be under 120 characters';
+      const priceNum = parseFloat(price);
       if (!price.trim()) newErrors.price = 'Price is required';
-      else if (isNaN(Number(price)) || Number(price) <= 0) newErrors.price = 'Enter a valid price';
+      else if (isNaN(priceNum) || priceNum <= 0) newErrors.price = 'Enter a valid price';
+      else if (priceNum > 100000000) newErrors.price = 'Price looks too high — please double-check it';
       if (!description.trim()) newErrors.description = 'Description is required';
+      else if (description.trim().length > 4000) newErrors.description = 'Description must be under 4000 characters';
     } else if (stepNum === 2) {
       if (!address.trim()) newErrors.address = 'Address is required';
       if (!city.trim()) newErrors.city = 'City is required';
       if (!state.trim()) newErrors.state = 'State is required';
       if (!zipCode.trim()) newErrors.zipCode = 'ZIP code is required';
+      else if (!/^\d{5}(-\d{4})?$/.test(zipCode.trim())) newErrors.zipCode = 'Enter a valid 5-digit ZIP code';
     } else if (stepNum === 3) {
-      if (listingType === 'sale') {
-        if (!bedrooms.trim()) newErrors.bedrooms = 'Bedrooms is required';
+      const bedNum = parseFloat(bedrooms);
+      const bathNum = parseFloat(bathrooms);
+      const areaNum = parseFloat(area);
+      const yearNum = parseFloat(yearBuilt);
+      if (listingType === 'sale' && !bedrooms.trim()) newErrors.bedrooms = 'Bedrooms is required';
+      else if (bedrooms.trim() && (isNaN(bedNum) || bedNum < 0 || bedNum > 50 || bedNum % 1 !== 0)) {
+        newErrors.bedrooms = 'Enter a whole number from 0-50';
       }
       if (!bathrooms.trim()) newErrors.bathrooms = 'Bathrooms is required';
+      else if (isNaN(bathNum) || bathNum < 0 || bathNum > 50) newErrors.bathrooms = 'Enter a number from 0-50';
       if (!area.trim()) newErrors.area = 'Area is required';
+      else if (isNaN(areaNum) || areaNum <= 0 || areaNum > 10000000) newErrors.area = 'Enter a valid area in sqft';
+      if (yearBuilt.trim() && (isNaN(yearNum) || yearNum < 1800 || yearNum > currentYear + 1)) {
+        newErrors.yearBuilt = 'Enter a valid year (1800-' + (currentYear + 1) + ')';
+      }
     }
 
     setErrors(newErrors);
@@ -390,16 +406,15 @@ export default function AddPropertyScreen() {
             </Text>
 
             <View style={styles.halfRow}>
-              <View style={{ flex: 1 }}>
-                <Input
-                  label="Bedrooms"
-                  placeholder="0"
-                  value={bedrooms}
-                  onChangeText={setBedrooms}
-                  error={errors.bedrooms}
-                  keyboardType="numeric"
-                  leftIcon="bed-outline"
-                />
+              <View style={{ flex: 1 }}>                  <Input
+                    label="Bedrooms"
+                    placeholder="0"
+                    value={bedrooms}
+                    onChangeText={setBedrooms}
+                    error={errors.bedrooms}
+                    keyboardType="numeric"
+                    leftIcon="bed-outline"
+                  />
               </View>
               <View style={{ width: 12 }} />
               <View style={{ flex: 1 }}>
@@ -416,27 +431,26 @@ export default function AddPropertyScreen() {
             </View>
 
             <View style={styles.halfRow}>
-              <View style={{ flex: 1 }}>
-                <Input
-                  label="Area (sqft)"
-                  placeholder="0"
-                  value={area}
-                  onChangeText={setArea}
-                  error={errors.area}
-                  keyboardType="numeric"
-                  leftIcon="resize"
-                />
+              <View style={{ flex: 1 }}>                  <Input
+                    label="Area (sqft)"
+                    placeholder="0"
+                    value={area}
+                    onChangeText={setArea}
+                    error={errors.area}
+                    keyboardType="numeric"
+                    leftIcon="resize"
+                  />
               </View>
               <View style={{ width: 12 }} />
-              <View style={{ flex: 1 }}>
-                <Input
-                  label="Year Built"
-                  placeholder="YYYY"
-                  value={yearBuilt}
-                  onChangeText={setYearBuilt}
-                  keyboardType="numeric"
-                  leftIcon="calendar"
-                />
+              <View style={{ flex: 1 }}>                  <Input
+                    label="Year Built"
+                    placeholder="YYYY"
+                    value={yearBuilt}
+                    onChangeText={setYearBuilt}
+                    error={errors.yearBuilt}
+                    keyboardType="numeric"
+                    leftIcon="calendar"
+                  />
               </View>
             </View>
 

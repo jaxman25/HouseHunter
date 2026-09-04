@@ -6,6 +6,7 @@ import { AuthProvider } from './src/context/AuthContext';
 import { ThemeProvider } from './src/context/ThemeContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import ErrorBoundary from './src/utils/errors/ErrorBoundary';
+import CookieConsentBanner from './src/components/common/CookieConsentBanner';
 import { initSentry } from './src/utils/monitoring/sentry';
 import { validateEnv } from './src/utils/env';
 
@@ -27,6 +28,8 @@ export default function App() {
               <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
               <AppNavigator />
             </AuthProvider>
+            {/* Web-only cookie/local-storage consent banner. */}
+            <CookieConsentBanner />
           </ErrorBoundary>
         </ThemeProvider>
       </SafeAreaProvider>

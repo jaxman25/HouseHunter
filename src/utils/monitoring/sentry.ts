@@ -34,8 +34,16 @@ export function initSentry(): void {
     environment: __DEV__ ? 'development' : 'production',
     tracesSampleRate: 0.2,
     enabled: !__DEV__,
+    // Include the JS stack when an error is captured outside an ErrorBoundary
+    // (async handlers, unhandled rejections) so root causes are reachable.
+    attachStacktrace: true,
   });
   isInitialized = true;
+
+  if (!__DEV__) {
+    console.info('[sentry] Error monitoring enabled. Configure alerts in the Sentry'
+      + ' dashboard so errors page the on-call owner — see docs/BREACH_NOTIFICATION.md.');
+  }
 }
 
 /** Whether Sentry is active (initialized with a DSN). */
@@ -55,6 +63,20 @@ export function captureError(
 ): void {
   if (!isInitialized) return;
   Sentry.captureException(error, context);
+}
+
+/**
+ * Report a security-relevant event (failed reauthentication before account
+ * deletion, repeated auth failures, unexpected permission denials). These
+ * surface as warning-level issues in Sentry so alerting can page on them.
+ */
+export function captureSecurityEvent(message: string, extra?: Record<string, unknown>): void {
+  if (!isInitialized) return;
+  Sentry.captureMessage(message, {
+    level: 'warning',
+    tags: { category: 'security' },
+    extra,
+  });
 }
 
 /**

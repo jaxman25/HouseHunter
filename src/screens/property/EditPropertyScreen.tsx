@@ -53,6 +53,48 @@ export default function EditPropertyScreen() {
   const [yearBuilt, setYearBuilt] = useState(String(prop.yearBuilt));
   const [features, setFeatures] = useState<string[]>(prop.features || []);
   const [images, setImages] = useState<string[]>(prop.images || []);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const clearError = (key: string) =>
+    setErrors((prev) => (prev[key] ? { ...prev, [key]: '' } : prev));
+
+  const validate = (): boolean => {
+    const next: Record<string, string> = {};
+    const currentYear = new Date().getFullYear();
+
+    if (!title.trim()) next.title = 'Title is required';
+    else if (title.trim().length > 120) next.title = 'Title must be under 120 characters';
+    const priceNum = parseFloat(price);
+    if (!price.trim()) next.price = 'Price is required';
+    else if (isNaN(priceNum) || priceNum <= 0) next.price = 'Enter a valid price';
+    else if (priceNum > 100000000) next.price = 'Price looks too high — please double-check it';
+    if (!description.trim()) next.description = 'Description is required';
+    else if (description.trim().length > 4000) next.description = 'Description must be under 4000 characters';
+    if (!address.trim()) next.address = 'Address is required';
+    if (!city.trim()) next.city = 'City is required';
+    if (!stateVal.trim()) next.state = 'State is required';
+    if (!zipCode.trim()) next.zipCode = 'ZIP code is required';
+    else if (!/^\d{5}(-\d{4})?$/.test(zipCode.trim())) next.zipCode = 'Enter a valid 5-digit ZIP code';
+
+    const bedNum = parseFloat(bedrooms);
+    const bathNum = parseFloat(bathrooms);
+    const areaNum = parseFloat(area);
+    const yearNum = parseFloat(yearBuilt);
+    if (listingType === 'sale' && !bedrooms.trim()) next.bedrooms = 'Bedrooms is required';
+    else if (bedrooms.trim() && (isNaN(bedNum) || bedNum < 0 || bedNum > 50 || bedNum % 1 !== 0)) {
+      next.bedrooms = 'Enter a whole number from 0-50';
+    }
+    if (!bathrooms.trim()) next.bathrooms = 'Bathrooms is required';
+    else if (isNaN(bathNum) || bathNum < 0 || bathNum > 50) next.bathrooms = 'Enter a number from 0-50';
+    if (!area.trim()) next.area = 'Area is required';
+    else if (isNaN(areaNum) || areaNum <= 0 || areaNum > 10000000) next.area = 'Enter a valid area in sqft';
+    if (yearBuilt.trim() && (isNaN(yearNum) || yearNum < 1800 || yearNum > currentYear + 1)) {
+      next.yearBuilt = 'Enter a valid year (1800-' + (currentYear + 1) + ')';
+    }
+
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
 
   const toggleFeature = (f: string) => {
     setFeatures((prev) => (prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f]));
@@ -84,6 +126,7 @@ export default function EditPropertyScreen() {
   };
 
   const handleSave = async () => {
+    if (!validate()) return;
     setLoading(true);
     try {
       const uploadedImages: string[] = [];
@@ -193,31 +236,31 @@ export default function EditPropertyScreen() {
           ))}
         </View>
 
-        <Input label="Title" value={title} onChangeText={setTitle} />
-        <Input label="Price ($)" value={price} onChangeText={setPrice} keyboardType="numeric" />
-        <Input label="Description" value={description} onChangeText={setDescription} multiline numberOfLines={4} style={{ minHeight: 100 }} />
-        <Input label="Address" value={address} onChangeText={setAddress} />
-        <Input label="City" value={city} onChangeText={setCity} />
-        <Input label="State" value={stateVal} onChangeText={setStateVal} />
-        <Input label="ZIP Code" value={zipCode} onChangeText={setZipCode} />
+        <Input label="Title" value={title} onChangeText={(t) => { setTitle(t); clearError('title'); }} error={errors.title} />
+        <Input label="Price ($)" value={price} onChangeText={(t) => { setPrice(t); clearError('price'); }} keyboardType="numeric" error={errors.price} />
+        <Input label="Description" value={description} onChangeText={(t) => { setDescription(t); clearError('description'); }} multiline numberOfLines={4} style={{ minHeight: 100 }} error={errors.description} />
+        <Input label="Address" value={address} onChangeText={(t) => { setAddress(t); clearError('address'); }} error={errors.address} />
+        <Input label="City" value={city} onChangeText={(t) => { setCity(t); clearError('city'); }} error={errors.city} />
+        <Input label="State" value={stateVal} onChangeText={(t) => { setStateVal(t); clearError('state'); }} error={errors.state} />
+        <Input label="ZIP Code" value={zipCode} onChangeText={(t) => { setZipCode(t); clearError('zipCode'); }} keyboardType="numeric" error={errors.zipCode} />
 
         <View style={styles.halfRow}>
           <View style={{ flex: 1 }}>
-            <Input label="Beds" value={bedrooms} onChangeText={setBedrooms} keyboardType="numeric" />
+            <Input label="Beds" value={bedrooms} onChangeText={(t) => { setBedrooms(t); clearError('bedrooms'); }} keyboardType="numeric" error={errors.bedrooms} />
           </View>
           <View style={{ width: 12 }} />
           <View style={{ flex: 1 }}>
-            <Input label="Baths" value={bathrooms} onChangeText={setBathrooms} keyboardType="numeric" />
+            <Input label="Baths" value={bathrooms} onChangeText={(t) => { setBathrooms(t); clearError('bathrooms'); }} keyboardType="numeric" error={errors.bathrooms} />
           </View>
         </View>
 
         <View style={styles.halfRow}>
           <View style={{ flex: 1 }}>
-            <Input label="Area (sqft)" value={area} onChangeText={setArea} keyboardType="numeric" />
+            <Input label="Area (sqft)" value={area} onChangeText={(t) => { setArea(t); clearError('area'); }} keyboardType="numeric" error={errors.area} />
           </View>
           <View style={{ width: 12 }} />
           <View style={{ flex: 1 }}>
-            <Input label="Year Built" value={yearBuilt} onChangeText={setYearBuilt} keyboardType="numeric" />
+            <Input label="Year Built" value={yearBuilt} onChangeText={(t) => { setYearBuilt(t); clearError('yearBuilt'); }} keyboardType="numeric" error={errors.yearBuilt} />
           </View>
         </View>
 
