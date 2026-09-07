@@ -39,6 +39,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           let profile = await authService.getUserProfile(fbUser.uid);
           if (!profile) {
+            // The email/password register() flow writes the profile document
+            // only AFTER createUser resolves, so this handler can fire while
+            // that write is still in flight. Poll briefly before creating a
+            // default document: a blind default write could race the
+            // registration write and clobber it (including the
+            // termsAcceptedVersion the user just consented to), stranding a
+            // brand-new account on the TermsGate. `ensureUserDocument` below
+            // re-checks existence, so once registration's doc lands it
+            // becomes a no-op. Accounts with no writer (Google sign-in,
+            // legacy) fall through to the default profile as before.
+            for (let attempt = 0; !profile && attempt < 4; attempt++) {
+              await new Promise((r) => setTimeout(r, 250));
+              profile = await authService.getUserProfile(fbUser.uid);
+            }
+          }
+          if (!profile) {
             // First-time sign-in (e.g. via Google) - create a default profile
             await authService.ensureUserDocument(fbUser);
             profile = await authService.getUserProfile(fbUser.uid);

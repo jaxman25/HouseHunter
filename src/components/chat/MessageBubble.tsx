@@ -56,7 +56,9 @@ export default function MessageBubble({ message, isOwn }: MessageBubbleProps) {
             style={[
               styles.time,
               {
-                color: isOwn ? 'rgba(255,255,255,0.7)' : colors.textLight,
+                // Own-message timestamps are full white so they clear 4.5:1
+                // against the primary bubble color.
+                color: isOwn ? '#FFFFFF' : colors.textLight,
                 fontSize: fontSize.xs,
               },
             ]}
@@ -67,7 +69,7 @@ export default function MessageBubble({ message, isOwn }: MessageBubbleProps) {
             <MaterialCommunityIcons
               name={message.read ? 'check-all' : 'check'}
               size={14}
-              color={message.read ? '#90EE90' : 'rgba(255,255,255,0.5)'}
+              color={message.read ? '#90EE90' : 'rgba(255,255,255,0.85)'}
               style={{ marginLeft: 4 }}
             />
           )}

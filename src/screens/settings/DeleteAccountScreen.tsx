@@ -5,7 +5,6 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -22,6 +21,7 @@ import LoadingOverlay from '../../components/common/LoadingOverlay';
 import { deleteAccountData } from '../../services/accountService';
 import { deleteAuthAccount } from '../../services/authService';
 import { sendAccountDeletionConfirmationEmail } from '../../services/emailService';
+import { confirmDialog, showAlert } from '../../utils/ui/dialogs';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -40,17 +40,11 @@ export default function DeleteAccountScreen() {
 
   const handleDelete = () => {
     if (!user) return;
-    Alert.alert(
+    confirmDialog(
       'Delete Account',
       'This permanently deletes your profile, listings, photos, messages, and notifications. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete Everything',
-          style: 'destructive',
-          onPress: runDeletion,
-        },
-      ]
+      runDeletion,
+      'Delete Everything'
     );
   };
 
@@ -87,7 +81,7 @@ export default function DeleteAccountScreen() {
       } else if (error?.code === 'auth/wrong-password') {
         message = 'Incorrect password.';
       }
-      Alert.alert('Error', message);
+      showAlert('Error', message);
     } finally {
       setLoading(false);
     }
@@ -118,6 +112,8 @@ export default function DeleteAccountScreen() {
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={[styles.backBtn, { backgroundColor: colors.gray100 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
         >
           <MaterialCommunityIcons name="arrow-left" size={20} color={colors.text} />
         </TouchableOpacity>
@@ -154,6 +150,8 @@ export default function DeleteAccountScreen() {
               leftIcon="lock-outline"
               isPassword
               placeholder="Enter your password to confirm"
+              returnKeyType="done"
+              onSubmitEditing={handleDelete}
             />
           </View>
         )}

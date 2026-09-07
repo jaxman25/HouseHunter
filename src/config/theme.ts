@@ -4,27 +4,35 @@ export const COLORS: ThemeColors = {
   primary: '#1B6EF3',
   primaryLight: '#E8F1FF',
   primaryDark: '#0D4FB5',
-  secondary: '#FF6B35',
+  // Deep enough that white text on it passes WCAG AA (4.5:1) — used as the
+  // solid "For Rent"/secondary chip color on images and buttons.
+  secondary: '#C2410C',
   accent: '#7C5CFC',
-  background: '#F5F7FA',
+  background: '#F8F9FB',
   surface: '#FFFFFF',
   card: '#FFFFFF',
   text: '#1A1D26',
-  textSecondary: '#6B7280',
-  textLight: '#9CA3AF',
+  // Secondary and light text are kept ≥ 4.5:1 against the lightest app
+  // backgrounds (white, #F8F9FB, #F9FAFB input fills).
+  textSecondary: '#5F6670',
+  textLight: '#6B7280',
   border: '#E5E7EB',
-  error: '#EF4444',
-  success: '#10B981',
-  warning: '#F59E0B',
-  info: '#3B82F6',
+  // Semantic hues are darkened (error/success/warning/info) so white text on
+  // them (Badge chips, danger buttons) and their use as text pass WCAG AA.
+  error: '#B91C1C',
+  success: '#047857',
+  warning: '#B45309',
+  info: '#1D4ED8',
   white: '#FFFFFF',
   black: '#000000',
   gray100: '#F9FAFB',
   gray200: '#F3F4F6',
   gray300: '#E5E7EB',
-  gray400: '#D1D5DB',
-  gray500: '#9CA3AF',
-  gray600: '#6B7280',
+  // gray400/gray500 are used for icons and small foreground graphics, so they
+  // are dark enough for 3:1 (WCAG AA graphics) — and 4.5:1 where used as text.
+  gray400: '#8A8F99',
+  gray500: '#717680',
+  gray600: '#5F6670',
   gray700: '#374151',
   gray800: '#1F2937',
   shadow: '#000000',

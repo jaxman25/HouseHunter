@@ -31,8 +31,8 @@ export default function FavoritesScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const responsive = useResponsive();
-  // 1 column on phones; 2 on tablets; 3 on desktop.
-  const columns = responsive.isDesktop ? 3 : responsive.isTablet ? 2 : 1;
+  // 1 column on phones; 2 on tablets/desktop (frame-aware).
+  const columns = responsive.gridColumns();
   const cellWidth = responsive.gridCellWidth(columns);
 
   const rows = useMemo(() => {

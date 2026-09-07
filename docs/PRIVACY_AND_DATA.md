@@ -15,6 +15,7 @@ collects, update BOTH this document and the in-app policy text.
 | Messages, conversations | `conversations/*` + `messages` | Chat between users | Own messages deleted at account deletion |
 | Notifications | `notifications/{id}` | In-app alerts | Account deletion |
 | Error/crash reports | Sentry (only when `EXPO_PUBLIC_SENTRY_DSN` is set) | Reliability | Sentry retention policy |
+| Map tiles (web) | Loaded directly from the Google Maps iframe embed | Show map/list locations | N/A — no data stored or sent beyond the map location requested |
 | Local cache / session | AsyncStorage / localStorage | Offline use, keep signed in | Cleared via account deletion flow / site data |
 
 ## What we deliberately do NOT collect
@@ -24,6 +25,11 @@ collects, update BOTH this document and the in-app policy text.
   processor — see `docs/PAYMENT_CONSENT.md`).
 - No analytics SDK beyond what is listed above; no purchase of data from
   third parties.
+- No third-party image hot-linking: avatar/photo fallbacks are rendered
+  locally (initials / themed placeholder), not fetched from external services.
+- The only third-party embed is the Google Maps iframe on web (property +
+  map screens); it sends no referrer (`referrerPolicy="no-referrer"`) and only
+  receives the map location being viewed.
 - Sentry reports exclude message contents, passwords, and payment details.
   When adding data to a Sentry event, keep it to ids and operation names.
 

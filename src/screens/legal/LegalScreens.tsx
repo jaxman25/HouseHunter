@@ -55,6 +55,8 @@ function LegalLayout({
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={[styles.backBtn, { backgroundColor: colors.gray100 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
         >
           <MaterialCommunityIcons name="arrow-left" size={20} color={colors.text} />
         </TouchableOpacity>
@@ -133,6 +135,7 @@ const PRIVACY_SECTIONS: Section[] = [
     heading: 'What we do not do',
     paragraphs: [
       'We do not sell or rent your personal information to anyone. We share data only with the infrastructure providers needed to run the app (Firebase for authentication, database, storage, and hosting; Sentry for error monitoring) and with other users only as you direct (for example, your public listing profile and your messages).',
+      'Maps shown in the app are rendered with a Google Maps embed. When you view a map, your device requests the map tiles directly from Google under Google’s privacy policy; we do not send Google any information about you, only the map location you are viewing. There are no other third-party embeds (no advertising, social, or analytics embeds).',
     ],
   },
   {
@@ -144,7 +147,15 @@ const PRIVACY_SECTIONS: Section[] = [
   {
     heading: 'Your rights',
     paragraphs: [
-      'Depending on where you live you may have the right to access, correct, export, or delete your personal information, and to withdraw consent. You can correct or delete most of it yourself in the app: Edit Profile for corrections, and Delete Account for erasure. For anything else, email ' + CONTACT_EMAIL + ' and we will respond within the timeframe required by law (within 30 days, and within 72 hours for erasure requests related to a breach where legally required).',
+      'Depending on where you live you may have the right to access, correct, export (port), or delete your personal information; to object to or ask us to restrict certain processing; and to withdraw consent you have given. Laws such as the GDPR (in the European Economic Area and the United Kingdom) and the CCPA/CPRA (in California) provide these rights where they apply to you. We do not sell your personal information, and we do not treat you differently for exercising your privacy rights.',
+      'You can act on most of these rights yourself in the app: Edit Profile for corrections, notification settings to limit messages, and Delete Account for erasure. For anything else, email ' + CONTACT_EMAIL + '. We respond to verifiable requests within 30 days; if a request is complex or we receive many requests, we may take longer (up to a further 60 days) and will tell you why. If you are not satisfied with our response, you can lodge a complaint with the data-protection authority where you live.',
+    ],
+  },
+  {
+    heading: 'Where your data is stored',
+    paragraphs: [
+      'The infrastructure providers we use to run the service (Firebase for authentication, database, storage, and hosting; Sentry for error monitoring) are operated by Google LLC and its partners and may store and process data on servers in the United States and in other countries where those providers operate.',
+      'If you live outside the United States and your local law restricts transferring personal data across borders, we rely on the safeguards those providers offer — such as standard contractual clauses — for data processed in the United States, and the commitments in this policy apply regardless of where your data is stored.',
     ],
   },
   {
@@ -171,7 +182,7 @@ const TERMS_SECTIONS: Section[] = [
   {
     heading: 'Your account',
     paragraphs: [
-      'You are responsible for keeping your login credentials safe and for everything done through your account. You must be at least 18 years old (or the age of majority where you live) to use the service. One person — one account.',
+      'You are responsible for keeping your login credentials safe and for everything done through your account. You must be at least 18 years old (or the age of majority where you live) and legally able to enter into this agreement to use the service. One person — one account.',
     ],
   },
   {
@@ -193,6 +204,14 @@ const TERMS_SECTIONS: Section[] = [
     ],
   },
   {
+    heading: 'Refunds',
+    paragraphs: [
+      'There are no paid features today, so there is nothing to pay for or refund while using the free version of House Hunter.',
+      'If a paid feature is introduced, the price, billing terms, cancellation process, and refund policy will be shown to you in full before you confirm any purchase. Unless a law where you live gives you a different right, requests for refunds of one-off purchases will be handled as described at the point of purchase, and subscription fees already used (for example, for a partial billing period already consumed) generally will not be refunded unless required by law.',
+      'If you believe you were charged in error, contact us at ' + CONTACT_EMAIL + ' and we will investigate. Statutory rights — including any cooling-off or withdrawal rights you have under the law where you live — are never limited by this policy.',
+    ],
+  },
+  {
     heading: 'Intellectual property',
     paragraphs: [
       'The House Hunter app and its content (excluding user content) are owned by us and protected by intellectual-property laws. You keep ownership of content you post and grant us a limited license to host and display it so the service can function.',
@@ -211,9 +230,17 @@ const TERMS_SECTIONS: Section[] = [
     ],
   },
   {
+    heading: 'Local law',
+    paragraphs: [
+      'House Hunter is operated from the United States. If the law where you live gives you consumer, privacy, or other protections that cannot be waived by contract, those protections are not limited by these Terms or by our Privacy Policy.',
+      'If any part of these Terms is unenforceable under the law where you live, that part will not apply to you and the rest of the Terms remain in effect.',
+      'If you access or use the service from outside the United States, you are responsible for complying with the laws that apply to you where you are, and we make no claim that the service is available or lawful in any particular country.',
+    ],
+  },
+  {
     heading: 'Governing law and changes',
     paragraphs: [
-      'These terms are governed by the laws of the United States, without regard to conflict-of-law rules. We may update these terms; when we do, the updated version takes effect on the date shown, and for material changes we will ask for your agreement again the next time you sign in.',
+      'These Terms and any disputes arising out of them are governed by the laws of the United States, without regard to conflict-of-law rules, and always subject to the mandatory consumer-protection laws of the country or state where you live. We may update these Terms; when we do, the updated version takes effect on the date shown, and for material changes we will ask for your agreement again the next time you sign in.',
     ],
   },
 ];

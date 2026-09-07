@@ -8,6 +8,7 @@ import AppNavigator from './src/navigation/AppNavigator';
 import ErrorBoundary from './src/utils/errors/ErrorBoundary';
 import CookieConsentBanner from './src/components/common/CookieConsentBanner';
 import NoticeBanner from './src/components/common/NoticeBanner';
+import WebFrame from './src/components/common/WebFrame';
 import { initSentry } from './src/utils/monitoring/sentry';
 import { validateEnv } from './src/utils/env';
 
@@ -25,14 +26,16 @@ export default function App() {
       <SafeAreaProvider>
         <ThemeProvider>
           <ErrorBoundary>
-            <AuthProvider>
-              <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-              <AppNavigator />
-            </AuthProvider>
-            {/* Web-only cookie/local-storage consent banner. */}
-            <CookieConsentBanner />
-            {/* Config-driven in-app notice banner (config/app_notice doc). */}
-            <NoticeBanner />
+            <WebFrame>
+              <AuthProvider>
+                <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+                <AppNavigator />
+              </AuthProvider>
+              {/* Web-only cookie/local-storage consent banner. */}
+              <CookieConsentBanner />
+              {/* Config-driven in-app notice banner (config/app_notice doc). */}
+              <NoticeBanner />
+            </WebFrame>
           </ErrorBoundary>
         </ThemeProvider>
       </SafeAreaProvider>

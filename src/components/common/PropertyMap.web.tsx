@@ -23,6 +23,7 @@ export default function PropertyMap({
         title="Property location map"
         loading="lazy"
         allowFullScreen
+        referrerPolicy="no-referrer"
         style={{ width: '100%', height: '100%', border: 0 }}
       />
     </View>

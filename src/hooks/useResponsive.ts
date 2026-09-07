@@ -9,11 +9,20 @@
  *   phone   <  600
  *   tablet  >= 600 && < 1024
  *   desktop >= 1024
+ *
+ * Web is special-cased: the app renders inside a centered 480px "phone
+ * frame" (src/components/common/WebFrame.tsx), so `contentWidth` — the width
+ * layouts and grids actually have to work with — is capped at 480 on web.
+ * Breakpoint detection still uses the real viewport width (a 1440px browser
+ * window is still "desktop"), but every computed size uses `contentWidth`.
  */
 
-import { useWindowDimensions } from 'react-native';
+import { Platform, useWindowDimensions } from 'react-native';
 
 export type Breakpoint = 'phone' | 'tablet' | 'desktop';
+
+/** Width of the web phone-frame column (see WebFrame.tsx). */
+export const WEB_MAX_WIDTH = 480;
 
 /** Side padding list screens use (theme spacing.lg). */
 export const SCREEN_PADDING = 16;
@@ -31,19 +40,26 @@ export interface ResponsiveLayout {
   isLandscape: boolean;
   isPortrait: boolean;
   /**
-   * Number of property-card columns for the current width, capped at
-   * `maxColumns` (default 4) and never below 1. Cards keep a ~150pt minimum
-   * width so they never get cramped on very small screens.
+   * Width available to layouts: the real window width on native, capped at
+   * `WEB_MAX_WIDTH` on web (the centered phone frame). Use this instead of
+   * `width` when computing grid cells, card widths, or container sizes.
+   */
+  contentWidth: number;
+  /**
+   * Number of property-card columns for the current breakpoint — 1 on
+   * phones, 2 on tablets and desktops — capped at `maxColumns` (default 2).
    */
   gridColumns: (maxColumns?: number) => number;
   /**
-   * Width of one grid cell for `gridColumns()` columns, computed against the
-   * standard screen padding / gap so rows tile exactly edge to edge.
+   * Width of one grid cell for `gridColumns()` columns, computed against
+   * `contentWidth` and the standard padding/gap so rows tile edge to edge
+   * inside the centered frame.
    */
   gridCellWidth: (columns?: number) => number;
   /**
-   * Suggested max width for page content on large screens (readability cap).
-   * Phones/tablets get the natural width so nothing changes there.
+   * Suggested max width for page content on large screens. 480 on web (the
+   * frame already caps it) so per-screen containers don't fight the frame;
+   * native tablets/desktops keep their natural width.
    */
   pageMaxWidth: number;
 }
@@ -58,16 +74,20 @@ export function useResponsive(): ResponsiveLayout {
   const isPhone = width < 600;
   const isLandscape = width > height;
 
-  const gridColumns = (maxColumns = 4): number => {
-    const available = width - SCREEN_PADDING * 2 + GRID_GAP;
+  const contentWidth = Platform.OS === 'web' ? Math.min(width, WEB_MAX_WIDTH) : width;
+
+  const gridColumns = (maxColumns = 2): number => {
+    // Breakpoint grid: 1 column on phones, 2 on tablet/desktop.
+    const byBreakpoint = isPhone ? 1 : 2;
+    const available = contentWidth - SCREEN_PADDING * 2 + GRID_GAP;
     const byWidth = Math.floor(available / (MIN_CARD_WIDTH + GRID_GAP));
-    return Math.min(Math.max(byWidth, 1), maxColumns);
+    return Math.min(Math.max(Math.min(byBreakpoint, byWidth), 1), maxColumns);
   };
 
   const gridCellWidth = (columns?: number): number => {
     const cols = columns ?? gridColumns();
     return Math.floor(
-      (width - SCREEN_PADDING * 2 - GRID_GAP * (cols - 1)) / cols
+      (contentWidth - SCREEN_PADDING * 2 - GRID_GAP * (cols - 1)) / cols
     );
   };
 
@@ -80,9 +100,11 @@ export function useResponsive(): ResponsiveLayout {
     isDesktop,
     isLandscape,
     isPortrait: !isLandscape,
+    contentWidth,
     gridColumns,
     gridCellWidth,
-    pageMaxWidth: isDesktop ? 1240 : isTablet ? width : width,
+    pageMaxWidth:
+      Platform.OS === 'web' ? WEB_MAX_WIDTH : isDesktop ? 1240 : width,
   };
 }
 

@@ -72,6 +72,11 @@ export default function MainTabNavigator() {
           height: Platform.OS === 'ios' ? 88 : 65,
           paddingBottom: Platform.OS === 'ios' ? 28 : 8,
           paddingTop: 8,
+          // On web the tab bar lives inside the centered 480px frame; cap it
+          // so it never stretches full-screen even if the frame is removed.
+          ...(Platform.OS === 'web'
+            ? { width: '100%', maxWidth: 480, alignSelf: 'center' }
+            : {}),
         },
         tabBarLabelStyle: {
           fontSize: 11,

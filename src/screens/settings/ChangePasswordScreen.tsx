@@ -103,6 +103,8 @@ export default function ChangePasswordScreen() {
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={[styles.backBtn, { backgroundColor: colors.gray100 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
         >
           <MaterialCommunityIcons name="arrow-left" size={20} color={colors.text} />
         </TouchableOpacity>
@@ -160,6 +162,7 @@ export default function ChangePasswordScreen() {
           leftIcon="lock-plus-outline"
           isPassword
           placeholder="Min 8 characters"
+          returnKeyType="next"
         />
 
         <Input
@@ -172,6 +175,8 @@ export default function ChangePasswordScreen() {
           error={errors.confirmPassword}
           leftIcon="lock-check-outline"
           isPassword
+          returnKeyType="done"
+          onSubmitEditing={handleChangePassword}
         />
 
         <View style={{ marginTop: spacing.xl }}>

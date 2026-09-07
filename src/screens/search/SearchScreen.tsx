@@ -40,8 +40,8 @@ export default function SearchScreen() {
   const [hasSearched, setHasSearched] = useState(false);
 
   const responsive = useResponsive();
-  // Results: full-width on phones; 2 columns on tablets; 3 on desktop.
-  const columns = responsive.isDesktop ? 3 : responsive.isTablet ? 2 : 1;
+  // Results: 1 column on phones; 2 on tablets/desktop (frame-aware).
+  const columns = responsive.gridColumns();
   const cellWidth = responsive.gridCellWidth(columns);
 
   const rows = useMemo(() => {
@@ -118,6 +118,8 @@ export default function SearchScreen() {
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={[styles.backBtn, { backgroundColor: colors.gray100 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
         >
           <MaterialCommunityIcons name="arrow-left" size={20} color={colors.text} />
         </TouchableOpacity>
@@ -136,14 +138,22 @@ export default function SearchScreen() {
             ref={inputRef}
             style={[styles.searchInput, { color: colors.text, fontSize: fontSize.md }]}
             placeholder="Search properties, cities, addresses..."
-            placeholderTextColor={colors.gray400}
+            placeholderTextColor={colors.textLight}
+            accessibilityLabel="Search properties, cities, addresses"
             value={query}
             onChangeText={handleQueryChange}
             returnKeyType="search"
+            onSubmitEditing={() => {
+              if (query.trim()) handleSearch(query.trim());
+            }}
           />
           {query.length > 0 && (
-            <TouchableOpacity onPress={() => { setQuery(''); setResults([]); setHasSearched(false); }}>
-              <MaterialCommunityIcons name="close-circle" size={18} color={colors.gray400} />
+            <TouchableOpacity
+              onPress={() => { setQuery(''); setResults([]); setHasSearched(false); }}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+            >
+              <MaterialCommunityIcons name="close-circle" size={18} color={colors.gray500} />
             </TouchableOpacity>
           )}
         </View>

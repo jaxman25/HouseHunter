@@ -111,6 +111,8 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={[styles.backButton, { backgroundColor: colors.gray100 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
         >
           <MaterialCommunityIcons name="arrow-left" size={22} color={colors.text} />
         </TouchableOpacity>
@@ -141,6 +143,8 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
             leftIcon="email-outline"
             keyboardType="email-address"
             autoCapitalize="none"
+            returnKeyType="done"
+            onSubmitEditing={handleReset}
           />
         </View>
 

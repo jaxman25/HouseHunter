@@ -67,8 +67,14 @@ export default function LoginScreen({ navigation }: Props) {
       let message = 'An error occurred. Please try again.';
       if (error.code === 'auth/user-not-found') {
         message = 'No account found with this email.';
-      } else if (error.code === 'auth/wrong-password') {
-        message = 'Incorrect password.';
+      } else if (
+        error.code === 'auth/wrong-password' ||
+        // Modern Firebase identity platform returns this single merged code
+        // for both missing accounts and wrong passwords (anti-enumeration).
+        error.code === 'auth/invalid-login-credentials' ||
+        error.code === 'auth/invalid-credential'
+      ) {
+        message = 'Incorrect email or password.';
       } else if (error.code === 'auth/too-many-requests') {
         message = 'Too many attempts. Please try again later.';
       } else if (error.code === 'auth/invalid-email') {
@@ -132,6 +138,7 @@ export default function LoginScreen({ navigation }: Props) {
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
+            returnKeyType="next"
           />
 
           <Input
@@ -145,6 +152,8 @@ export default function LoginScreen({ navigation }: Props) {
             error={errors.password}
             leftIcon="lock-outline"
             isPassword
+            returnKeyType="done"
+            onSubmitEditing={handleLogin}
           />
 
           <TouchableOpacity

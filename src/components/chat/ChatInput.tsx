@@ -53,6 +53,8 @@ export default function ChatInput({ onSend, onSendImage, sending }: ChatInputPro
         <TouchableOpacity
           onPress={handlePickImage}
           style={styles.iconButton}
+          accessibilityRole="button"
+          accessibilityLabel="Attach an image"
         >
           <MaterialCommunityIcons
             name="image-plus"
@@ -74,7 +76,8 @@ export default function ChatInput({ onSend, onSendImage, sending }: ChatInputPro
         <TextInput
           style={[styles.input, { color: colors.text, fontSize: fontSize.md }]}
           placeholder="Type a message..."
-          placeholderTextColor={colors.gray400}
+          placeholderTextColor={colors.textLight}
+          accessibilityLabel="Message"
           value={text}
           onChangeText={setText}
           multiline
@@ -92,6 +95,8 @@ export default function ChatInput({ onSend, onSendImage, sending }: ChatInputPro
           },
         ]}
         disabled={!text.trim() || sending}
+        accessibilityRole="button"
+        accessibilityLabel="Send message"
       >
         <MaterialCommunityIcons
           name="send"

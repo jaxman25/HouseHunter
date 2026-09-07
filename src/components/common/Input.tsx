@@ -74,7 +74,8 @@ export default function Input({
             },
             leftIcon ? { paddingLeft: 0 } : {},
           ]}
-          placeholderTextColor={colors.gray400}
+          placeholderTextColor={colors.textLight}
+          accessibilityLabel={label || props.placeholder || (leftIcon as string) || undefined}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           secureTextEntry={isPassword && !secureVisible}
@@ -84,6 +85,8 @@ export default function Input({
           <TouchableOpacity
             onPress={() => setSecureVisible(!secureVisible)}
             style={styles.rightIcon}
+            accessibilityRole="button"
+            accessibilityLabel={secureVisible ? 'Hide password' : 'Show password'}
           >
             <MaterialCommunityIcons
               name={secureVisible ? 'eye-off-outline' : 'eye-outline'}

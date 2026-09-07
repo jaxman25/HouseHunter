@@ -77,8 +77,8 @@ export default function PurchaseConsentModal({
               <Text style={[styles.title, { color: colors.text, fontSize: fontSize.lg }]}>
                 {title}
               </Text>
-              <TouchableOpacity onPress={onClose} disabled={confirming} accessibilityRole="button">
-                <Text style={{ color: colors.gray400, fontSize: 22, fontWeight: '700' }}>{'\u00d7'}</Text>
+              <TouchableOpacity onPress={onClose} disabled={confirming} accessibilityRole="button" accessibilityLabel="Close">
+                <Text style={{ color: colors.textSecondary, fontSize: 22, fontWeight: '700' }}>{'\u00d7'}</Text>
               </TouchableOpacity>
             </View>
 

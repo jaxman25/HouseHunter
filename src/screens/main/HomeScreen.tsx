@@ -8,6 +8,7 @@ import {
   StyleSheet,
   RefreshControl,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { DocumentSnapshot } from 'firebase/firestore';
 import { Image } from 'expo-image';
@@ -45,17 +46,15 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const responsive = useResponsive();
 
-  // Featured cards: ~72% of the viewport but never tiny on small phones nor
-  // enormous on large screens; recalculates on rotation/resize.
+  // Featured cards: ~72% of the content column but never tiny on small
+  // phones nor enormous on large screens; recalculates on rotation/resize.
   const featuredCardWidth = Math.min(
-    Math.max(responsive.width * 0.72, 250),
+    Math.max(responsive.contentWidth * 0.72, 250),
     340
   );
-  // New Listings: 1 column on phones, 2 on tablets, 3 on desktop.
-  const recentColumns = responsive.isDesktop ? 3 : responsive.isTablet ? 2 : 1;
-  const recentCellWidth =
-    (responsive.width - spacing.lg * 2 - spacing.md * (recentColumns - 1)) /
-    recentColumns;
+  // New Listings: 1 column on phones, 2 on tablets/desktop.
+  const recentColumns = responsive.gridColumns();
+  const recentCellWidth = responsive.gridCellWidth(recentColumns);
 
   const [featuredProperties, setFeaturedProperties] = useState<Property[]>([]);
   const [recentProperties, setRecentProperties] = useState<Property[]>([]);
@@ -160,6 +159,8 @@ export default function HomeScreen() {
           <TouchableOpacity
             style={[styles.notificationBtn, { backgroundColor: colors.gray100 }]}
             onPress={() => navigation.navigate('Conversations')}
+            accessibilityRole="button"
+            accessibilityLabel="Messages"
           >
             <MaterialCommunityIcons name="message-outline" size={22} color={colors.text} />
           </TouchableOpacity>
@@ -177,12 +178,16 @@ export default function HomeScreen() {
               borderColor: colors.border,
             },
             shadow.sm,
+            // Web: keep the search bar a contained, centered 400px element.
+            Platform.OS === 'web'
+              ? styles.searchBarWeb
+              : undefined,
           ]}
           onPress={() => navigation.navigate('Search')}
           activeOpacity={0.8}
         >
           <MaterialCommunityIcons name="magnify" size={22} color={colors.gray500} />
-          <Text style={[styles.searchPlaceholder, { color: colors.gray400, fontSize: fontSize.md }]}>
+          <Text style={[styles.searchPlaceholder, { color: colors.textLight, fontSize: fontSize.md }]}>
             Search by city, address, or zip...
           </Text>
           <View style={[styles.filterIcon, { backgroundColor: colors.primaryLight }]}>
@@ -192,49 +197,95 @@ export default function HomeScreen() {
 
         {/* Categories */}
         <View style={{ marginTop: spacing.xl }}>
-          <FlatList
-            horizontal
-            data={CATEGORIES}
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: spacing.lg }}
-            keyExtractor={(item) => item.key}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={[
-                  styles.categoryItem,
-                  {
-                    backgroundColor:
-                      selectedCategory === item.key ? colors.primary : colors.surface,
-                    borderColor: selectedCategory === item.key ? colors.primary : colors.border,
-                    borderRadius: radius.lg,
-                  },
-                  shadow.sm,
-                ]}
-                onPress={() =>
-                  setSelectedCategory(
-                    selectedCategory === item.key ? null : item.key
-                  )
-                }
-              >
-                <MaterialCommunityIcons
-                  name={item.icon as any}
-                  size={22}
-                  color={selectedCategory === item.key ? colors.white : colors.primary}
-                />
-                <Text
+          {Platform.OS === 'web' ? (
+            /* Web: centered wrapping row (no horizontal scroll). */
+            <View style={styles.categoryWrap}>
+              {CATEGORIES.map((item) => (
+                <TouchableOpacity
+                  key={item.key}
                   style={[
-                    styles.categoryLabel,
+                    styles.categoryItem,
                     {
-                      color: selectedCategory === item.key ? colors.white : colors.text,
-                      fontSize: fontSize.xs,
+                      backgroundColor:
+                        selectedCategory === item.key ? colors.primary : colors.surface,
+                      borderColor: selectedCategory === item.key ? colors.primary : colors.border,
+                      borderRadius: radius.lg,
                     },
+                    shadow.sm,
                   ]}
+                  onPress={() =>
+                    setSelectedCategory(
+                      selectedCategory === item.key ? null : item.key
+                    )
+                  }
                 >
-                  {item.label}
-                </Text>
-              </TouchableOpacity>
-            )}
-          />
+                  <MaterialCommunityIcons
+                    name={item.icon as any}
+                    size={22}
+                    color={selectedCategory === item.key ? colors.white : colors.primary}
+                  />
+                  <Text
+                    style={[
+                      styles.categoryLabel,
+                      {
+                        color: selectedCategory === item.key ? colors.white : colors.text,
+                        fontSize: fontSize.xs,
+                      },
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : (
+            /* Mobile: horizontal scroll row. */
+            <FlatList
+              horizontal
+              data={CATEGORIES}
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: spacing.lg }}
+              keyExtractor={(item) => item.key}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.categoryItem,
+                    {
+                      backgroundColor:
+                        selectedCategory === item.key ? colors.primary : colors.surface,
+                      borderColor: selectedCategory === item.key ? colors.primary : colors.border,
+                      borderRadius: radius.lg,
+                    },
+                    shadow.sm,
+                  ]}
+                  onPress={() =>
+                    setSelectedCategory(
+                      selectedCategory === item.key ? null : item.key
+                    )
+                  }
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: selectedCategory === item.key }}
+                >
+                  <MaterialCommunityIcons
+                    name={item.icon as any}
+                    size={22}
+                    color={selectedCategory === item.key ? colors.white : colors.primary}
+                  />
+                  <Text
+                    style={[
+                      styles.categoryLabel,
+                      {
+                        color: selectedCategory === item.key ? colors.white : colors.text,
+                        fontSize: fontSize.xs,
+                      },
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            />
+          )}
         </View>
 
         {/* Featured Properties */}
@@ -320,6 +371,8 @@ export default function HomeScreen() {
                           e.stopPropagation?.();
                           toggleFavorite(item.id);
                         }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${isFavorite(item.id) ? 'Remove' : 'Add'} ${item.title} ${isFavorite(item.id) ? 'from' : 'to'} favorites`}
                       >
                         <MaterialCommunityIcons
                           name={isFavorite(item.id) ? 'heart' : 'heart-outline'}
@@ -448,10 +501,10 @@ export default function HomeScreen() {
                 <ActivityIndicator size="small" color={colors.primary} />
               ) : (
                 <>
-                  <MaterialCommunityIcons name="chevron-down" size={18} color={colors.primary} />
+                  <MaterialCommunityIcons name="chevron-down" size={18} color={colors.primaryDark} />
                   <Text
                     style={{
-                      color: colors.primary,
+                      color: colors.primaryDark,
                       fontSize: fontSize.md,
                       fontWeight: '700',
                       marginLeft: 4,
@@ -502,6 +555,11 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderWidth: 1,
   },
+  searchBarWeb: {
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 400,
+  },
   searchPlaceholder: {
     flex: 1,
     marginLeft: 10,
@@ -520,6 +578,13 @@ const styles = StyleSheet.create({
     marginRight: 10,
     borderWidth: 1,
     minWidth: 80,
+  },
+  categoryWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
   },
   categoryLabel: {
     fontWeight: '600',

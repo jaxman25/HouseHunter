@@ -44,7 +44,7 @@ export default function PropertyCard({
       >
         <View>
           <Image
-            source={{ uri: property.images?.[0] || 'https://via.placeholder.com/300x200' }}
+            source={property.images?.[0] ? { uri: property.images[0] } : undefined}
             style={[styles.gridImage, { borderRadius: radius.lg }]}
           />
           <View style={styles.imageOverlay}>
@@ -58,6 +58,8 @@ export default function PropertyCard({
             <TouchableOpacity
               onPress={onFavorite}
               style={[styles.heartButton, { backgroundColor: 'rgba(255,255,255,0.9)' }]}
+              accessibilityRole="button"
+              accessibilityLabel={`${isFavorite ? 'Remove' : 'Add'} ${property.title} ${isFavorite ? 'from' : 'to'} favorites`}
             >
               <MaterialCommunityIcons
                 name={isFavorite ? 'heart' : 'heart-outline'}
@@ -118,7 +120,7 @@ export default function PropertyCard({
         onPress={onPress}
       >
         <Image
-          source={{ uri: property.images?.[0] || 'https://via.placeholder.com/120x120' }}
+          source={property.images?.[0] ? { uri: property.images[0] } : undefined}
           style={[styles.horizontalImage, { borderRadius: radius.lg }]}
         />
         <View style={styles.horizontalContent}>
@@ -129,11 +131,16 @@ export default function PropertyCard({
               {formatPrice(property.price, property.listingType)}
             </Text>
             {onFavorite && (
-              <TouchableOpacity onPress={onFavorite} style={styles.heartBtn}>
+              <TouchableOpacity
+                onPress={onFavorite}
+                style={styles.heartBtn}
+                accessibilityRole="button"
+                accessibilityLabel={`${isFavorite ? 'Remove' : 'Add'} ${property.title} ${isFavorite ? 'from' : 'to'} favorites`}
+              >
                 <MaterialCommunityIcons
                   name={isFavorite ? 'heart' : 'heart-outline'}
                   size={22}
-                  color={isFavorite ? colors.error : colors.gray400}
+                  color={isFavorite ? colors.error : colors.gray500}
                 />
               </TouchableOpacity>
             )}
@@ -185,7 +192,7 @@ export default function PropertyCard({
     >
       <View>
         <Image
-          source={{ uri: property.images?.[0] || 'https://via.placeholder.com/300x200' }}
+          source={property.images?.[0] ? { uri: property.images[0] } : undefined}
           style={[styles.verticalImage, { borderRadius: radius.lg }]}
         />
         <View style={styles.imageOverlay}>
@@ -198,6 +205,8 @@ export default function PropertyCard({
           <TouchableOpacity
             onPress={onFavorite}
             style={[styles.heartButton, { backgroundColor: colors.surface }]}
+            accessibilityRole="button"
+            accessibilityLabel={`${isFavorite ? 'Remove' : 'Add'} ${property.title} ${isFavorite ? 'from' : 'to'} favorites`}
           >
             <MaterialCommunityIcons
               name={isFavorite ? 'heart' : 'heart-outline'}

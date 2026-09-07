@@ -6,7 +6,9 @@ import {
   Platform,
   Pressable,
   PressableProps,
+  PressableStateCallbackType,
   StyleProp,
+  StyleSheet,
   ViewStyle,
 } from 'react-native';
 
@@ -37,7 +39,17 @@ export default function PressableScale({
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
       <Pressable
-        style={style}
+        accessibilityRole={props.accessibilityRole ?? 'button'}
+        style={((state) => {
+          // `hovered` is provided by react-native-web at runtime; the core RN
+          // types omit it, so widen the callback state here.
+          const hovered = (state as PressableStateCallbackType & { hovered?: boolean }).hovered;
+          return [
+            style,
+            // Desktop web: lift the card slightly on hover (translateY + shadow).
+            Platform.OS === 'web' && hovered ? styles.webHover : null,
+          ];
+        }) as (state: PressableStateCallbackType) => StyleProp<ViewStyle>}
         onPressIn={(event) => {
           onPressIn?.(event);
           animateTo(scaleTo);
@@ -53,3 +65,10 @@ export default function PressableScale({
     </Animated.View>
   );
 }
+
+const styles = StyleSheet.create({
+  webHover: {
+    transform: [{ translateY: -3 }],
+    boxShadow: '0px 8px 20px rgba(0,0,0,0.12)',
+  },
+});

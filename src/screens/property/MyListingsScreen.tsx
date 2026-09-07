@@ -38,11 +38,12 @@ export default function MyListingsScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const responsive = useResponsive();
-  // Grid mirrors Favorites: 1 column on phones, 2 on tablets, 3 on desktop.
-  // Cell widths are computed against the capped column (not the full window)
-  // so rows tile edge-to-edge inside the centered container.
-  const contentWidth = Math.min(responsive.width, CONTENT_MAX_WIDTH);
-  const columns = responsive.isDesktop ? 3 : responsive.isTablet ? 2 : 1;
+  // Grid mirrors Favorites: 1 column on phones, 2 on tablets/desktop.
+  // Cell widths are computed against the capped content column (frame-aware
+  // on web, capped at 960 on native tablets) so rows tile edge-to-edge
+  // inside the centered container.
+  const contentWidth = Math.min(responsive.contentWidth, CONTENT_MAX_WIDTH);
+  const columns = responsive.gridColumns();
   const cellWidth = columns > 1
     ? Math.floor(
         (contentWidth - spacing.lg * 2 - spacing.md * (columns - 1)) / columns

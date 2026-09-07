@@ -62,6 +62,10 @@ export default function MapScreen() {
     );
   };
 
+  // Map beside the list when there is room (native tablets / wide viewports),
+  // stacked on phones and inside the 480px web frame.
+  const twoPane = responsive.contentWidth >= 768;
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -82,11 +86,11 @@ export default function MapScreen() {
         </Text>
       </View>
 
-      {/* Body: map beside the list on desktop, stacked on phones/tablets */}
+      {/* Body */}
       <View
         style={[
           styles.body,
-          { flexDirection: responsive.isDesktop ? 'row' : 'column' },
+          { flexDirection: twoPane ? 'row' : 'column' },
         ]}
       >
         {/* Map */}
@@ -94,7 +98,7 @@ export default function MapScreen() {
           style={[
             styles.mapPane,
             { backgroundColor: colors.gray200 },
-            responsive.isDesktop ? styles.mapPaneDesktop : styles.mapPaneMobile,
+            twoPane ? styles.mapPaneDesktop : styles.mapPaneMobile,
           ]}
         >
           <iframe
@@ -102,6 +106,7 @@ export default function MapScreen() {
             title="Property map"
             loading="lazy"
             allowFullScreen
+            referrerPolicy="no-referrer"
             style={{ width: '100%', height: '100%', border: 0 }}
           />
           {focus && (
@@ -130,7 +135,7 @@ export default function MapScreen() {
 
         {/* Property list */}
         <ScrollView
-          style={[styles.list, responsive.isDesktop ? styles.listDesktop : null]}
+          style={[styles.list, twoPane ? styles.listDesktop : null]}
           contentContainerStyle={{ padding: spacing.lg, paddingBottom: 24 }}
           showsVerticalScrollIndicator={false}
         >

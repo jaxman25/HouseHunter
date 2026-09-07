@@ -133,6 +133,8 @@ export default function RegisterScreen({ navigation }: Props) {
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={[styles.backButton, { backgroundColor: colors.gray100 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
         >
           <MaterialCommunityIcons name="arrow-left" size={22} color={colors.text} />
         </TouchableOpacity>
@@ -170,6 +172,8 @@ export default function RegisterScreen({ navigation }: Props) {
                 },
               ]}
               onPress={() => setRole(r.key)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: role === r.key }}
             >
               <MaterialCommunityIcons
                 name={r.icon as any}
@@ -252,6 +256,8 @@ export default function RegisterScreen({ navigation }: Props) {
             error={errors.confirmPassword}
             leftIcon="lock-check-outline"
             isPassword
+            returnKeyType="done"
+            onSubmitEditing={handleRegister}
           />
         </View>
 
@@ -263,6 +269,9 @@ export default function RegisterScreen({ navigation }: Props) {
               if (termsError) setTermsError('');
             }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="checkbox"
+            accessibilityLabel="I agree to the Terms of Service and Privacy Policy"
+            accessibilityState={{ checked: termsAccepted }}
           >
             <MaterialCommunityIcons
               name={termsAccepted ? 'checkbox-marked' : 'checkbox-blank-outline'}
