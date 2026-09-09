@@ -86,24 +86,30 @@ export default function NoticeBanner() {
   // Admin-authored announcements (admin/announcements, signed-in users only).
   // The most recent active announcement takes precedence over the config doc.
   useEffect(() => {
-    const q = query(
-      collectionGroup(db, 'announcements'),
-      where('active', '==', true),
-      orderBy('createdAt', 'desc'),
-      limit(1)
-    );
-    const unsubscribe = onSnapshot(
-      q,
-      (snap) => {
-        const first = snap.docs[0];
-        setAnnouncement(first ? (first.data() as AppNotice) : null);
-      },
-      () => {
-        // Signed out or offline — announcements aren't readable; fall back to config.
-        setAnnouncement(null);
-      }
-    );
-    return unsubscribe;
+    try {
+      const q = query(
+        collectionGroup(db, 'announcements'),
+        where('active', '==', true),
+        orderBy('createdAt', 'desc'),
+        limit(1)
+      );
+      const unsubscribe = onSnapshot(
+        q,
+        (snap) => {
+          const first = snap.docs[0];
+          setAnnouncement(first ? (first.data() as AppNotice) : null);
+        },
+        () => {
+          // Signed out, offline, or index missing — fall back to config.
+          setAnnouncement(null);
+        }
+      );
+      return unsubscribe;
+    } catch {
+      // collectionGroup query failed (e.g. missing Firestore index) —
+      // silently skip announcements; the config/app_notice banner still works.
+      return undefined;
+    }
   }, []);
 
   const notice = announcement ?? configNotice;
