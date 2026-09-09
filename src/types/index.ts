@@ -12,6 +12,12 @@ export interface User {
   termsAcceptedAt?: string;
   /** Version of the Terms the user agreed to (see TERMS_VERSION). */
   termsAcceptedVersion?: string;
+  /** True when the account's email is verified (server-enforced for inquiries). */
+  emailVerified?: boolean;
+  /** Moderation: set by admins via the admin suite (see firestore.rules). */
+  suspended?: boolean;
+  suspensionReason?: string;
+  suspensionExpiry?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -27,7 +33,7 @@ export interface UserProfile {
 }
 
 // ─── Property Types ───────────────────────────────────────
-export type PropertyType = 'house' | 'apartment' | 'condo' | 'townhouse' | 'land' | 'commercial';
+export type PropertyType = 'house' | 'apartment' | 'condo' | 'townhouse' | 'bedsitter' | 'maisonette' | 'land' | 'commercial';
 export type ListingType = 'sale' | 'rent';
 export type PropertyStatus = 'active' | 'pending' | 'sold' | 'rented' | 'inactive';
 
@@ -62,6 +68,18 @@ export interface Property {
   inquiries: number;
   /** Optimistic-lock counter — bumped on every owner edit (see firestore.rules). */
   version?: number;
+  /** ISO timestamp set when the listing moved to Pending (offer accepted). */
+  soldDate?: string;
+  /** ISO timestamp set when the listing moved to Sold/Rented. */
+  pendingDate?: string;
+  /** Seller opt-in for email inquiries (defaults to true). */
+  contactEnabled?: boolean;
+  /** Hidden from default browse once archived (archived listings are also set to inactive). */
+  archived?: boolean;
+  archivedAt?: string;
+  archiveReason?: 'sold' | 'pending' | 'manual' | 'inactive';
+  /** ISO date after which the auto-archive job may hide this listing. */
+  expirationDate?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -117,9 +135,106 @@ export interface AppNotification {
   userId: string;
   title: string;
   body: string;
-  type: 'message' | 'inquiry' | 'price_drop' | 'new_listing' | 'favorite';
+  type: 'message' | 'inquiry' | 'price_drop' | 'new_listing' | 'favorite' | 'system';
   data: Record<string, string>;
   read: boolean;
+  createdAt: string;
+}
+
+// ─── Recently Viewed Types ────────────────────────────────
+/**
+ * Lightweight snapshot of a property stored locally (AsyncStorage) when its
+ * detail page is visited, so "Recently Viewed" renders instantly without a
+ * Firestore fetch. Kept intentionally small; the extra fields beyond the
+ * core set (listingType, state, bedrooms, …) exist so PropertyCard can
+ * render from the snapshot alone.
+ */
+export interface RecentlyViewedItem {
+  propertyId: string;
+  title: string;
+  price: number;
+  listingType: ListingType;
+  propertyType: PropertyType;
+  /** Last-known availability status (snapshotted at view time). */
+  status: PropertyStatus;
+  images: string[];
+  city: string;
+  state: string;
+  bedrooms: number;
+  bathrooms: number;
+  area: number;
+  areaUnit: 'sqft' | 'sqm';
+  /** ISO timestamp of when the property was last viewed. */
+  viewedAt: string;
+}
+
+// ─── Saved Searches ───────────────────────────────────────
+export type NotificationFrequency = 'instant' | 'daily' | 'weekly';
+
+/** Filter criteria persisted with a saved search (subset of PropertyFilter). */
+export interface SavedSearchFilters {
+  minPrice?: number;
+  maxPrice?: number;
+  minBedrooms?: number;
+  maxBedrooms?: number;
+  minBathrooms?: number;
+  maxBathrooms?: number;
+  propertyTypes?: PropertyType[];
+  city?: string;
+  state?: string;
+  features?: string[];
+  listingType?: ListingType;
+  minArea?: number;
+  maxArea?: number;
+  sortBy?: PropertyFilter['sortBy'];
+}
+
+/** A saved search stored under users/{uid}/savedSearches/{id}. */
+export interface SavedSearch {
+  id: string;
+  name: string;
+  filters: SavedSearchFilters;
+  notificationFrequency: NotificationFrequency;
+  /** Paused searches keep matching disabled. */
+  isActive: boolean;
+  /** Total matches found the last time the search ran. */
+  matchCount: number;
+  /** Matches found since the user last ran/cleared the search. */
+  newMatchCount: number;
+  /** ISO timestamps. */
+  lastRunAt?: string;
+  lastNotifiedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Reporting & Moderation ────────────────────────────────
+export type ReportReason = 'inappropriate' | 'scam' | 'duplicate' | 'other';
+export type ReportStatus = 'pending' | 'dismissed' | 'resolved';
+
+/** A user-submitted report stored under admin/reports/{id}. */
+export interface Report {
+  id: string;
+  propertyId: string;
+  reporterId: string;
+  reason: ReportReason;
+  details?: string;
+  status: ReportStatus;
+  /** ISO timestamps. */
+  createdAt: string;
+  resolvedAt?: string;
+  resolvedBy?: string;
+  resolutionNote?: string;
+}
+
+/** An operator-authored announcement under admin/announcements/{id}. */
+export interface Announcement {
+  id: string;
+  title?: string;
+  body: string;
+  active: boolean;
+  /** Bump to force re-display for users who dismissed the previous version. */
+  version: number;
   createdAt: string;
 }
 
@@ -135,7 +250,8 @@ export type AuthStackParamList = {
 
 export type MainTabParamList = {
   HomeTab: undefined;
-  ExploreTab: undefined;
+  /** Optional saved-search filters applied when the tab is navigated to. */
+  ExploreTab: { savedFilter?: SavedSearchFilters } | undefined;
   MapTab: undefined;
   FavoritesTab: undefined;
   ProfileTab: undefined;
@@ -150,12 +266,33 @@ export type RootStackParamList = {
   Search: undefined;
   Chat: { conversationId: string; recipientId: string; recipientName: string };
   Conversations: undefined;
+  RecentlyViewed: undefined;
+  AdminLogin: undefined;
+  AdminDashboard: undefined;
+  AdminUsers: undefined;
+  AdminReports: undefined;
+  AdminSettings: undefined;
+  AdminAnalytics: undefined;
   Settings: undefined;
   EditProfile: undefined;
   ChangePassword: undefined;
   DeleteAccount: undefined;
+  SavedSearches: undefined;
   Terms: undefined;
   PrivacyPolicy: undefined;
+  // ─── Feature Screens ──────────────────────────────────
+  Reviews: { propertyId: string };
+  WriteReview: { propertyId: string; sellerId: string };
+  SellerReviews: { sellerId: string };
+  ReviewModeration: undefined;
+  Tours: undefined;
+  TourDetails: { tourId: string };
+  TourSettings: undefined;
+  Neighborhood: { propertyId: string; city: string; state: string; zipCode: string };
+  UserAnalytics: undefined;
+  PlatformAnalytics: undefined;
+  DataExport: undefined;
+  CurrencySettings: undefined;
 };
 
 // ─── Theme Types ──────────────────────────────────────────
@@ -187,6 +324,166 @@ export interface ThemeColors {
   gray700: string;
   gray800: string;
   shadow: string;
+}
+
+// ─── Review Types ───────────────────────────────────────
+export interface Review {
+  id: string;
+  propertyId: string;
+  sellerId: string;
+  buyerId: string;
+  rating: number; // 1-5
+  title: string;
+  content: string;
+  pros: string[];
+  cons: string[];
+  isVerifiedPurchase: boolean;
+  sellerResponse?: {
+    content: string;
+    respondedAt: string;
+  };
+  isFlagged: boolean;
+  isRemoved: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReviewRatingBreakdown {
+  averageRating: number;
+  totalReviews: number;
+  breakdown: { [rating: number]: number };
+}
+
+// ─── Tour Types ───────────────────────────────────────────
+export type TourStatus = 'pending' | 'confirmed' | 'completed' | 'canceled' | 'no_show' | 'rescheduled';
+
+export interface TourAvailability {
+  id?: string;
+  sellerId: string;
+  daysOfWeek: number[]; // 0=Sun, 6=Sat
+  startTime: string; // HH:mm
+  endTime: string; // HH:mm
+  maxToursPerDay: number;
+  bufferMinutes: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Tour {
+  id: string;
+  propertyId: string;
+  propertyTitle: string;
+  propertyImage: string;
+  buyerId: string;
+  buyerName: string;
+  sellerId: string;
+  sellerName: string;
+  status: TourStatus;
+  datetime: string; // ISO
+  duration: number; // minutes
+  attendees: number;
+  notes: string;
+  reminderSent: boolean;
+  confirmedAt?: string;
+  canceledBy?: string;
+  cancelReason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Neighborhood Types ────────────────────────────────────
+export interface NeighborhoodData {
+  id: string; // city_state_zip key
+  walkScore: number;
+  transitScore: number;
+  bikeScore: number;
+  crimeRate: 'Low' | 'Moderate' | 'High';
+  schools: {
+    elementary: SchoolInfo[];
+    middle: SchoolInfo[];
+    high: SchoolInfo[];
+  };
+  amenities: {
+    restaurants: number;
+    shopping: number;
+    parks: number;
+    gyms: number;
+    transitStops: number;
+    hospitals: number;
+  };
+  propertyTrends: {
+    averagePrice: number;
+    yearOverYearChange: number;
+    yearlyData: { year: number; price: number }[];
+  };
+  population: number;
+  medianIncome: number;
+  medianHomeValue: number;
+  lastUpdated: string;
+}
+
+export interface SchoolInfo {
+  name: string;
+  rating: number; // 1-10
+  distance: number; // miles
+  type: 'public' | 'private';
+}
+
+// ─── Analytics & Export Types ──────────────────────────────
+export type ExportStatus = 'pending' | 'processing' | 'ready' | 'failed' | 'expired';
+
+export interface DataExport {
+  id: string;
+  userId: string;
+  status: ExportStatus;
+  fileUrl?: string;
+  createdAt: string;
+  expiresAt: string;
+  completedAt?: string;
+  error?: string;
+}
+
+export interface UserAnalytics {
+  userId: string;
+  totalListings: number;
+  totalFavorites: number;
+  totalMessages: number;
+  totalTours: number;
+  totalReviews: number;
+  // Seller-specific
+  totalViews?: number;
+  totalInquiries?: number;
+  conversionRate?: number;
+  averageResponseTime?: number; // minutes
+  // Activity
+  dailyActivity: { date: string; count: number }[];
+  weeklyActivity: { week: string; count: number }[];
+  // Achievements
+  achievements: Achievement[];
+}
+
+export interface Achievement {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  unlockedAt?: string;
+}
+
+export interface PlatformAnalytics {
+  date: string;
+  dau: number;
+  mau: number;
+  newUsers: number;
+  newListings: number;
+  newMessages: number;
+  mostSearchedCities: { city: string; count: number }[];
+  conversionFunnel: {
+    views: number;
+    favorites: number;
+    inquiries: number;
+    tours: number;
+  };
 }
 
 export type PropertyFeature =

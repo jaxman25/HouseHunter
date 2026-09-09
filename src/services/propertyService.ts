@@ -266,7 +266,12 @@ async function fetchPropertiesPage(
   if (filter.status) {
     constraints.push(where('status', '==', filter.status));
   } else {
-    constraints.push(where('status', '==', 'active'));
+    // Default browse: everything except Inactive. Equality/IN filters use the
+    // same composite indexes (status first), so price/popular sorts keep
+    // working; sold/pending listings surface with their status badges.
+    constraints.push(
+      where('status', 'in', ['active', 'pending', 'sold', 'rented'])
+    );
   }
   if (filter.minPrice !== undefined) {
     constraints.push(where('price', '>=', filter.minPrice));

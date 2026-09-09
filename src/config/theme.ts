@@ -1,14 +1,14 @@
 import { ThemeColors } from '../types';
 
 export const COLORS: ThemeColors = {
-  primary: '#1B6EF3',
-  primaryLight: '#E8F1FF',
-  primaryDark: '#0D4FB5',
-  // Deep enough that white text on it passes WCAG AA (4.5:1) — used as the
-  // solid "For Rent"/secondary chip color on images and buttons.
-  secondary: '#C2410C',
-  accent: '#7C5CFC',
-  background: '#F8F9FB',
+  // Kenya-inspired: green primary (Kenya flag), black accents, red accents
+  primary: '#00843D',
+  primaryLight: '#E6F5ED',
+  primaryDark: '#005C2B',
+  // Secondary: warm red (Kenya flag accent)
+  secondary: '#BB133E',
+  accent: '#F2A900', // Gold accent (Kenya flag sun)
+  background: '#F6F8FA',
   surface: '#FFFFFF',
   card: '#FFFFFF',
   text: '#1A1D26',
@@ -107,6 +107,8 @@ export const PROPERTY_TYPES = [
   { key: 'apartment', label: 'Apartment' },
   { key: 'condo', label: 'Condo' },
   { key: 'townhouse', label: 'Townhouse' },
+  { key: 'bedsitter', label: 'Bedsitter' },
+  { key: 'maisonette', label: 'Maisonette' },
   { key: 'land', label: 'Land' },
   { key: 'commercial', label: 'Commercial' },
 ];
@@ -120,8 +122,12 @@ export const SORT_OPTIONS = [
 ];
 
 export const CITIES = [
-  'New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix',
-  'Philadelphia', 'San Antonio', 'San Diego', 'Dallas', 'Austin',
-  'San Francisco', 'Seattle', 'Denver', 'Miami', 'Boston',
-  'Nashville', 'Portland', 'Las Vegas', 'Atlanta', 'Detroit',
+  // Kenya
+  'Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Eldoret',
+  'Thika', 'Malindi', 'Diani', 'Naivasha', 'Nyeri',
+  'Machakos', 'Meru', 'Kitale', 'Garissa', 'Lamu',
+  // East Africa
+  'Dar es Salaam', 'Kampala', 'Arusha',
+  // International
+  'New York', 'Los Angeles', 'London', 'Dubai',
 ];

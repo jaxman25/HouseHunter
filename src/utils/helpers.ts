@@ -27,6 +27,8 @@ export function getPropertyTypeLabel(type: string): string {
     apartment: 'Apartment',
     condo: 'Condo',
     townhouse: 'Townhouse',
+    bedsitter: 'Bedsitter',
+    maisonette: 'Maisonette',
     land: 'Land',
     commercial: 'Commercial',
   };

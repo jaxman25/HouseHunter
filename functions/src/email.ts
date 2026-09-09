@@ -34,6 +34,40 @@ export function buildDeletionConfirmationMessage(email: string): EmailMessage {
   };
 }
 
+/** Inputs to the seller-inquiry email (contact seller via email). */
+export interface SellerInquiryInput {
+  sellerEmail: string;
+  propertyTitle: string;
+  propertyPrice: string;
+  propertyCity: string;
+  propertyState: string;
+  propertyUrl: string;
+  buyerName: string;
+  buyerEmail: string;
+  buyerMessage: string;
+}
+
+/**
+ * Email sent to a seller when a buyer submits an inquiry about a listing.
+ * Pure builder (unit-testable); sent through Resend by the callable.
+ */
+export function buildSellerInquiryMessage(data: SellerInquiryInput): EmailMessage {
+  return {
+    to: data.sellerEmail,
+    subject: `New inquiry: ${data.propertyTitle}`,
+    text:
+      `You received a new inquiry about your listing on House Hunter.\n\n`
+      + `Property: ${data.propertyTitle}\n`
+      + `Price: ${data.propertyPrice}\n`
+      + `Location: ${data.propertyCity}, ${data.propertyState}\n`
+      + `View your listing: ${data.propertyUrl}\n\n`
+      + `Message from ${data.buyerName} (${data.buyerEmail}):\n`
+      + `"${data.buyerMessage}"\n\n`
+      + `Reply to ${data.buyerEmail} to continue the conversation, or open `
+      + `the House Hunter app to chat with ${data.buyerName} directly.`,
+  };
+}
+
 /** Inputs to the on-call security alert email. */
 export interface SecurityAlertInput {
   severity?: string;

@@ -9,6 +9,12 @@ Transactional email for the workflows documented in `docs/BREACH_NOTIFICATION.md
    emails every affected user (or an explicit recipient list).
 3. **Deletion confirmation** — the app calls `sendAccountDeletionConfirmation`
    right before an account is deleted so the user gets a confirmation email.
+4. **Seller inquiries** — the app calls the `sendSellerInquiry` callable when a
+   buyer uses "Contact Seller via Email"; the function validates the listing,
+   rate-limits per user (5/day), and emails the seller through Resend.
+5. **Auto-archive** — a scheduled job (`every day 02:00`) soft-hides stale
+   closing listings (sold/rented 30d, pending 60d, inactive 90d) and notifies
+   sellers in-app.
 
 Emails are sent through [Resend](https://resend.com) using plain `fetch`
 (`functions/src/email.ts`).
@@ -149,6 +155,15 @@ function and a real Resend key. Run this after the first `firebase deploy`:
 
 Watch failures on the docs themselves: each trigger records `status` plus an
 `error` field, which is the first place to look if an email doesn't arrive.
+
+## Environment variables
+
+| Variable | Used by |
+|---|---|
+| `RESEND_API_KEY` | All email (required) |
+| `NOTIFICATION_FROM_EMAIL` | All email (defaults to House Hunter <no-reply@househunter.com>) |
+| `ADMIN_ALERT_EMAILS` | Security alerts (comma-separated on-call inboxes) |
+| `APP_ORIGIN` | `sendSellerInquiry` deep link in the email (defaults to https://househunter.app) |
 
 ## Notes
 

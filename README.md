@@ -33,6 +33,44 @@ A full-featured real estate app built with **React Native (Expo)**, **Firebase**
 - One-tap heart on any property card
 - Dedicated **Saved** tab, persisted to the user's Firestore profile
 
+### 🕘 Recently Viewed
+- Local history of viewed properties (max 20, oldest evicted, re-views move to front)
+- Home screen horizontal section + full grid screen with **Clear All**
+- Stored on-device (AsyncStorage) — works offline, never touches Firebase
+
+### 🏷️ Property Status
+- Lifecycle states: **Active / Pending / Sold / Rented / Inactive** with color-coded badges
+- Sold/Pending listings show availability notes and a disabled contact button
+- Sellers manage status from the edit screen or My Listings (tabs, counts, quick change)
+- Browse filters include status; Inactive listings are hidden by default
+
+### 📤 Share & Deep Links
+- Share any property (native share sheet / Web Share API / clipboard fallback)
+- Shared links deep-link back to the property: `househunter://property/{id}` (native) or `{origin}/property/{id}` (web)
+
+### 🔖 Saved Searches
+- Save filter criteria with a custom name and notification frequency (instant/daily/weekly)
+- Run a saved search with one tap (applies filters to Explore) or re-run it from the Saved Searches screen
+- Quick-search chips on Home for your top 3 active searches
+- Per-user storage in Firestore (`users/{uid}/savedSearches`, max 50)
+
+### 📧 Contact Seller via Email
+- Backup inquiry channel alongside chat — email button on the property detail action bar
+- Inquiry modal with message composer, Terms consent, and a confirmation screen
+- Sent server-side (Resend) by the `sendSellerInquiry` callable — seller email never reaches the client
+- Verified-email requirement + daily rate limit (5/user); sellers can opt out per listing
+
+### 🗄️ Sold/Pending Archives
+- Closing listings show an "Archives in X days" countdown
+- Auto-archive after sold 30d / pending 60d / inactive 90d (daily Cloud Function)
+- My Listings gains an **Archived** tab with faded cards, Archive Now, and Restore
+- Archiving is a soft-hide: data stays in Firestore, listings just leave default browse
+
+### 🛡️ Admin Dashboard
+- Role-gated moderation suite (`admin/roles`) — no self-service admin access
+- Live metrics, user search + suspend (reason & duration), reports triage (dismiss/resolve/delete)
+- Announcement publishing (renders in the in-app notice banner) and audit logging
+
 ### 💬 Real-Time Chat
 - Conversations between buyers, sellers, and agents — per property
 - Live messaging with `onSnapshot` subscriptions

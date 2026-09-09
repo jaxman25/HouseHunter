@@ -19,10 +19,18 @@ import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { autoArchiveProperties } from './archive';
+import { updateRatings } from './reviews';
+import { tourReminders, tourNotifications } from './tours';
+import { updateNeighborhoodData } from './neighborhood';
+import { exportUserData } from './exportData';
+
+export { autoArchiveProperties, updateRatings, tourReminders, tourNotifications, updateNeighborhoodData, exportUserData };
 import {
   SecurityAlertInput,
   sendEmail,
   buildDeletionConfirmationMessage,
+  buildSellerInquiryMessage,
   formatSecurityAlertText,
 } from './email';
 
@@ -237,4 +245,170 @@ export const sendAccountDeletionConfirmation = onCall(async (request) => {
     const message = error instanceof Error ? error.message : String(error);
     throw new HttpsError('internal', `Could not send confirmation email: ${message}`);
   }
+});
+
+/** Per-user daily email-inquiry budget (mirrors DAILY_INQUIRY_LIMIT in src). */
+const DAILY_INQUIRY_LIMIT = 5;
+
+/**
+ * Trigger 4 — HTTPS callable for "Contact Seller via Email". The app calls
+ * this with { propertyId, message }; the function validates the listing is
+ * still Active, checks the seller hasn't disabled email contact, enforces a
+ * per-user daily rate limit, and sends the inquiry through Resend. The
+ * seller's email address is resolved server-side and is never exposed to the
+ * client (the client only ever sees the callable's success/failure).
+ */
+export const sendSellerInquiry = onCall(async (request) => {
+  const auth = request.auth;
+  if (!auth) {
+    throw new HttpsError('unauthenticated', 'You must be signed in.');
+  }
+  const uid = auth.uid;
+
+  const data = (request.data ?? {}) as { propertyId?: string; message?: string };
+  const propertyId =
+    typeof data.propertyId === 'string' ? data.propertyId.trim() : '';
+  const message = typeof data.message === 'string' ? data.message.trim() : '';
+
+  if (!propertyId) {
+    throw new HttpsError('invalid-argument', 'propertyId is required.');
+  }
+  if (message.length < 20 || message.length > 1000) {
+    throw new HttpsError(
+      'invalid-argument',
+      'Message must be between 20 and 1000 characters.'
+    );
+  }
+  // Buyer must have a verified email before contacting sellers (anti-spam).
+  if (auth.token.email_verified !== true) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Please verify your email address before contacting sellers.'
+    );
+  }
+
+  const propertySnap = await db.doc(`properties/${propertyId}`).get();
+  if (!propertySnap.exists) {
+    throw new HttpsError('not-found', 'Property not found.');
+  }
+  const property = propertySnap.data() ?? {};
+
+  if (property.status !== 'active') {
+    throw new HttpsError(
+      'failed-precondition',
+      'This property is no longer available for inquiries.'
+    );
+  }
+  if (property.contactEnabled === false) {
+    throw new HttpsError(
+      'failed-precondition',
+      'The seller has disabled email inquiries for this listing.'
+    );
+  }
+  if (property.userId === uid) {
+    throw new HttpsError(
+      'invalid-argument',
+      'You cannot inquire about your own listing.'
+    );
+  }
+
+  // Daily rate limit: one counter doc per user per day, incremented in a
+  // transaction so concurrent submits cannot exceed the budget.
+  const dateKey = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const counterRef = db.doc(`users/${uid}/inquiryCounters/${dateKey}`);
+  let limitReached = false;
+  try {
+    await db.runTransaction(async (tx) => {
+      const counterSnap = await tx.get(counterRef);
+      const count = counterSnap.exists
+        ? ((counterSnap.data()?.count as number) ?? 0)
+        : 0;
+      if (count >= DAILY_INQUIRY_LIMIT) {
+        limitReached = true;
+        return;
+      }
+      tx.set(counterRef, { count: count + 1 }, { merge: true });
+    });
+  } catch (error) {
+    throw new HttpsError(
+      'unavailable',
+      'Could not check inquiry limits. Please try again.'
+    );
+  }
+  if (limitReached) {
+    throw new HttpsError(
+      'resource-exhausted',
+      'Daily inquiry limit reached (5). Please try again tomorrow.'
+    );
+  }
+
+  // Resolve the seller's email server-side — never return it to the client.
+  const explicitEmail =
+    typeof property.contactEmail === 'string' && property.contactEmail
+      ? property.contactEmail
+      : undefined;
+  let sellerEmail = explicitEmail;
+  if (!sellerEmail) {
+    const ownerSnap = await db.doc(`users/${property.userId}`).get();
+    sellerEmail = ownerSnap.exists
+      ? (ownerSnap.data()?.email as string | undefined)
+      : undefined;
+  }
+  if (!sellerEmail) {
+    throw new HttpsError(
+      'failed-precondition',
+      'The seller has not set up email contact.'
+    );
+  }
+
+  const buyerSnap = await db.doc(`users/${uid}`).get();
+  const buyerName = buyerSnap.exists
+    ? (buyerSnap.data()?.displayName as string | undefined) || 'A House Hunter user'
+    : 'A House Hunter user';
+  const buyerEmail: string = auth.token.email ?? '';
+
+  const origin = process.env.APP_ORIGIN ?? 'https://househunter.app';
+  const propertyUrl = `${origin}/property/${propertyId}`;
+
+  await sendEmail(
+    buildSellerInquiryMessage({
+      sellerEmail,
+      propertyTitle: property.title ?? 'Property',
+      propertyPrice:
+        property.price != null
+          ? `$${Number(property.price).toLocaleString()}`
+          : '—',
+      propertyCity: property.city ?? '',
+      propertyState: property.state ?? '',
+      propertyUrl,
+      buyerName,
+      buyerEmail,
+      buyerMessage: message,
+    })
+  );
+
+  // Record the inquiry and notify the seller in-app (fire-and-forget; a
+  // failure here should not fail the send the user already saw succeed).
+  await db
+    .doc(`properties/${propertyId}`)
+    .update({ inquiries: FieldValue.increment(1) })
+    .catch((error: unknown) => {
+      console.error('[sendSellerInquiry] inquiry counter update failed:', error);
+    });
+  await db
+    .collection('notifications')
+    .add({
+      userId: property.userId,
+      title: 'New inquiry',
+      body: `${buyerName} is interested in your listing: ${property.title}`,
+      type: 'inquiry',
+      data: { propertyId, buyerId: uid },
+      read: false,
+      createdAt: FieldValue.serverTimestamp(),
+    })
+    .catch((error: unknown) => {
+      console.error('[sendSellerInquiry] seller notification failed:', error);
+    });
+
+  return { ok: true };
 });

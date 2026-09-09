@@ -14,6 +14,7 @@ collects, update BOTH this document and the in-app policy text.
 | Listings + photos | `properties/{id}` + Storage | Core product | Listing deletion / account deletion |
 | Messages, conversations | `conversations/*` + `messages` | Chat between users | Own messages deleted at account deletion |
 | Notifications | `notifications/{id}` | In-app alerts | Account deletion |
+| Recently-viewed history (property id + a small display snapshot) | On-device only — AsyncStorage (`@house_hunter/recently_viewed_v1`), never sent to Firebase | Quick return to listings you've seen | User clears it (Settings → Recently Viewed → Clear All) or app data is cleared |
 | Error/crash reports | Sentry (only when `EXPO_PUBLIC_SENTRY_DSN` is set) | Reliability | Sentry retention policy |
 | Map tiles (web) | Loaded directly from the Google Maps iframe embed | Show map/list locations | N/A — no data stored or sent beyond the map location requested |
 | Local cache / session | AsyncStorage / localStorage | Offline use, keep signed in | Cleared via account deletion flow / site data |
@@ -82,6 +83,54 @@ erasure request from a user who already deleted their account only needs their
 email (no retained profile data exists to erase beyond backups — see
 `DISASTER_RECOVERY.md` for restore windows, which retain encrypted copies
 only for the restore window).
+
+## Saved Searches
+
+Saving a search stores the filter criteria, the chosen name, notification
+frequency, and match counts under `users/{uid}/savedSearches` in Firestore.
+Unlike Recently Viewed (on-device only), saved searches are **server-side** so
+they follow the user across devices. They are deleted with the account
+(Account deletion step: the `savedSearches` subcollection is removed), and a
+user can delete individual searches at any time from the Saved Searches
+screen. Pausing a search stops future matching/notifications; nothing about a
+saved search is shared with third parties.
+
+## Contact Seller via Email
+
+When a buyer sends an email inquiry from a property detail page, the buyer's
+**display name, email address, and message text** are sent to the seller by
+email (via Resend, through the `sendSellerInquiry` Cloud Function). The
+seller's email address is resolved server-side and is never exposed to the
+app or other buyers. The inquiry also creates an in-app notification for the
+seller and increments the listing's inquiry counter. Guards in place:
+
+- The buyer must have a **verified email** before sending (anti-spam).
+- A **daily rate limit of 5 inquiries per user** is enforced server-side.
+- Sellers can **opt out** per listing (`contactEnabled = false`) and can
+  block further contact through the platform's moderation tools.
+- Inquiries are **not stored** in Firestore (the email + notification are the
+  only records), so there is no message archive beyond the recipient's inbox.
+
+## Moderation & admin access
+
+Reporting a listing stores the property id, a reason (inappropriate / scam /
+duplicate / other), optional details, and the reporter's user id under
+`admin/reports`; the seller does **not** see who reported. Suspension records a
+reason and expiry on the user document — a suspended user's data remains
+readable (GDPR) but they cannot create listings, messages, or inquiries.
+Announcements published by admins render as a dismissible banner. Every admin
+action is appended to `admin/auditLog` with the acting admin's uid. Admin
+roles live in `admin/roles` and are provisioned by operators only — there is
+no self-service admin signup.
+
+## Archives
+
+Closed listings (sold/pending/inactive) may be **auto-archived** by the daily
+Cloud Function (sold 30d, pending 60d, inactive 90d) or archived manually by
+the seller. Archiving is a soft-hide: the document and its images remain in
+Firestore for the seller, for analytics, and for chat history, but the listing
+leaves default browse results. Sellers can restore an archived listing at any
+time; the auto-archive job notifies them in-app when it archives a listing.
 
 ## Data subject requests
 

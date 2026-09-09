@@ -11,6 +11,19 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    function isAdmin() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/admin/roles/$(request.auth.uid));
+    }
+
+    // Suspended accounts may keep reading their own data (GDPR) but cannot
+    // create listings, conversations, messages, or notifications.
+    function isSuspended() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.suspended == true;
+    }
+
     function isParticipant(userIds) {
       return isAuthenticated() && request.auth.uid in userIds;
     }
@@ -21,7 +34,7 @@ service cloud.firestore {
     }
 
     function userDataIsValid() {
-      return request.resource.data.keys().hasAll([
+      return      request.resource.data.keys().hasAll([
         'uid', 'email', 'displayName', 'phoneNumber', 'photoURL',
         'bio', 'role', 'favorites', 'createdAt', 'updatedAt'
       ]) &&
@@ -37,13 +50,18 @@ service cloud.firestore {
         'latitude', 'longitude', 'bedrooms', 'bathrooms', 'area',
         'areaUnit', 'yearBuilt', 'images', 'features', 'amenities',
         'userId', 'userName', 'userPhoto', 'userPhone',
-        'views', 'inquiries', 'createdAt', 'updatedAt'
+        'views', 'inquiries', 'createdAt', 'updatedAt',
+        'archived', 'contactEnabled'
       ]) &&
       request.resource.data.listingType in ['sale', 'rent'] &&
       request.resource.data.propertyType in [
         'house', 'apartment', 'condo', 'townhouse', 'land', 'commercial'
       ] &&
-      request.resource.data.status in ['active', 'pending', 'sold', 'rented', 'inactive'] &&
+      // New listings always start Active and unarchived; owners move them
+      // through the deal lifecycle via updates (propertyEditFieldsAreValid).
+      request.resource.data.status == 'active' &&
+      request.resource.data.archived == false &&
+      request.resource.data.contactEnabled is bool &&
       request.resource.data.images is list;
     }
 
@@ -53,7 +71,9 @@ service cloud.firestore {
         'status', 'address', 'city', 'state', 'zipCode', 'country',
         'latitude', 'longitude', 'bedrooms', 'bathrooms', 'area',
         'areaUnit', 'yearBuilt', 'images', 'features', 'amenities',
-        'views', 'inquiries', 'version', 'updatedAt'
+        'views', 'inquiries', 'version', 'soldDate', 'pendingDate',
+        'contactEnabled', 'archived', 'archivedAt', 'archiveReason',
+        'expirationDate', 'updatedAt'
       ]);
     }
 
@@ -125,19 +145,48 @@ service cloud.firestore {
       // Users can only create their own profile with correct doc ID
       allow create: if isOwner(userId) && userDataIsValid();
 
-      // Users can only update their own profile
+      // Users can only update their own profile (admins may suspend via the
+      // dedicated suspend fields — see users/update allowlist).
       allow update: if isOwner(userId) && (
-        // Allow updating any valid fields (terms fields record consent;
-        // acceptTerms() writes them after the post-login consent gate).
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'displayName', 'phoneNumber', 'photoURL', 'bio', 'role',
           'favorites', 'termsAcceptedAt', 'termsAcceptedVersion',
           'updatedAt'
         ])
-      );
+      ) || (isAdmin() && (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'suspended', 'suspensionReason', 'suspensionExpiry'
+        ])
+      ));
 
       // Users can only delete their own account
       allow delete: if isOwner(userId);
+
+      // ─── Saved Searches Subcollection (per-user, owner-only) ───
+      match /savedSearches/{searchId} {
+        allow read, write: if isOwner(userId);
+
+        // Create additionally enforces shape. The 50-search cap is enforced
+        // client-side (rules cannot count a collection).
+        allow create: if isOwner(userId) &&
+          request.resource.data.keys().hasAll([
+            'name', 'filters', 'notificationFrequency', 'isActive',
+            'matchCount', 'newMatchCount', 'createdAt', 'updatedAt'
+          ]) &&
+          request.resource.data.name is string &&
+          request.resource.data.name.size() >= 1 &&
+          request.resource.data.name.size() <= 60 &&
+          request.resource.data.notificationFrequency in ['instant', 'daily', 'weekly'] &&
+          request.resource.data.isActive is bool &&
+          request.resource.data.filters is map;
+
+        allow update: if isOwner(userId) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'name', 'filters', 'notificationFrequency', 'isActive',
+            'matchCount', 'newMatchCount', 'lastRunAt', 'lastNotifiedAt',
+            'updatedAt'
+          ]);
+      }
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -147,8 +196,8 @@ service cloud.firestore {
       // Anyone can read active properties; authenticated users can read all
       allow read: if isAuthenticated();
 
-      // Authenticated users can create properties for themselves
-      allow create: if isAuthenticated() &&
+      // Authenticated, non-suspended users can create properties for themselves
+      allow create: if isAuthenticated() && !isSuspended() &&
         propertyDataIsValid() &&
         request.resource.data.userId == request.auth.uid &&
         withinWriteLimit();
@@ -163,10 +212,18 @@ service cloud.firestore {
         ||
         // Passive view counting on detail views.
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views'])
+        ||
+        // Moderation: admins may hide listings without going through the
+        // owner's optimistic-lock/rate-limit path.
+        (isAdmin() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'archived', 'archivedAt', 'archiveReason', 'updatedAt'
+          ]))
       );
 
-      // Only the property owner can delete
-      allow delete: if isPropertyOwner(propertyId) && withinWriteLimit();
+      // Only the property owner can delete; admins may remove listings for
+      // moderation (reports) — the removal is audited via admin/auditLog.
+      allow delete: if (isPropertyOwner(propertyId) && withinWriteLimit()) || isAdmin();
 
       // ─── Messages Subcollection (under properties for direct messaging) ───
       match /messages/{messageId} {
@@ -184,7 +241,7 @@ service cloud.firestore {
 
       // Any authenticated user can create a conversation
       // (they must be one of the participants)
-      allow create: if isAuthenticated() &&
+      allow create: if isAuthenticated() && !isSuspended() &&
         isParticipant(request.resource.data.participants) &&
         request.resource.data.participants.size() == 2 &&
         request.resource.data.keys().hasAll([
@@ -208,7 +265,7 @@ service cloud.firestore {
           isParticipant(get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants);
 
         // Participants can create messages (must be the sender)
-        allow create: if isAuthenticated() &&
+        allow create: if isAuthenticated() && !isSuspended() &&
           isParticipant(get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants) &&
           request.resource.data.senderId == request.auth.uid &&
           request.resource.data.keys().hasAll([
@@ -240,12 +297,12 @@ service cloud.firestore {
 
       // Any authenticated user can create notifications for others
       // (system sends notifications, or users notify each other)
-      allow create: if isAuthenticated() &&
+      allow create: if isAuthenticated() && !isSuspended() &&
         request.resource.data.keys().hasAll([
           'userId', 'title', 'body', 'type', 'data', 'read', 'createdAt'
         ]) &&
         request.resource.data.type in [
-          'message', 'inquiry', 'price_drop', 'new_listing', 'favorite'
+          'message', 'inquiry', 'price_drop', 'new_listing', 'favorite', 'system'
         ];
 
       // Users can only update their own notifications (mark as read)
@@ -271,13 +328,170 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════════════════════
-    // ADMIN COLLECTION (server/operator only — Cloud Functions triggers)
+    // ADMIN COLLECTION (role-gated moderation)
     // ═══════════════════════════════════════════════════════════
-    // Firestore triggers in functions/ watch `admin/security_alerts` and
-    // `admin/breach_broadcasts`. Clients must never write here; only the
-    // console / Admin SDK (which bypass rules) creates these docs.
+    // Role docs are provisioned by operators (console/Admin SDK) and gate
+    // everything else under /admin. Firestore triggers in functions/ watch
+    // security_alerts / breach_broadcasts (server writes bypass rules).
+    match /admin/roles/{uid} {
+      // A user may check their own role (used to gate the admin UI).
+      allow read: if isAuthenticated() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // Announcements are authored by admins and read by all signed-in users
+    // (NoticeBanner renders the latest active one).
+    match /admin/announcements/{announcementId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Reports are created by any signed-in user; only admins triage them.
+    match /admin/reports/{reportId} {
+      allow create: if isAuthenticated() && !isSuspended() &&
+        request.resource.data.keys().hasAll([
+          'propertyId', 'reporterId', 'reason', 'status', 'createdAt'
+        ]) &&
+        request.resource.data.reporterId == request.auth.uid &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.reason in ['inappropriate', 'scam', 'duplicate', 'other'];
+      allow read, update, delete: if isAdmin();
+    }
+
+    // Audit trail: admins append; operators may query via Admin SDK.
+    match /admin/auditLog/{entryId} {
+      allow create, read: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // Everything else under /admin (metrics, settings, security_alerts,
+    // breach_broadcasts) is admin-only for clients.
     match /admin/{document=**} {
-      allow read, write: if false;
+      allow read, write: if isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // REVIEWS COLLECTION
+    // ═══════════════════════════════════════════════════════════
+    match /reviews/{reviewId} {
+      // Anyone authenticated can read non-removed reviews
+      allow read: if isAuthenticated();
+
+      // Verified purchasers can create reviews (one per property per buyer)
+      allow create: if isAuthenticated() && !isSuspended() &&
+        request.resource.data.buyerId == request.auth.uid &&
+        request.resource.data.keys().hasAll([
+          'propertyId', 'sellerId', 'buyerId', 'rating', 'title', 'content',
+          'pros', 'cons', 'isVerifiedPurchase', 'isFlagged', 'isRemoved',
+          'createdAt', 'updatedAt'
+        ]) &&
+        request.resource.data.rating >= 1 &&
+        request.resource.data.rating <= 5 &&
+        request.resource.data.isFlagged == false &&
+        request.resource.data.isRemoved == false;
+
+      // Only the buyer can update their own review (for response, flagging)
+      allow update: if isAuthenticated() &&
+        resource.data.buyerId == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'sellerResponse', 'isFlagged', 'updatedAt'
+        ]);
+
+      // Admins can remove flagged reviews
+      allow update: if isAdmin() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'isRemoved', 'isFlagged', 'updatedAt'
+        ]);
+
+      // No direct deletion; reviews are soft-deleted via isRemoved flag
+      allow delete: if false;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // TOURS COLLECTION
+    // ═══════════════════════════════════════════════════════════
+    match /tours/{tourId} {
+      // Only buyer and seller involved can read tours
+      allow read: if isAuthenticated() &&
+        (request.auth.uid == resource.data.buyerId ||
+         request.auth.uid == resource.data.sellerId);
+
+      // Buyers can create tour requests
+      allow create: if isAuthenticated() && !isSuspended() &&
+        request.resource.data.buyerId == request.auth.uid &&
+        request.resource.data.keys().hasAll([
+          'propertyId', 'propertyTitle', 'propertyImage', 'buyerId',
+          'buyerName', 'sellerId', 'sellerName', 'status', 'datetime',
+          'duration', 'attendees', 'notes', 'reminderSent',
+          'createdAt', 'updatedAt'
+        ]) &&
+        request.resource.data.status == 'pending';
+
+      // Buyer and seller can update status (confirm/decline/cancel)
+      allow update: if isAuthenticated() &&
+        (request.auth.uid == resource.data.buyerId ||
+         request.auth.uid == resource.data.sellerId) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'confirmedAt', 'canceledBy', 'cancelReason',
+          'reminderSent', 'updatedAt', 'datetime'
+        ]);
+
+      allow delete: if false;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // TOUR AVAILABILITY COLLECTION
+    // ═══════════════════════════════════════════════════════════
+    match /tourAvailability/{sellerId} {
+      // Anyone authenticated can read availability
+      allow read: if isAuthenticated();
+
+      // Only the seller can set their availability
+      allow create, update: if isOwner(sellerId);
+
+      allow delete: if false;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // NEIGHBORHOOD DATA COLLECTION (server-managed cache)
+    // ═══════════════════════════════════════════════════════════
+    match /neighborhood_data/{docId} {
+      // Anyone authenticated can read neighborhood data
+      allow read: if isAuthenticated();
+
+      // Only admins and Cloud Functions can write neighborhood data
+      allow write: if isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // EXPORTS COLLECTION (GDPR data export)
+    // ═══════════════════════════════════════════════════════════
+    match /exports/{exportId} {
+      // Users can only read their own exports
+      allow read: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid;
+
+      // Users can create their own export requests
+      allow create: if isAuthenticated() && !isSuspended() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.keys().hasAll([
+          'userId', 'status', 'createdAt', 'expiresAt'
+        ]) &&
+        request.resource.data.status == 'pending';
+
+      // Only the requesting user or admins can update
+      allow update: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+
+      allow delete: if false;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // ANALYTICS COLLECTION (admin dashboard metrics)
+    // ═══════════════════════════════════════════════════════════
+    match /analytics/{date} {
+      // Admins can read/write analytics
+      allow read, write: if isAdmin();
     }
 
     // ═══════════════════════════════════════════════════════════

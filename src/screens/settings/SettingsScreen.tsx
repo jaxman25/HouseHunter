@@ -191,6 +191,18 @@ export default function SettingsScreen() {
       ],
     },
     {
+      title: 'Preferences',
+      items: [
+        {
+          icon: 'earth',
+          label: 'Currency',
+          subtitle: 'Switch between KSh, USD, EUR, GBP, TZS, UGX',
+          type: 'link' as const,
+          onPress: () => navigation.navigate('CurrencySettings' as any),
+        },
+      ],
+    },
+    {
       title: 'Account',
       items: [
         {

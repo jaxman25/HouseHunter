@@ -7,11 +7,15 @@ import {
   Linking,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
-import { APP_NOTICE_CONFIG_PATH, NOTICE_DISMISSED_KEY } from '../../utils/constants';
+import {
+  APP_NOTICE_CONFIG_PATH,
+  NOTICE_DISMISSED_KEY,
+  ADMIN_ANNOUNCEMENTS_COLLECTION,
+} from '../../utils/constants';
 
 interface AppNotice {
   /** When true (and body is set) the banner renders. */
@@ -60,26 +64,49 @@ export default function NoticeBanner() {
   const { colors, fontSize, radius, shadow } = useTheme();
   const insets = useSafeAreaInsets();
 
-  const [notice, setNotice] = useState<AppNotice | null>(null);
+  const [configNotice, setConfigNotice] = useState<AppNotice | null>(null);
+  const [announcement, setAnnouncement] = useState<AppNotice | null>(null);
   const [dismissedVersion, setDismissedVersion] = useState<number | null>(null);
 
+  // Operator notice (console/Admin-written config/app_notice — works signed-out).
   useEffect(() => {
     const unsubscribe = onSnapshot(
       doc(db, APP_NOTICE_CONFIG_PATH),
       (docSnap) => {
-        if (docSnap.exists()) {
-          setNotice(docSnap.data() as AppNotice);
-        } else {
-          setNotice(null);
-        }
+        setConfigNotice(docSnap.exists() ? (docSnap.data() as AppNotice) : null);
       },
       () => {
         // Firestore unavailable (offline / not configured) — no banner.
-        setNotice(null);
+        setConfigNotice(null);
       }
     );
     return unsubscribe;
   }, []);
+
+  // Admin-authored announcements (admin/announcements, signed-in users only).
+  // The most recent active announcement takes precedence over the config doc.
+  useEffect(() => {
+    const q = query(
+      collection(db, ADMIN_ANNOUNCEMENTS_COLLECTION),
+      where('active', '==', true),
+      orderBy('createdAt', 'desc'),
+      limit(1)
+    );
+    const unsubscribe = onSnapshot(
+      q,
+      (snap) => {
+        const first = snap.docs[0];
+        setAnnouncement(first ? (first.data() as AppNotice) : null);
+      },
+      () => {
+        // Signed out or offline — announcements aren't readable; fall back to config.
+        setAnnouncement(null);
+      }
+    );
+    return unsubscribe;
+  }, []);
+
+  const notice = announcement ?? configNotice;
 
   useEffect(() => {
     if (!notice || notice.dismissible === false) return;

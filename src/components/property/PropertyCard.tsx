@@ -6,7 +6,13 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { Property } from '../../types';
 import { formatPrice, formatBedrooms, formatBathrooms, formatArea } from '../../utils/helpers';
+import PriceDisplay from '../common/PriceDisplay';
 import Badge from '../common/Badge';
+import StatusBadge from '../common/StatusBadge';
+import { shareProperty } from '../../utils/share';
+
+/** Statuses where the listing is no longer available to new buyers. */
+const UNAVAILABLE_STATUSES: Property['status'][] = ['sold', 'rented', 'inactive'];
 
 interface PropertyCardProps {
   property: Property;
@@ -27,6 +33,7 @@ export default function PropertyCard({
   style,
 }: PropertyCardProps) {
   const { colors, radius, fontSize, spacing, shadow } = useTheme();
+  const isUnavailable = UNAVAILABLE_STATUSES.includes(property.status);
 
   if (variant === 'grid') {
     return (
@@ -45,7 +52,10 @@ export default function PropertyCard({
         <View>
           <Image
             source={property.images?.[0] ? { uri: property.images[0] } : undefined}
-            style={[styles.gridImage, { borderRadius: radius.lg }]}
+            style={[
+              styles.gridImage,
+              { borderRadius: radius.lg, opacity: isUnavailable ? 0.55 : 1 },
+            ]}
           />
           <View style={styles.imageOverlay}>
             <Badge
@@ -53,7 +63,19 @@ export default function PropertyCard({
               variant={property.listingType === 'sale' ? 'primary' : 'secondary'}
               size="sm"
             />
+            <StatusBadge status={property.status} style={{ marginTop: 4 }} />
           </View>
+          <TouchableOpacity
+            onPress={(e) => {
+              e.stopPropagation?.();
+              void shareProperty(property);
+            }}
+            style={[styles.shareButton]}
+            accessibilityRole="button"
+            accessibilityLabel={`Share ${property.title}`}
+          >
+            <MaterialCommunityIcons name="share-variant" size={14} color={colors.white} />
+          </TouchableOpacity>
           {onFavorite && (
             <TouchableOpacity
               onPress={onFavorite}
@@ -70,9 +92,11 @@ export default function PropertyCard({
           )}
         </View>
         <View style={styles.gridContent}>
-          <Text style={[styles.gridPrice, { color: colors.primary, fontSize: fontSize.md }]}>
-            {formatPrice(property.price, property.listingType)}
-          </Text>
+          <PriceDisplay
+            amount={property.price}
+            listingType={property.listingType}
+            fontSize={fontSize.md}
+          />
           <Text
             style={[styles.gridTitle, { color: colors.text, fontSize: fontSize.sm }]}
             numberOfLines={1}
@@ -121,15 +145,37 @@ export default function PropertyCard({
       >
         <Image
           source={property.images?.[0] ? { uri: property.images[0] } : undefined}
-          style={[styles.horizontalImage, { borderRadius: radius.lg }]}
+          style={[
+            styles.horizontalImage,
+            { borderRadius: radius.lg, opacity: isUnavailable ? 0.55 : 1 },
+          ]}
         />
+        <View style={styles.imageOverlay}>
+          <Badge
+            label={property.listingType === 'sale' ? 'For Sale' : 'For Rent'}
+            variant={property.listingType === 'sale' ? 'primary' : 'secondary'}
+            size="sm"
+          />
+          <StatusBadge status={property.status} style={{ marginTop: 4 }} />
+        </View>
+        <TouchableOpacity
+          onPress={(e) => {
+            e.stopPropagation?.();
+            void shareProperty(property);
+          }}
+          style={[styles.shareButton]}
+          accessibilityRole="button"
+          accessibilityLabel={`Share ${property.title}`}
+        >
+          <MaterialCommunityIcons name="share-variant" size={14} color={colors.white} />
+        </TouchableOpacity>
         <View style={styles.horizontalContent}>
           <View style={styles.priceRow}>
-            <Text
-              style={[styles.price, { color: colors.primary, fontSize: fontSize.lg }]}
-            >
-              {formatPrice(property.price, property.listingType)}
-            </Text>
+            <PriceDisplay
+              amount={property.price}
+              listingType={property.listingType}
+              fontSize={fontSize.lg}
+            />
             {onFavorite && (
               <TouchableOpacity
                 onPress={onFavorite}
@@ -193,14 +239,29 @@ export default function PropertyCard({
       <View>
         <Image
           source={property.images?.[0] ? { uri: property.images[0] } : undefined}
-          style={[styles.verticalImage, { borderRadius: radius.lg }]}
+          style={[
+            styles.verticalImage,
+            { borderRadius: radius.lg, opacity: isUnavailable ? 0.55 : 1 },
+          ]}
         />
         <View style={styles.imageOverlay}>
           <Badge
             label={property.listingType === 'sale' ? 'For Sale' : 'For Rent'}
             variant={property.listingType === 'sale' ? 'primary' : 'secondary'}
           />
+          <StatusBadge status={property.status} style={{ marginTop: 4 }} />
         </View>
+        <TouchableOpacity
+          onPress={(e) => {
+            e.stopPropagation?.();
+            void shareProperty(property);
+          }}
+          style={[styles.shareButton]}
+          accessibilityRole="button"
+          accessibilityLabel={`Share ${property.title}`}
+        >
+          <MaterialCommunityIcons name="share-variant" size={14} color={colors.white} />
+        </TouchableOpacity>
         {onFavorite && (
           <TouchableOpacity
             onPress={onFavorite}
@@ -217,11 +278,11 @@ export default function PropertyCard({
         )}
       </View>
       <View style={[styles.verticalContent, { padding: spacing.md }]}>
-        <Text
-          style={[styles.price, { color: colors.primary, fontSize: fontSize.xl }]}
-        >
-          {formatPrice(property.price, property.listingType)}
-        </Text>
+        <PriceDisplay
+          amount={property.price}
+          listingType={property.listingType}
+          fontSize={fontSize.xl}
+        />
         <Text
           style={[styles.title, { color: colors.text, fontSize: fontSize.lg, marginTop: 4 }]}
           numberOfLines={1}
@@ -366,6 +427,17 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     left: 8,
+  },
+  shareButton: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   heartButton: {
     position: 'absolute',

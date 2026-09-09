@@ -19,6 +19,26 @@ export const MESSAGES_COLLECTION = 'messages';
 export const PROPERTIES_COLLECTION = 'properties';
 export const USERS_COLLECTION = 'users';
 export const NOTIFICATIONS_COLLECTION = 'notifications';
+export const SAVED_SEARCHES_COLLECTION = 'savedSearches';
+
+/** Admin collections (role-gated; see firestore.rules). */
+export const ADMIN_COLLECTION = 'admin';
+export const ADMIN_ROLES_COLLECTION = 'admin/roles';
+export const ADMIN_REPORTS_COLLECTION = 'admin/reports';
+export const ADMIN_ANNOUNCEMENTS_COLLECTION = 'admin/announcements';
+export const ADMIN_AUDIT_COLLECTION = 'admin/auditLog';
+
+export const REVIEWS_COLLECTION = 'reviews';
+export const TOURS_COLLECTION = 'tours';
+export const TOUR_AVAILABILITY_COLLECTION = 'tourAvailability';
+export const NEIGHBORHOOD_COLLECTION = 'neighborhood_data';
+export const EXPORTS_COLLECTION = 'exports';
+export const ANALYTICS_COLLECTION = 'analytics';
+
+/** Per-user daily inquiry budget (enforced in the sendSellerInquiry callable). */
+export const DAILY_INQUIRY_LIMIT = 5;
+/** Per-user saved-search cap. */
+export const MAX_SAVED_SEARCHES = 50;
 
 export const SORT_OPTIONS = [
   { key: 'newest', label: 'Newest First' },

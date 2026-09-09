@@ -16,7 +16,8 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../context/ThemeContext';
-import { RootStackParamList, PropertyStatus } from '../../types';
+import { Property, RootStackParamList, PropertyStatus } from '../../types';
+import { confirmDialog } from '../../utils/ui/dialogs';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import LoadingOverlay from '../../components/common/LoadingOverlay';
@@ -96,6 +97,20 @@ export default function EditPropertyScreen() {
     return Object.keys(next).length === 0;
   };
 
+  const handleStatusChange = (next: PropertyStatus) => {
+    if (next === status) return;
+    if (next === 'sold') {
+      confirmDialog(
+        'Mark as Sold',
+        'Marking this listing as Sold will notify interested buyers that it is no longer available.',
+        () => setStatus(next),
+        'Mark as Sold'
+      );
+      return;
+    }
+    setStatus(next);
+  };
+
   const toggleFeature = (f: string) => {
     setFeatures((prev) => (prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f]));
   };
@@ -141,7 +156,7 @@ export default function EditPropertyScreen() {
         }
       }
 
-      await updateProperty(prop.id, {
+      const updateData: Partial<Property> = {
         title,
         description,
         price: Number(price),
@@ -158,7 +173,16 @@ export default function EditPropertyScreen() {
         yearBuilt: Number(yearBuilt) || new Date().getFullYear(),
         features,
         images: [...existingImages, ...uploadedImages],
-      });
+      };
+      // Record deal-lifecycle timestamps when entering a new stage.
+      if (status === 'sold' && prop.status !== 'sold') {
+        updateData.soldDate = new Date().toISOString();
+      }
+      if (status === 'pending' && prop.status !== 'pending') {
+        updateData.pendingDate = new Date().toISOString();
+      }
+
+      await updateProperty(prop.id, updateData);
 
       Alert.alert('Success', 'Property updated successfully', [
         { text: 'OK', onPress: () => navigation.goBack() },
@@ -216,7 +240,7 @@ export default function EditPropertyScreen() {
         {/* Status */}
         <Text style={[styles.label, { color: colors.text, fontSize: fontSize.sm }]}>Status</Text>
         <View style={styles.statusRow}>
-          {(['active', 'pending', 'inactive'] as PropertyStatus[]).map((s) => (
+          {(['active', 'pending', 'sold', 'inactive'] as PropertyStatus[]).map((s) => (
             <TouchableOpacity
               key={s}
               style={[
@@ -227,7 +251,9 @@ export default function EditPropertyScreen() {
                   borderRadius: radius.md,
                 },
               ]}
-              onPress={() => setStatus(s)}
+              onPress={() => handleStatusChange(s)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: status === s }}
             >
               <Text style={{ color: status === s ? colors.white : colors.text, fontSize: fontSize.sm, fontWeight: '600' }}>
                 {s.charAt(0).toUpperCase() + s.slice(1)}

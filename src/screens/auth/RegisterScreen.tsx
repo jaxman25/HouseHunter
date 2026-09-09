@@ -107,6 +107,9 @@ export default function RegisterScreen({ navigation }: Props) {
         message = 'Password is too weak.';
       } else if (error.code === 'auth/invalid-email') {
         message = 'Invalid email address.';
+      } else if (error.code === 'auth/operation-not-allowed') {
+        message =
+          'Email sign-up is temporarily disabled. Please try again later or sign in with Google.';
       }
       setGeneralError(message);
     } finally {

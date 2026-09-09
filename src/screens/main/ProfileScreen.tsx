@@ -17,6 +17,8 @@ import { RootStackParamList } from '../../types';
 import Avatar from '../../components/common/Avatar';
 import { formatPhoneNumber } from '../../utils/formatters';
 import { getUserProperties } from '../../services/propertyService';
+import { useAdmin } from '../../hooks/useAdmin';
+import { useCurrencyContext } from '../../context/CurrencyContext';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -32,8 +34,10 @@ interface MenuItem {
 export default function ProfileScreen() {
   const { colors, fontSize, spacing, radius, shadow } = useTheme();
   const { user, logout } = useAuthContext();
+  const { currency } = useCurrencyContext();
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
+  const { isAdmin } = useAdmin();
 
   const [listingCount, setListingCount] = useState<number | null>(null);
 
@@ -91,10 +95,39 @@ export default function ProfileScreen() {
       onPress: () => navigation.navigate('Conversations'),
     },
     {
+      icon: 'bookmark-multiple',
+      label: 'Saved Searches',
+      subtitle: 'Re-run filters and get notified of new matches',
+      onPress: () => navigation.navigate('SavedSearches'),
+    },
+    {
+      icon: 'history',
+      label: 'Recently Viewed',
+      subtitle: 'Properties you have visited',
+      onPress: () => navigation.navigate('RecentlyViewed'),
+    },
+    ...(isAdmin
+      ? [
+          {
+            icon: 'shield-account',
+            label: 'Admin Tools',
+            subtitle: 'Moderation dashboard, users, and reports',
+            onPress: () => navigation.navigate('AdminDashboard'),
+            color: colors.primary,
+          } as MenuItem,
+        ]
+      : []),
+    {
       icon: 'shield-lock',
       label: 'Settings',
       subtitle: 'Security, notifications, and preferences',
       onPress: () => navigation.navigate('Settings'),
+    },
+    {
+      icon: 'earth',
+      label: 'Currency',
+      subtitle: `Currently: ${currency === 'KES' ? 'KSh (Kenyan Shilling)' : currency}`,
+      onPress: () => navigation.navigate('CurrencySettings' as any),
     },
     {
       icon: 'key-change',

@@ -12,26 +12,36 @@ import { DocumentSnapshot } from 'firebase/firestore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useNavigation } from '@react-navigation/native';
+import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuthContext } from '../../context/AuthContext';
-import { RootStackParamList, Property, PropertyFilter } from '../../types';
+import { MainTabParamList, RootStackParamList, Property, PropertyFilter } from '../../types';
 import PropertyCard from '../../components/property/PropertyCard';
 import PropertyCardSkeleton from '../../components/common/PropertyCardSkeleton';
 import FilterModal from '../../components/property/FilterModal';
+import SaveSearchModal from '../../components/search/SaveSearchModal';
 import EmptyState from '../../components/common/EmptyState';
 import { getProperties } from '../../services/propertyService';
+import {
+  propertyFilterToSavedSearchFilters,
+  filtersToPropertyFilter,
+} from '../../services/savedSearchService';
+import { useSavedSearches } from '../../hooks/useSavedSearches';
 import { useDebouncedCallback } from '../../utils/performance/debounce';
 import { useThrottledCallback } from '../../utils/performance/throttle';
 import { useResponsive } from '../../hooks/useResponsive';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
+type Route = RouteProp<MainTabParamList, 'ExploreTab'>;
 
 export default function ExploreScreen() {
   const { colors, fontSize, spacing, radius } = useTheme();
   const { isFavorite, toggleFavorite } = useAuthContext();
   const navigation = useNavigation<Nav>();
+  const route = useRoute<Route>();
   const insets = useSafeAreaInsets();
+  const { create: createSavedSearch } = useSavedSearches();
+  const [showSaveModal, setShowSaveModal] = useState(false);
 
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,6 +89,18 @@ export default function ExploreScreen() {
   useEffect(() => {
     debouncedLoad();
   }, [filter, debouncedLoad]);
+
+  // A saved search was run elsewhere (Saved Searches screen / Home chip):
+  // apply its filters here, then clear the param so it doesn't re-apply.
+  const savedFilterParam = route.params?.savedFilter;
+  useEffect(() => {
+    const apply = () => {
+      if (!savedFilterParam) return;
+      setFilter(filtersToPropertyFilter(savedFilterParam));
+      navigation.setParams({ savedFilter: undefined });
+    };
+    apply();
+  }, [savedFilterParam, navigation]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -168,6 +190,7 @@ export default function ExploreScreen() {
     if (filter.minPrice || filter.maxPrice) count++;
     if (filter.minBedrooms !== undefined) count++;
     if (filter.propertyType && filter.propertyType.length > 0) count++;
+    if (filter.status) count++;
     if (filter.sortBy && filter.sortBy !== 'newest') count++;
     return count;
   };
@@ -285,7 +308,7 @@ export default function ExploreScreen() {
         </TouchableOpacity>
 
         <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>
-          {properties.length} found
+          {properties.length} properties found
         </Text>
       </View>
 
@@ -316,7 +339,7 @@ export default function ExploreScreen() {
             <EmptyState
               icon="home-search"
               title="No properties found"
-              description="Try adjusting your filters to see more results"
+              description="Try adjusting your filters, searching nearby areas, or exploring different property types"
               actionLabel="Reset Filters"
               onAction={() => setFilter({ sortBy: 'newest' })}
             />
@@ -330,6 +353,17 @@ export default function ExploreScreen() {
         onClose={() => setShowFilters(false)}
         onApply={handleFilterApply}
         currentFilter={filter}
+        onSaveSearch={() => setShowSaveModal(true)}
+      />
+
+      {/* Save Search Modal */}
+      <SaveSearchModal
+        visible={showSaveModal}
+        onClose={() => setShowSaveModal(false)}
+        filters={propertyFilterToSavedSearchFilters(filter)}
+        onSave={async (input) => {
+          await createSavedSearch(input);
+        }}
       />
     </View>
   );

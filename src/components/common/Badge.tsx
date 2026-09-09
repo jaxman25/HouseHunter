@@ -5,7 +5,7 @@ import { useTheme } from '../../context/ThemeContext';
 interface BadgeProps {
   count?: number;
   label?: string;
-  variant?: 'primary' | 'secondary' | 'success' | 'error' | 'warning' | 'info';
+  variant?: 'primary' | 'secondary' | 'success' | 'error' | 'warning' | 'info' | 'neutral';
   size?: 'sm' | 'md';
   style?: ViewStyle;
 }
@@ -26,6 +26,7 @@ export default function Badge({
     error: colors.error,
     warning: colors.warning,
     info: colors.info,
+    neutral: colors.gray600,
   };
 
   const displayText = count !== undefined ? (count > 99 ? '99+' : String(count)) : label;

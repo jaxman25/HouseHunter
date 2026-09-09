@@ -5,7 +5,6 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  Share,
   Linking,
   Alert,
 } from 'react-native';
@@ -22,6 +21,10 @@ import PropertyMap from '../../components/common/PropertyMap';
 import Avatar from '../../components/common/Avatar';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
+import StatusBadge from '../../components/common/StatusBadge';
+import ContactSellerModal from '../../components/contact/ContactSellerModal';
+import ReportListingModal from '../../components/moderation/ReportListingModal';
+import { shareProperty } from '../../utils/share';
 import { getProperty } from '../../services/propertyService';
 import { getOrCreateConversation, sendMessage } from '../../services/chatService';
 import { createNotification } from '../../services/notificationService';
@@ -36,6 +39,8 @@ import {
 import { formatViews } from '../../utils/formatters';
 import { PROPERTY_FEATURES } from '../../config/theme';
 import { useResponsive } from '../../hooks/useResponsive';
+import { trackPropertyView } from '../../hooks/useRecentlyViewed';
+import { removeRecentlyViewed } from '../../services/recentlyViewedService';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'PropertyDetail'>;
 type Route = RouteProp<RootStackParamList, 'PropertyDetail'>;
@@ -59,13 +64,32 @@ export default function PropertyDetailScreen() {
   const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
   const [contacting, setContacting] = useState(false);
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+
+  // Only Active listings accept new inquiries; Pending/Sold/Rented/Inactive
+  // show an availability note and a disabled contact button.
+  const isAvailable = property?.status === 'active';
+  const isPending = property?.status === 'pending';
 
   useEffect(() => {
     let ignore = false;
     (async () => {
       try {
         const data = await getProperty(route.params.propertyId);
-        if (!ignore) setProperty(data);
+        if (!ignore) {
+          if (data) {
+            setProperty(data);
+            // Record the visit locally (debounced AsyncStorage write) so the
+            // home screen's "Recently Viewed" stays fresh. Non-critical: the
+            // snapshot is passed to avoid a second fetch.
+            trackPropertyView(data.id, data);
+          } else {
+            // The listing no longer exists — drop it from local history so
+            // "Recently Viewed" doesn't point at a dead property.
+            removeRecentlyViewed(route.params.propertyId);
+          }
+        }
       } catch (error) {
         if (!ignore) {
           console.error('Error loading property:', error);
@@ -80,15 +104,11 @@ export default function PropertyDetailScreen() {
     };
   }, [route.params.propertyId]);
 
-  const handleShare = async () => {
+  const handleShare = () => {
     if (!property) return;
-    try {
-      await Share.share({
-        message: `Check out this property: ${property.title} - ${formatPrice(property.price, property.listingType)}\n\n${property.address}, ${property.city}, ${property.state}`,
-      });
-    } catch (error) {
-      console.error('Error sharing:', error);
-    }
+    // Cross-platform share: native share sheet, or web Share API with a
+    // clipboard fallback (see src/utils/share.ts). Includes a deep link.
+    void shareProperty(property);
   };
 
   const handleContact = async () => {
@@ -198,6 +218,14 @@ export default function PropertyDetailScreen() {
               <MaterialCommunityIcons name="share-variant" size={20} color="#fff" />
             </TouchableOpacity>
             <TouchableOpacity
+              onPress={() => setShowReportModal(true)}
+              style={[styles.overlayBtn, { backgroundColor: 'rgba(0,0,0,0.4)', marginLeft: 8 }]}
+              accessibilityRole="button"
+              accessibilityLabel="Report listing"
+            >
+              <MaterialCommunityIcons name="flag-outline" size={20} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity
               onPress={() => toggleFavorite(property.id)}
               style={[styles.overlayBtn, { backgroundColor: 'rgba(0,0,0,0.4)', marginLeft: 8 }]}
             >
@@ -226,6 +254,7 @@ export default function PropertyDetailScreen() {
                 label={getPropertyTypeLabel(property.propertyType)}
                 variant="info"
               />
+              <StatusBadge status={property.status} />
             </View>
           </View>
 
@@ -241,6 +270,38 @@ export default function PropertyDetailScreen() {
               {property.address}, {property.city}, {property.state} {property.zipCode}
             </Text>
           </View>
+
+          {/* Availability note: under offer, or no longer available. */}
+          {!isAvailable && (
+            <View
+              style={[
+                styles.availabilityNote,
+                {
+                  backgroundColor: isPending ? '#FEF3C7' : '#FEE2E2',
+                  borderRadius: radius.md,
+                },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name={isPending ? 'clock-outline' : 'alert-circle-outline'}
+                size={18}
+                color={isPending ? '#D97706' : colors.error}
+              />
+              <Text
+                style={{
+                  color: isPending ? '#92400E' : colors.error,
+                  fontSize: fontSize.sm,
+                  fontWeight: '600',
+                  flex: 1,
+                  marginLeft: 8,
+                }}
+              >
+                {isPending
+                  ? 'This property is under offer'
+                  : 'This property is no longer available'}
+              </Text>
+            </View>
+          )}
 
           {/* Views & Time */}
           <View style={styles.metaRow}>
@@ -392,15 +453,38 @@ export default function PropertyDetailScreen() {
           >
             <MaterialCommunityIcons name="phone" size={22} color={colors.primary} />
           </TouchableOpacity>
+          {property.userId !== user?.uid && property.contactEnabled !== false && (
+            <TouchableOpacity
+              onPress={() => setShowContactModal(true)}
+              style={[styles.callBtn, { backgroundColor: colors.gray100, borderRadius: radius.md, marginLeft: 8 }]}
+              accessibilityRole="button"
+              accessibilityLabel="Email the seller"
+            >
+              <MaterialCommunityIcons name="email-outline" size={22} color={colors.primary} />
+            </TouchableOpacity>
+          )}
           <View style={{ flex: 1, marginLeft: 12 }}>
             <Button
-              title="Contact Seller"
+              title={isAvailable ? 'Contact Seller' : 'Unavailable'}
               onPress={handleContact}
               loading={contacting}
+              disabled={!isAvailable}
             />
           </View>
         </View>
       </View>
+
+      <ContactSellerModal
+        visible={showContactModal}
+        onClose={() => setShowContactModal(false)}
+        property={property}
+      />
+
+      <ReportListingModal
+        visible={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        propertyId={property.id}
+      />
     </View>
   );
 }
@@ -501,6 +585,12 @@ const styles = StyleSheet.create({
   badgeRow: {
     flexDirection: 'row',
     gap: 6,
+  },
+  availabilityNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    marginTop: 12,
   },
   title: {
     fontWeight: '700',

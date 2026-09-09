@@ -4,10 +4,12 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider } from './src/context/AuthContext';
 import { ThemeProvider } from './src/context/ThemeContext';
+import { CurrencyProvider } from './src/context/CurrencyContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import ErrorBoundary from './src/utils/errors/ErrorBoundary';
 import CookieConsentBanner from './src/components/common/CookieConsentBanner';
 import NoticeBanner from './src/components/common/NoticeBanner';
+import ToastHost from './src/components/common/ToastHost';
 import WebFrame from './src/components/common/WebFrame';
 import { initSentry } from './src/utils/monitoring/sentry';
 import { validateEnv } from './src/utils/env';
@@ -27,14 +29,18 @@ export default function App() {
         <ThemeProvider>
           <ErrorBoundary>
             <WebFrame>
-              <AuthProvider>
-                <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-                <AppNavigator />
-              </AuthProvider>
+              <CurrencyProvider>
+                <AuthProvider>
+                  <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+                  <AppNavigator />
+                </AuthProvider>
+              </CurrencyProvider>
               {/* Web-only cookie/local-storage consent banner. */}
               <CookieConsentBanner />
               {/* Config-driven in-app notice banner (config/app_notice doc). */}
               <NoticeBanner />
+              {/* Transient feedback (e.g. "link copied" on web share). */}
+              <ToastHost />
             </WebFrame>
           </ErrorBoundary>
         </ThemeProvider>

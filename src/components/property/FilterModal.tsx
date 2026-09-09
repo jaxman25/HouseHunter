@@ -18,6 +18,8 @@ interface FilterModalProps {
   onClose: () => void;
   onApply: (filter: PropertyFilter) => void;
   currentFilter: PropertyFilter;
+  /** Optional — renders a "Save this search" affordance in the header. */
+  onSaveSearch?: () => void;
 }
 
 export default function FilterModal({
@@ -25,6 +27,7 @@ export default function FilterModal({
   onClose,
   onApply,
   currentFilter,
+  onSaveSearch,
 }: FilterModalProps) {
   const { colors, fontSize } = useTheme();
 
@@ -103,6 +106,15 @@ export default function FilterModal({
               Reset
             </Text>
           </TouchableOpacity>
+          {onSaveSearch && (
+            <TouchableOpacity
+              onPress={onSaveSearch}
+              accessibilityRole="button"
+              accessibilityLabel="Save the current search criteria"
+            >
+              <MaterialCommunityIcons name="bookmark-plus-outline" size={22} color={colors.primary} />
+            </TouchableOpacity>
+          )}
         </View>
 
         <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -171,6 +183,40 @@ export default function FilterModal({
                 />
               ))}
             </View>
+          </Section>
+
+          {/* Status */}
+          <Section title="Status" colors={colors} fontSize={fontSize}>
+            <View style={styles.chipGrid}>
+              {(
+                [
+                  { label: 'Any', value: undefined },
+                  { label: 'Active', value: 'active' },
+                  { label: 'Pending', value: 'pending' },
+                  { label: 'Sold', value: 'sold' },
+                ] as { label: string; value: PropertyFilter['status'] }[]
+              ).map((option) => (
+                <Chip
+                  key={option.label}
+                  label={option.label}
+                  selected={filter.status === option.value}
+                  colors={colors}
+                  fontSize={fontSize}
+                  onPress={() =>
+                    setFilter((prev) => ({ ...prev, status: option.value }))
+                  }
+                />
+              ))}
+            </View>
+            <Text
+              style={{
+                color: colors.textLight,
+                fontSize: fontSize.xs,
+                marginTop: 8,
+              }}
+            >
+              Any shows all listings except inactive ones
+            </Text>
           </Section>
 
           {/* Sort By */}

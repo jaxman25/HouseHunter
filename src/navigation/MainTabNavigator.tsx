@@ -43,17 +43,18 @@ export default function MainTabNavigator() {
     return (
       <View style={{ alignItems: 'center', justifyContent: 'center' }}>
         <MaterialCommunityIcons name={iconName as any} size={size} color={color} />
-        {focused && (
-          <View
-            style={{
-              width: 5,
-              height: 5,
-              borderRadius: 2.5,
-              backgroundColor: colors.primary,
-              marginTop: 2,
-            }}
-          />
-        )}
+        {/* Reserve the indicator slot on every tab (transparent when not
+            focused) so the icon block height stays constant: the icon stays
+            centered above the label and never shifts when focus changes. */}
+        <View
+          style={{
+            width: 5,
+            height: 5,
+            borderRadius: 2.5,
+            marginTop: 2,
+            backgroundColor: focused ? colors.primary : 'transparent',
+          }}
+        />
       </View>
     );
   };
@@ -78,6 +79,9 @@ export default function MainTabNavigator() {
             ? { width: '100%', maxWidth: 480, alignSelf: 'center' }
             : {}),
         },
+        // Pin the label below the icon on every platform/size so the icon is
+        // always on top of the tab name (never beside it).
+        tabBarLabelPosition: 'below-icon',
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: '600',

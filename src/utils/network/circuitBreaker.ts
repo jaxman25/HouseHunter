@@ -1,3 +1,5 @@
+import { isRetryableError } from './retry';
+
 /**
  * Circuit breaker for Firebase services.
  *
@@ -6,6 +8,16 @@
  * fail fast for a cooldown period instead of hammering a sick service. After
  * the cooldown it enters HALF-OPEN, allowing a single probe call; success
  * closes the circuit, failure re-opens it.
+ *
+ * Only TRANSIENT failures should count toward opening the circuit. Permanent
+ * failures (permission-denied, unauthenticated, not-found, invalid-argument,
+ * …) are configuration or rules problems, not "service sickness": counting
+ * them would open the circuit and make every later call — including ones
+ * that would otherwise succeed once the underlying issue is fixed — fail
+ * fast with CircuitOpenError for the whole cooldown window. The shared
+ * singletons below use {@link isRetryableError} as the classifier (transient
+ * failures count, permanent ones do not); standalone instances default to
+ * counting everything for backward compatibility.
  *
  * States:
  *  - CLOSED:   normal operation, calls pass through.
@@ -20,6 +32,12 @@ export interface CircuitBreakerOptions {
   windowMs?: number;
   /** Cooldown before trying a probe call, in ms (default 30s). */
   halfOpenTimeoutMs?: number;
+  /**
+   * Decide whether an error counts toward opening the circuit. Returning
+   * false lets permanent/expected errors through without tripping the
+   * breaker (see module comment).
+   */
+  countFailure?: (error: unknown) => boolean;
 }
 
 /** Thrown when the breaker is OPEN and a call is rejected without executing. */
@@ -69,7 +87,7 @@ export class CircuitBreaker {
       this.recordSuccess();
       return result;
     } catch (error) {
-      this.recordFailure();
+      this.recordFailure(error);
       throw error;
     }
   }
@@ -85,7 +103,10 @@ export class CircuitBreaker {
     this.state = 'closed';
   }
 
-  private recordFailure(): void {
+  private recordFailure(error: unknown): void {
+    const count = this.options.countFailure?.(error) ?? true;
+    if (!count) return;
+
     const now = Date.now();
     const windowMs = this.options.windowMs ?? 30_000;
     const threshold = this.options.failureThreshold ?? 5;
@@ -100,12 +121,23 @@ export class CircuitBreaker {
   }
 }
 
-/** Breaker guarding Firestore read/write operations. */
-export const firestoreCircuitBreaker = new CircuitBreaker();
-/** Breaker guarding Storage uploads/downloads. */
-export const storageCircuitBreaker = new CircuitBreaker();
-/** Breaker guarding Firebase Auth operations. */
-export const authCircuitBreaker = new CircuitBreaker();
+/**
+ * Shared breaker guarding Firestore read/write operations. Only transient
+ * failures (unavailable, deadline-exceeded, network errors, …) trip it;
+ * permanent rules/config rejections pass through without opening the
+ * circuit.
+ */
+export const firestoreCircuitBreaker = new CircuitBreaker({
+  countFailure: isRetryableError,
+});
+/** Shared breaker guarding Storage uploads/downloads. */
+export const storageCircuitBreaker = new CircuitBreaker({
+  countFailure: isRetryableError,
+});
+/** Shared breaker guarding Firebase Auth operations. */
+export const authCircuitBreaker = new CircuitBreaker({
+  countFailure: isRetryableError,
+});
 
 /**
  * Convenience wrapper: run `fn` through `breaker`.

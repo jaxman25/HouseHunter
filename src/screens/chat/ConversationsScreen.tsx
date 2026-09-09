@@ -4,7 +4,9 @@ import {
   Text,
   FlatList,
   StyleSheet,
+  TouchableOpacity,
 } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
@@ -54,14 +56,25 @@ export default function ConversationsScreen() {
           },
         ]}
       >
-        <Text style={[styles.title, { color: colors.text, fontSize: fontSize.xxl }]}>
-          Messages
-        </Text>
-        {conversations.length > 0 && (
-          <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>
-            {conversations.length} conversation{conversations.length !== 1 ? 's' : ''}
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={[styles.backBtn, { backgroundColor: colors.gray100 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Go back to the previous screen"
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <MaterialCommunityIcons name="arrow-left" size={20} color={colors.text} />
+        </TouchableOpacity>
+        <View style={styles.headerTitle}>
+          <Text style={[styles.title, { color: colors.text, fontSize: fontSize.xxl }]}>
+            Messages
           </Text>
-        )}
+          {conversations.length > 0 && (
+            <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>
+              {conversations.length} conversation{conversations.length !== 1 ? 's' : ''}
+            </Text>
+          )}
+        </View>
       </View>
 
       <FlatList
@@ -101,10 +114,20 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: 0.5,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  headerTitle: {
+    flex: 1,
   },
   title: { fontWeight: '800' },
 });

@@ -16,14 +16,30 @@ import { RootStackParamList, Property } from '../../types';
 import { getProperties } from '../../services/propertyService';
 import { formatPrice } from '../../utils/helpers';
 import { formatCurrencyCompact } from '../../utils/formatters';
+import { useCurrencyContext } from '../../context/CurrencyContext';
+import { formatCurrencyAmount } from '../../services/currencyService';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export default function MapScreen() {
   const { colors, fontSize, spacing, radius, shadow } = useTheme();
+  const { currency } = useCurrencyContext();
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView>(null);
+
+  /** Color-code markers by price range (in KES). */
+  const getMarkerColor = (price: number): string => {
+    if (price < 5_000_000) return '#00843D'; // Green: under KSh 5M
+    if (price < 10_000_000) return '#F2A900'; // Yellow: KSh 5M-10M
+    if (price < 20_000_000) return '#F97316'; // Orange: KSh 10M-20M
+    return '#BB133E'; // Red: Over KSh 20M
+  };
+
+  /** Format price for marker display. */
+  const formatMarkerPrice = (price: number): string => {
+    return formatCurrencyAmount(price, currency, { compact: true });
+  };
 
   const [properties, setProperties] = useState<Property[]>([]);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
@@ -70,10 +86,10 @@ export default function MapScreen() {
         style={styles.map}
         provider={PROVIDER_GOOGLE}
         initialRegion={{
-          latitude: 39.8283,
-          longitude: -98.5795,
-          latitudeDelta: 30,
-          longitudeDelta: 30,
+          latitude: -1.2921,
+          longitude: 36.8219,
+          latitudeDelta: 0.5,
+          longitudeDelta: 0.5,
         }}
         showsUserLocation
         showsMyLocationButton={false}
@@ -97,7 +113,7 @@ export default function MapScreen() {
                   backgroundColor:
                     selectedProperty?.id === property.id
                       ? colors.primary
-                      : colors.surface,
+                      : getMarkerColor(property.price),
                 },
               ]}
             >
@@ -105,15 +121,12 @@ export default function MapScreen() {
                 style={[
                   styles.markerText,
                   {
-                    color:
-                      selectedProperty?.id === property.id
-                        ? colors.white
-                        : colors.primary,
+                    color: colors.white,
                     fontSize: fontSize.xs,
                   },
                 ]}
               >
-                {formatCurrencyCompact(property.price)}
+                {formatMarkerPrice(property.price)}
               </Text>
             </View>
             <View
@@ -123,7 +136,7 @@ export default function MapScreen() {
                   borderBottomColor:
                     selectedProperty?.id === property.id
                       ? colors.primary
-                      : colors.surface,
+                      : getMarkerColor(property.price),
                 },
               ]}
             />
@@ -154,10 +167,10 @@ export default function MapScreen() {
         <TouchableOpacity
           style={[styles.mapControlBtn, { backgroundColor: colors.surface }]}
           onPress={() => mapRef.current?.animateToRegion({
-            latitude: 39.8283,
-            longitude: -98.5795,
-            latitudeDelta: 30,
-            longitudeDelta: 30,
+            latitude: -1.2921,
+            longitude: 36.8219,
+            latitudeDelta: 0.5,
+            longitudeDelta: 0.5,
           })}
         >
           <MaterialCommunityIcons name="crosshairs-gps" size={20} color={colors.primary} />
@@ -203,7 +216,8 @@ export default function MapScreen() {
             </View>
             <View style={styles.previewContent}>
               <Text style={[styles.previewPrice, { color: colors.primary, fontSize: fontSize.lg }]}>
-                {formatPrice(selectedProperty.price, selectedProperty.listingType)}
+                {formatMarkerPrice(selectedProperty.price)}
+                {selectedProperty.listingType === 'rent' ? '/mo' : ''}
               </Text>
               <Text
                 style={[styles.previewTitle, { color: colors.text, fontSize: fontSize.md }]}

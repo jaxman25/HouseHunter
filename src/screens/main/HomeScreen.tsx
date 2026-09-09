@@ -24,9 +24,12 @@ import PropertyCardSkeleton from '../../components/common/PropertyCardSkeleton';
 import Avatar from '../../components/common/Avatar';
 import Badge from '../../components/common/Badge';
 import EmptyState from '../../components/common/EmptyState';
+import RecentlyViewedSection from '../../components/home/RecentlyViewedSection';
+import SavedSearchChips from '../../components/search/SavedSearchChips';
 import { getProperties } from '../../services/propertyService';
 import { formatPrice } from '../../utils/helpers';
 import { useResponsive } from '../../hooks/useResponsive';
+import PriceDisplay from '../../components/common/PriceDisplay';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -125,6 +128,12 @@ export default function HomeScreen() {
     return 'Good Evening';
   };
 
+  const QUICK_ACTIONS = [
+    { key: 'nearMe', label: 'Near Me', icon: 'crosshairs-gps', color: '#00843D' },
+    { key: 'trending', label: 'Trending', icon: 'fire', color: '#F2A900' },
+    { key: 'priceDrop', label: 'Price Drop', icon: 'tag-arrow-down', color: '#BB133E' },
+  ];
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
@@ -194,6 +203,29 @@ export default function HomeScreen() {
             <MaterialCommunityIcons name="tune-variant" size={18} color={colors.primary} />
           </View>
         </TouchableOpacity>
+
+        {/* Quick Actions */}
+        <View style={{ flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, marginTop: spacing.lg }}>
+          {QUICK_ACTIONS.map((action) => (
+            <TouchableOpacity
+              key={action.key}
+              style={[styles.quickAction, { backgroundColor: colors.surface, borderRadius: radius.lg, borderColor: colors.border, borderWidth: 1 }]}
+              onPress={() => {
+                if (action.key === 'nearMe' || action.key === 'trending' || action.key === 'priceDrop') {
+                  navigation.navigate('ExploreTab' as any);
+                }
+              }}
+            >
+              <MaterialCommunityIcons name={action.icon as any} size={18} color={action.color} />
+              <Text style={[styles.quickActionLabel, { color: colors.text, fontSize: fontSize.xs }]}>
+                {action.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Quick access to saved searches (top 3) */}
+        <SavedSearchChips />
 
         {/* Categories */}
         <View style={{ marginTop: spacing.xl }}>
@@ -287,6 +319,9 @@ export default function HomeScreen() {
             />
           )}
         </View>
+
+        {/* Recently Viewed (local history, refreshes on focus) */}
+        <RecentlyViewedSection />
 
         {/* Featured Properties */}
         {(featuredProperties.length > 0 || loading) && (
@@ -382,11 +417,11 @@ export default function HomeScreen() {
                       </TouchableOpacity>
                     </View>
                     <View style={{ padding: spacing.md }}>
-                      <Text
-                        style={[styles.featuredPrice, { color: colors.primary, fontSize: fontSize.xl }]}
-                      >
-                        {formatPrice(item.price, item.listingType)}
-                      </Text>
+                      <PriceDisplay
+                        amount={item.price}
+                        listingType={item.listingType}
+                        fontSize={fontSize.xl}
+                      />
                       <Text
                         style={[styles.featuredTitle, { color: colors.text, fontSize: fontSize.md }]}
                         numberOfLines={1}
@@ -650,5 +685,15 @@ const styles = StyleSheet.create({
   },
   featuredFeatureText: {
     fontWeight: '500',
+  },
+  quickAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 6,
+  },
+  quickActionLabel: {
+    fontWeight: '600',
   },
 });

@@ -4,10 +4,10 @@ import {
   Text,
   ScrollView,
   StyleSheet,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
+import { useAuthContext } from '../../context/AuthContext';
 import Button from '../../components/common/Button';
 import { acceptTerms } from '../../services/authService';
 import {
@@ -30,17 +30,37 @@ interface TermsGateProps {
  */
 export default function TermsGate({ userId }: TermsGateProps) {
   const { colors, fontSize, spacing, radius } = useTheme();
+  const { refreshUser } = useAuthContext();
   const [accepting, setAccepting] = useState(false);
+  const [acceptError, setAcceptError] = useState('');
 
   const handleAccept = async () => {
+    if (accepting) return;
     setAccepting(true);
+    setAcceptError('');
     try {
       await acceptTerms(userId);
-      // No navigation needed — the AuthContext profile snapshot updates and
-      // AppNavigator swaps to the main stack.
-    } catch (error) {
+      // The AuthContext profile snapshot updates and AppNavigator swaps to
+      // the main stack. Re-fetch as well so the flip doesn't depend solely
+      // on the snapshot arriving (acceptTerms invalidates the profile
+      // cache, so this read is fresh).
+      await refreshUser();
+    } catch (error: any) {
+      // Show the failure inline: `Alert.alert` is a no-op on the web build,
+      // so an invisible catch here previously left users stuck on this gate
+      // with no explanation (see src/utils/ui/dialogs.ts).
       console.error('Accept terms error:', error);
-      Alert.alert('Error', 'Could not save your acceptance. Please try again.');
+      const code: string = error?.code ?? error?.name ?? '';
+      let message = 'Could not save your acceptance. Please try again.';
+      if (code.includes('permission-denied') || code.includes('unauthenticated')) {
+        message =
+          'We could not save your acceptance. Please contact ' +
+          CONTACT_EMAIL +
+          ' for help.';
+      } else if (code.includes('CircuitOpen') || code.includes('deadline') || code.includes('unavailable')) {
+        message = 'The service is temporarily busy. Please wait a moment and try again.';
+      }
+      setAcceptError(message);
     } finally {
       setAccepting(false);
     }
@@ -116,6 +136,24 @@ export default function TermsGate({ userId }: TermsGateProps) {
           </View>
         </View>
 
+        {acceptError ? (
+          <View
+            style={[
+              styles.errorBanner,
+              {
+                backgroundColor: '#FEF2F2',
+                borderRadius: radius.md,
+                marginTop: spacing.xl,
+              },
+            ]}
+            accessibilityRole="alert"
+          >
+            <Text style={{ color: colors.error, fontSize: fontSize.sm, lineHeight: 20 }}>
+              {acceptError}
+            </Text>
+          </View>
+        ) : null}
+
         <View style={{ marginTop: spacing.xl }}>
           <Button
             title="I Accept the Terms of Service"
@@ -173,6 +211,9 @@ const styles = StyleSheet.create({
   li: {
     lineHeight: 22,
     marginBottom: 8,
+  },
+  errorBanner: {
+    padding: 12,
   },
   contact: {
     textAlign: 'center',

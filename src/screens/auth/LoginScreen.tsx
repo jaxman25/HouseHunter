@@ -79,6 +79,9 @@ export default function LoginScreen({ navigation }: Props) {
         message = 'Too many attempts. Please try again later.';
       } else if (error.code === 'auth/invalid-email') {
         message = 'Invalid email address.';
+      } else if (error.code === 'auth/operation-not-allowed') {
+        message =
+          'Email sign-in is temporarily disabled. Please try again later or use Google.';
       }
       setGeneralError(message);
     } finally {
