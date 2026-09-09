@@ -39,6 +39,8 @@ import TourSettingsScreen from '../screens/property/TourSettingsScreen';
 import UserAnalyticsScreen from '../screens/settings/UserAnalyticsScreen';
 import DataExportScreen from '../screens/settings/DataExportScreen';
 import CurrencySettingsScreen from '../screens/settings/CurrencySettingsScreen';
+import LanguageSettingsScreen from '../screens/settings/LanguageSettingsScreen';
+import ThemeSettingsScreen from '../screens/settings/ThemeSettingsScreen';
 import TermsGate from '../screens/legal/TermsGate';
 import {
   PrivacyPolicyScreen,
@@ -108,6 +110,8 @@ function MainStack() {
       <Stack.Screen name="UserAnalytics" component={withErrorBoundary(UserAnalyticsScreen)} />
       <Stack.Screen name="DataExport" component={withErrorBoundary(DataExportScreen)} />
       <Stack.Screen name="CurrencySettings" component={withErrorBoundary(CurrencySettingsScreen)} />
+      <Stack.Screen name="LanguageSettings" component={withErrorBoundary(LanguageSettingsScreen)} />
+      <Stack.Screen name="ThemeSettings" component={withErrorBoundary(ThemeSettingsScreen)} />
     </Stack.Navigator>
   );
 }

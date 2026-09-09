@@ -293,9 +293,13 @@ export type RootStackParamList = {
   PlatformAnalytics: undefined;
   DataExport: undefined;
   CurrencySettings: undefined;
+  LanguageSettings: undefined;
+  ThemeSettings: undefined;
 };
 
 // ─── Theme Types ──────────────────────────────────────────
+export type ThemeMode = 'light' | 'dark' | 'system';
+
 export interface ThemeColors {
   primary: string;
   primaryLight: string;
@@ -325,6 +329,27 @@ export interface ThemeColors {
   gray800: string;
   shadow: string;
 }
+
+// ─── Language Types ──────────────────────────────────────
+
+export type LanguageCode = 'en' | 'sw' | 'fr' | 'de' | 'es' | 'ar';
+
+export interface LanguageInfo {
+  code: LanguageCode;
+  name: string;
+  nativeName: string;
+  flag: string;
+  direction: 'ltr' | 'rtl';
+}
+
+export const LANGUAGES: Record<LanguageCode, LanguageInfo> = {
+  en: { code: 'en', name: 'English', nativeName: 'English', flag: '🇬🇧', direction: 'ltr' },
+  sw: { code: 'sw', name: 'Swahili', nativeName: 'Kiswahili', flag: '🇰🇪', direction: 'ltr' },
+  fr: { code: 'fr', name: 'French', nativeName: 'Français', flag: '🇫🇷', direction: 'ltr' },
+  de: { code: 'de', name: 'German', nativeName: 'Deutsch', flag: '🇩🇪', direction: 'ltr' },
+  es: { code: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸', direction: 'ltr' },
+  ar: { code: 'ar', name: 'Arabic', nativeName: 'العربية', flag: '🇸🇦', direction: 'rtl' },
+};
 
 // ─── Review Types ───────────────────────────────────────
 export interface Review {

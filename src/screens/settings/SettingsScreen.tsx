@@ -17,6 +17,7 @@ import { useAuthContext } from '../../context/AuthContext';
 import { RootStackParamList } from '../../types';
 import { checkFirebaseHealth, HealthStatus } from '../../utils/network/healthCheck';
 import { firestoreCircuitBreaker } from '../../utils/network/circuitBreaker';
+import { ThemeMode } from '../../types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -199,6 +200,20 @@ export default function SettingsScreen() {
           subtitle: 'Switch between KSh, USD, EUR, GBP, TZS, UGX',
           type: 'link' as const,
           onPress: () => navigation.navigate('CurrencySettings' as any),
+        },
+        {
+          icon: 'translate',
+          label: 'Language',
+          subtitle: 'Choose your preferred language',
+          type: 'link' as const,
+          onPress: () => navigation.navigate('LanguageSettings' as any),
+        },
+        {
+          icon: 'theme-light-dark',
+          label: 'Theme',
+          subtitle: 'Light, dark, or follow system',
+          type: 'link' as const,
+          onPress: () => navigation.navigate('ThemeSettings' as any),
         },
       ],
     },

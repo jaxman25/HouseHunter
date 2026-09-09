@@ -1,7 +1,7 @@
-import { ThemeColors } from '../types';
+import { ThemeColors, ThemeMode } from '../types';
 
-export const COLORS: ThemeColors = {
-  // Kenya-inspired: green primary (Kenya flag), black accents, red accents
+// Kenya-inspired: green primary (Kenya flag), black accents, red accents
+export const LIGHT_COLORS: ThemeColors = {
   primary: '#00843D',
   primaryLight: '#E6F5ED',
   primaryDark: '#005C2B',
@@ -38,6 +38,50 @@ export const COLORS: ThemeColors = {
   shadow: '#000000',
 };
 
+// Dark mode: surfaces are darkened, text is lightened, but brand colors are
+// preserved so the Kenya-green primary still reads clearly. Contrast is kept
+// ≥ 4.5:1 for body text and ≥ 3:1 for large text/UI components.
+export const DARK_COLORS: ThemeColors = {
+  primary: '#22C55E',
+  primaryLight: '#022C11',
+  primaryDark: '#16A34A',
+  secondary: '#F87171',
+  accent: '#FBBF24',
+  background: '#111827',
+  surface: '#1F2937',
+  card: '#1F2937',
+  text: '#F9FAFB',
+  textSecondary: '#9CA3AF',
+  textLight: '#D1D5DB',
+  border: '#374151',
+  error: '#F87171',
+  success: '#34D399',
+  warning: '#FBBF24',
+  info: '#60A5FA',
+  white: '#FFFFFF',
+  black: '#000000',
+  gray100: '#1F2937',
+  gray200: '#374151',
+  gray300: '#4B5563',
+  gray400: '#6B7280',
+  gray500: '#9CA3AF',
+  gray600: '#D1D5DB',
+  gray700: '#E5E7EB',
+  gray800: '#F3F4F6',
+  shadow: '#000000',
+};
+
+/**
+ * Get colors for the current theme mode. Use this when you need colors
+ * outside of the ThemeContext (e.g., in services or utils).
+ */
+export function getColorsForMode(mode: ThemeMode): ThemeColors {
+  return mode === 'dark' ? DARK_COLORS : LIGHT_COLORS;
+}
+
+/** Default colors (light mode) for backward compatibility. */
+export const COLORS: ThemeColors = LIGHT_COLORS;
+
 export const SPACING = {
   xs: 4,
   sm: 8,
@@ -69,13 +113,13 @@ export const FONT_SIZE = {
 
 export const SHADOW = {
   sm: {
-    boxShadow: '0px 1px 2px rgba(0,0,0,0.05)',
+    boxShadow: '0px 1px 3px rgba(0,0,0,0.06)',
   },
   md: {
     boxShadow: '0px 2px 8px rgba(0,0,0,0.08)',
   },
   lg: {
-    boxShadow: '0px 4px 16px rgba(0,0,0,0.12)',
+    boxShadow: '0px 4px 20px rgba(0,0,0,0.10)',
   },
 };
 
