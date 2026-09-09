@@ -7,7 +7,7 @@ import {
   Linking,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { doc, collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { doc, collection, collectionGroup, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
@@ -87,7 +87,7 @@ export default function NoticeBanner() {
   // The most recent active announcement takes precedence over the config doc.
   useEffect(() => {
     const q = query(
-      collection(db, ADMIN_ANNOUNCEMENTS_COLLECTION),
+      collectionGroup(db, 'announcements'),
       where('active', '==', true),
       orderBy('createdAt', 'desc'),
       limit(1)
