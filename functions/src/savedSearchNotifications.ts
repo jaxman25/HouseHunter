@@ -97,10 +97,32 @@ function isDueForRun(search: SavedSearchDoc): boolean {
   }
 }
 
+interface ExpoPushResponse {
+  data: {
+    status: 'ok' | 'error';
+    id: string;
+    message?: string;
+    details?: { error?: string };
+  }[];
+}
+
+interface PushSendResult {
+  /** Number of pushes that were accepted by Expo (status === 'ok'). */
+  sent: number;
+  /** Expo tokens that failed with DeviceNotRegistered — caller should
+   *  delete these from user docs so stale tokens don't linger. */
+  staleTokens: string[];
+}
+
 /**
  * Send a batch of Expo push notifications via the push API.
  * Each message is { to: token, title, body, data, sound: 'default' }.
  * We fire them sequentially to avoid throttling; Expo handles batching.
+ *
+ * Expo returns HTTP 200 even when individual tokens fail. Each entry in
+ * the response `data` array has its own `status`. We count only `ok`
+ * entries toward `sent` and collect `DeviceNotRegistered` tokens so the
+ * caller can clean them up.
  */
 async function sendPushBatch(
   messages: {
@@ -109,12 +131,14 @@ async function sendPushBatch(
     body: string;
     data?: Record<string, string>;
   }[]
-): Promise<number> {
-  if (messages.length === 0) return 0;
+): Promise<PushSendResult> {
+  if (messages.length === 0) return { sent: 0, staleTokens: [] };
 
   const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
   let sent = 0;
+  const staleTokens: string[] = [];
+
   // Send in chunks of 100 (Expo batch limit)
   for (let i = 0; i < messages.length; i += 100) {
     const chunk = messages.slice(i, i + 100);
@@ -124,12 +148,26 @@ async function sendPushBatch(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(chunk),
       });
-      if (res.ok) sent += chunk.length;
+      if (res.ok) {
+        const body = (await res.json()) as ExpoPushResponse;
+        for (let j = 0; j < body.data.length; j++) {
+          const entry = body.data[j];
+          if (entry.status === 'ok') {
+            sent++;
+          } else if (
+            entry.status === 'error' &&
+            (entry.message === 'DeviceNotRegistered' ||
+              entry.details?.error === 'DeviceNotRegistered')
+          ) {
+            staleTokens.push(chunk[j].to);
+          }
+        }
+      }
     } catch (err) {
       console.error('[runSavedSearches] push batch failed:', err);
     }
   }
-  return sent;
+  return { sent, staleTokens };
 }
 
 // ─── Main Function ─────────────────────────────────────────────────────────
@@ -365,7 +403,34 @@ export const runSavedSearches = onSchedule(
           },
         });
       }
-      summary.pushesSent += await sendPushBatch(pushMessages);
+      const pushResult = await sendPushBatch(pushMessages);
+      summary.pushesSent += pushResult.sent;
+
+      // Clean up stale DeviceNotRegistered tokens so they don't linger
+      // on user docs forever and waste push quota on future runs.
+      if (pushResult.staleTokens.length > 0) {
+        // Build a reverse map: expoToken → uid (from pushQueue).
+        const tokenToUid = new Map<string, string>();
+        for (const [uid, { token }] of pushQueue) {
+          tokenToUid.set(token, uid);
+        }
+        const staleUids = new Set<string>();
+        for (const token of pushResult.staleTokens) {
+          const uid = tokenToUid.get(token);
+          if (uid) staleUids.add(uid);
+        }
+        if (staleUids.size > 0) {
+          const cleanupBatch = db.batch();
+          for (const uid of staleUids) {
+            cleanupBatch.update(db.doc(`users/${uid}`), {
+              expoPushToken: FieldValue.delete(),
+            });
+          }
+          await cleanupBatch.commit().catch((err) => {
+            console.error('[runSavedSearches] stale token cleanup failed:', err);
+          });
+        }
+      }
 
       // Advance pagination cursor.
       lastUserId = usersSnap.docs[usersSnap.docs.length - 1].id;
