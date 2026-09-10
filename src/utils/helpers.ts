@@ -1,11 +1,13 @@
 import { Platform } from 'react-native';
+import { CurrencyCode, CURRENCIES } from '../services/currencyService';
 
-export function formatPrice(price: number, listingType: 'sale' | 'rent'): string {
-  const formatted = price.toLocaleString('en-US');
+export function formatPrice(price: number, listingType: 'sale' | 'rent', currency: CurrencyCode = 'USD'): string {
+  const info = CURRENCIES[currency];
+  const formatted = Math.round(price).toLocaleString('en-US');
   if (listingType === 'rent') {
-    return `$${formatted}/mo`;
+    return `${info.symbol}${formatted}/mo`;
   }
-  return `$${formatted}`;
+  return `${info.symbol}${formatted}`;
 }
 
 export function formatArea(area: number, unit: 'sqft' | 'sqm'): string {

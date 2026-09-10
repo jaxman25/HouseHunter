@@ -35,7 +35,7 @@ const RATES_CACHE_KEY = '@househunter/exchange_rates';
 const RATES_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 /** Default exchange rates (used when API is unavailable). */
-const FALLBACK_RATES: Record<CurrencyCode, number> = {
+export const FALLBACK_RATES: Record<CurrencyCode, number> = {
   KES: 1,
   USD: 0.0077,
   EUR: 0.0071,

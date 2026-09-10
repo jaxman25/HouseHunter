@@ -349,11 +349,9 @@ export const sendSellerInquiry = onCall(async (request) => {
       ? property.contactEmail
       : undefined;
   let sellerEmail = explicitEmail;
-  if (!sellerEmail) {
-    const ownerSnap = await db.doc(`users/${property.userId}`).get();
-    sellerEmail = ownerSnap.exists
-      ? (ownerSnap.data()?.email as string | undefined)
-      : undefined;
+  const sellerSnap = await db.doc(`users/${property.userId}`).get().catch(() => null);
+  if (!sellerEmail && sellerSnap?.exists) {
+    sellerEmail = sellerSnap.data()?.email as string | undefined;
   }
   if (!sellerEmail) {
     throw new HttpsError(
@@ -399,7 +397,6 @@ export const sendSellerInquiry = onCall(async (request) => {
 
   // Check if the seller has inquiry notifications enabled.
   // Legacy users (no notificationPrefs) default to all-on.
-  const sellerSnap = await db.doc(`users/${property.userId}`).get().catch(() => null);
   const sellerPrefs = sellerSnap?.data()?.notificationPrefs ?? {
     message: true,
     inquiry: true,

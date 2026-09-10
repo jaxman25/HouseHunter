@@ -144,6 +144,10 @@ export default function ProfileScreen() {
     },
   ];
 
+  const memberSince = user?.createdAt
+    ? `Since '${new Date(user.createdAt).getFullYear().toString().slice(2)}`
+    : "Since '24";
+
   return (
     <View
       style={[
@@ -237,7 +241,7 @@ export default function ProfileScreen() {
           <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
           <StatItem
             label="Member"
-            value="Since '24"
+            value={memberSince}
             colors={colors}
             fontSize={fontSize}
           />

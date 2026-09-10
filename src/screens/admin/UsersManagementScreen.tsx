@@ -54,12 +54,7 @@ export default function UsersManagementScreen() {
   const confirmSuspend = async () => {
     if (!suspendTarget || !me) return;
     try {
-      await suspendUser(suspendTarget.uid, reason.trim() || 'Suspended by admin', duration);
-      await logAudit(me.uid, 'user.suspend', {
-        targetUid: suspendTarget.uid,
-        reason: reason.trim(),
-        durationDays: duration,
-      });
+      await suspendUser(suspendTarget.uid, reason.trim() || 'Suspended by admin', duration, me.uid);
       setSuspendTarget(null);
       setReason('');
       await load(search);

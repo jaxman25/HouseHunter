@@ -158,7 +158,8 @@ service cloud.firestore {
       allow update: if isOwner(userId) && (        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'displayName', 'phoneNumber', 'photoURL', 'bio', 'role', 'favorites',
           'termsAcceptedAt', 'termsAcceptedVersion', 'expoPushToken', 'updatedAt',
-          'notificationsPaused', 'notificationPrefs'
+          'notificationsPaused', 'notificationPrefs',
+          'averageRating', 'totalReviews'
         ])
       ) || (isAdmin() && (
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([

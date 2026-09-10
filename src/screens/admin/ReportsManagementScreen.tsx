@@ -16,7 +16,7 @@ import AdminGuard from '../../components/admin/AdminGuard';
 import AdminLayout from '../../components/admin/AdminLayout';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
-import { getReports, resolveReport, logAudit } from '../../services/adminService';
+import { getReports, resolveReport } from '../../services/adminService';
 import { Report, ReportStatus } from '../../types';
 import { PROPERTIES_COLLECTION } from '../../utils/constants';
 import { getTimeAgo } from '../../utils/helpers';
@@ -76,11 +76,6 @@ export default function ReportsManagementScreen() {
     setActing(true);
     try {
       await resolveReport(selected.id, action, note, me.uid);
-      await logAudit(me.uid, `report.${action}`, {
-        reportId: selected.id,
-        propertyId: selected.propertyId,
-        note: note.trim(),
-      });
       setSelected(null);
       await load(tab);
     } catch (error) {

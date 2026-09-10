@@ -146,35 +146,46 @@ export async function compileUserData(userId: string): Promise<Record<string, un
   const data: Record<string, unknown> = {};
 
   // Profile
-  const userDoc = await getDoc(doc(db, USERS_COLLECTION, userId));
+  const userDoc = await firestoreCircuitBreaker.execute(() =>
+    withRetry(() => withTimeout(getDoc(doc(db, USERS_COLLECTION, userId)), DEFAULT_TIMEOUT_MS))
+  );
   if (userDoc.exists()) {
     data.profile = userDoc.data();
   }
 
   // Listings
-  const listings = await getDocs(
-    query(collection(db, PROPERTIES_COLLECTION), where('userId', '==', userId))
+  const listings = await firestoreCircuitBreaker.execute(() =>
+    withRetry(() => withTimeout(
+      getDocs(query(collection(db, PROPERTIES_COLLECTION), where('userId', '==', userId))),
+      DEFAULT_TIMEOUT_MS
+    ))
   );
   data.listings = listings.docs.map((d) => ({ id: d.id, ...d.data() }));
 
   // Reviews
-  const reviews = await getDocs(
-    query(collection(db, REVIEWS_COLLECTION), where('buyerId', '==', userId))
+  const reviews = await firestoreCircuitBreaker.execute(() =>
+    withRetry(() => withTimeout(
+      getDocs(query(collection(db, REVIEWS_COLLECTION), where('buyerId', '==', userId))),
+      DEFAULT_TIMEOUT_MS
+    ))
   );
   data.reviews = reviews.docs.map((d) => ({ id: d.id, ...d.data() }));
 
   // Tours
-  const tours = await getDocs(
-    query(
-      collection(db, TOURS_COLLECTION),
-      where('buyerId', '==', userId)
-    )
+  const tours = await firestoreCircuitBreaker.execute(() =>
+    withRetry(() => withTimeout(
+      getDocs(query(collection(db, TOURS_COLLECTION), where('buyerId', '==', userId))),
+      DEFAULT_TIMEOUT_MS
+    ))
   );
   data.tours = tours.docs.map((d) => ({ id: d.id, ...d.data() }));
 
   // Notifications
-  const notifications = await getDocs(
-    query(collection(db, NOTIFICATIONS_COLLECTION), where('userId', '==', userId))
+  const notifications = await firestoreCircuitBreaker.execute(() =>
+    withRetry(() => withTimeout(
+      getDocs(query(collection(db, NOTIFICATIONS_COLLECTION), where('userId', '==', userId))),
+      DEFAULT_TIMEOUT_MS
+    ))
   );
   data.notifications = notifications.docs.map((d) => ({ id: d.id, ...d.data() }));
 

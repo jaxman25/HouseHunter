@@ -1,22 +1,27 @@
 import { format } from 'date-fns';
+import { CurrencyCode, CURRENCIES } from '../services/currencyService';
 
-export function formatCurrency(amount: number): string {
+export function formatCurrency(amount: number, currency: CurrencyCode = 'USD'): string {
+  const info = CURRENCIES[currency];
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    currency: currency,
+    minimumFractionDigits: info.decimals,
+    maximumFractionDigits: info.decimals,
   }).format(amount);
 }
 
-export function formatCurrencyCompact(amount: number): string {
-  if (amount >= 1000000) {
-    return `$${(amount / 1000000).toFixed(1)}M`;
+export function formatCurrencyCompact(amount: number, currency: CurrencyCode = 'USD'): string {
+  const info = CURRENCIES[currency];
+  if (amount >= 1_000_000) {
+    const m = amount / 1_000_000;
+    return `${info.symbol} ${m % 1 === 0 ? m.toFixed(0) : m.toFixed(1)}M`;
   }
-  if (amount >= 1000) {
-    return `$${(amount / 1000).toFixed(0)}K`;
+  if (amount >= 1_000) {
+    const k = amount / 1_000;
+    return `${info.symbol} ${k % 1 === 0 ? k.toFixed(0) : k.toFixed(1)}K`;
   }
-  return `$${amount}`;
+  return `${info.symbol} ${Math.round(amount).toLocaleString('en-US')}`;
 }
 
 export function formatDate(dateString: string): string {

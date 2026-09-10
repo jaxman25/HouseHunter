@@ -87,7 +87,8 @@ export async function getUsers(
 export async function suspendUser(
   uid: string,
   reason: string,
-  durationDays: number | null
+  durationDays: number | null,
+  adminUid: string
 ): Promise<void> {
   await updateDoc(doc(db, USERS_COLLECTION, uid), {
     suspended: true,
@@ -96,6 +97,7 @@ export async function suspendUser(
       ? new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString()
       : null,
   });
+  await logAudit(adminUid, 'suspend_user', { uid, reason, durationDays });
 }
 
 export async function unsuspendUser(uid: string): Promise<void> {
@@ -142,6 +144,8 @@ export async function resolveReport(
   if (action === 'delete' && report?.propertyId) {
     await deleteDoc(doc(db, PROPERTIES_COLLECTION, report.propertyId));
   }
+
+  await logAudit(adminUid, `resolve_report_${action}`, { reportId, propertyId: report?.propertyId });
 }
 
 export interface AnnouncementInput {

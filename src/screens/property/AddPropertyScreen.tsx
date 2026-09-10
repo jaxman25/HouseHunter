@@ -55,8 +55,8 @@ export default function AddPropertyScreen() {
   const [yearBuilt, setYearBuilt] = useState('');
   const [features, setFeatures] = useState<string[]>([]);
   const [images, setImages] = useState<string[]>([]);
-  const [latitude, setLatitude] = useState(0);
-  const [longitude, setLongitude] = useState(0);
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -138,7 +138,7 @@ export default function AddPropertyScreen() {
       if (!city.trim()) newErrors.city = 'City is required';
       if (!state.trim()) newErrors.state = 'State is required';
       if (!zipCode.trim()) newErrors.zipCode = 'ZIP code is required';
-      else if (!/^\d{5}(-\d{4})?$/.test(zipCode.trim())) newErrors.zipCode = 'Enter a valid 5-digit ZIP code';
+      else if (!/^\d{5}(-\d{4})?$/.test(zipCode.trim())) newErrors.zipCode = 'Enter a valid 5-digit postal code';
     } else if (stepNum === 3) {
       const bedNum = parseFloat(bedrooms);
       const bathNum = parseFloat(bathrooms);
@@ -200,8 +200,8 @@ export default function AddPropertyScreen() {
           state: state.trim(),
           zipCode: zipCode.trim(),
           country: 'US',
-          latitude: latitude || 39.8283,
-          longitude: longitude || -98.5795,
+          latitude: latitude ?? 39.8283,
+          longitude: longitude ?? -98.5795,
           bedrooms: Number(bedrooms) || 0,
           bathrooms: Number(bathrooms) || 0,
           area: Number(area) || 0,
@@ -382,8 +382,8 @@ export default function AddPropertyScreen() {
                 <View style={{ width: 12 }} />
                 <View style={{ flex: 1 }}>
                   <Input
-                    label="ZIP Code"
-                    placeholder="ZIP"
+                    label="Postal Code"
+                    placeholder="Postal code"
                     value={zipCode}
                     onChangeText={setZipCode}
                     error={errors.zipCode}
