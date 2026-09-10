@@ -1,4 +1,4 @@
-# 🏠 House Hunter
+#  House Hunter
 
 A full-featured real estate app built with **React Native (Expo)**, **Firebase**, and **Google Maps** — browse listings, search with filters, chat with sellers in real time, save favorites, and publish your own properties.
 
@@ -6,9 +6,9 @@ A full-featured real estate app built with **React Native (Expo)**, **Firebase**
 
 ---
 
-## ✨ Features
+##  Features
 
-### 🏡 Property Listings
+###  Property Listings
 - Create, edit, and delete property listings (Seller / Agent roles)
 - Upload up to **10 images** per property
 - **6 property types**: House, Apartment, Condo, Townhouse, Land, Commercial
@@ -16,72 +16,72 @@ A full-featured real estate app built with **React Native (Expo)**, **Firebase**
 - **20 amenities/features** (parking, pool, gym, pet-friendly, AC, etc.)
 - View counts and inquiry tracking per listing
 
-### 🔍 Explore & Search
+###  Explore & Search
 - Browse listings in **list or grid** view with pull-to-refresh
 - Filter by price range, bedrooms, bathrooms, property type, city, features, and listing type
 - Sort by **newest, oldest, price (asc/desc), or popularity**
 - Full-text search across title, address, city, state, and description
 - Server-side pagination ("load more")
 
-### 🗺️ Map View
+###  Map View
 - Google Maps with property price markers
 - Tap a marker to preview the property card
 - Auto fit-to-bounds for all visible listings
 - Jump straight to the property detail page
 
-### ❤️ Favorites
+###  Favorites
 - One-tap heart on any property card
 - Dedicated **Saved** tab, persisted to the user's Firestore profile
 
-### 🕘 Recently Viewed
+###  Recently Viewed
 - Local history of viewed properties (max 20, oldest evicted, re-views move to front)
 - Home screen horizontal section + full grid screen with **Clear All**
 - Stored on-device (AsyncStorage) — works offline, never touches Firebase
 
-### 🏷️ Property Status
+###  Property Status
 - Lifecycle states: **Active / Pending / Sold / Rented / Inactive** with color-coded badges
 - Sold/Pending listings show availability notes and a disabled contact button
 - Sellers manage status from the edit screen or My Listings (tabs, counts, quick change)
 - Browse filters include status; Inactive listings are hidden by default
 
-### 📤 Share & Deep Links
+###  Share & Deep Links
 - Share any property (native share sheet / Web Share API / clipboard fallback)
 - Shared links deep-link back to the property: `househunter://property/{id}` (native) or `{origin}/property/{id}` (web)
 
-### 🔖 Saved Searches
+###  Saved Searches
 - Save filter criteria with a custom name and notification frequency (instant/daily/weekly)
 - Run a saved search with one tap (applies filters to Explore) or re-run it from the Saved Searches screen
 - Quick-search chips on Home for your top 3 active searches
 - Per-user storage in Firestore (`users/{uid}/savedSearches`, max 50)
 
-### 📧 Contact Seller via Email
+###  Contact Seller via Email
 - Backup inquiry channel alongside chat — email button on the property detail action bar
 - Inquiry modal with message composer, Terms consent, and a confirmation screen
 - Sent server-side (Resend) by the `sendSellerInquiry` callable — seller email never reaches the client
 - Verified-email requirement + daily rate limit (5/user); sellers can opt out per listing
 
-### 🗄️ Sold/Pending Archives
+###  Sold/Pending Archives
 - Closing listings show an "Archives in X days" countdown
 - Auto-archive after sold 30d / pending 60d / inactive 90d (daily Cloud Function)
 - My Listings gains an **Archived** tab with faded cards, Archive Now, and Restore
 - Archiving is a soft-hide: data stays in Firestore, listings just leave default browse
 
-### 🛡️ Admin Dashboard
+###  Admin Dashboard
 - Role-gated moderation suite (`admin/roles`) — no self-service admin access
 - Live metrics, user search + suspend (reason & duration), reports triage (dismiss/resolve/delete)
 - Announcement publishing (renders in the in-app notice banner) and audit logging
 
-### 💬 Real-Time Chat
+###  Real-Time Chat
 - Conversations between buyers, sellers, and agents — per property
 - Live messaging with `onSnapshot` subscriptions
 - Image sharing in chat
 - Unread message counts + read receipts
 
-### 🔔 Notifications
+###  Notifications
 - Push notifications via Expo Notifications
 - In-app notification center (messages, inquiries, price drops, new listings)
 
-### 👤 Accounts & Profiles
+###  Accounts & Profiles
 - Email/password authentication (Google sign-in supported on native)
 - Roles: **Buyer**, **Seller**, **Agent** (agents get a badge)
 - Edit profile: name, phone, bio, photo
@@ -90,7 +90,7 @@ A full-featured real estate app built with **React Native (Expo)**, **Firebase**
 
 ---
 
-## 🧰 Tech Stack
+##  Tech Stack
 
 | Layer | Technology |
 |---|---|
@@ -105,7 +105,7 @@ A full-featured real estate app built with **React Native (Expo)**, **Firebase**
 
 ---
 
-## 🚀 Quick Start
+##  Quick Start
 
 ```bash
 # 1. Install dependencies (use --legacy-peer-deps, required by this project)
@@ -114,7 +114,7 @@ npm install --legacy-peer-deps
 # 2. Configure Firebase (see "Firebase Setup" below), then create .env:
 cp .env.example .env
 
-# 3. Deploy the Firestore indexes (⚠️ required — see below)
+# 3. Deploy the Firestore indexes ( required — see below)
 npx firebase-tools login
 npx firebase-tools deploy --only firestore:indexes
 
@@ -126,7 +126,7 @@ Press `w` for web, `a` for Android, `i` for iOS, or scan the QR code with **Expo
 
 ---
 
-## 🔥 Firebase Setup
+##  Firebase Setup
 
 ### 1. Create a Firebase project
 
@@ -143,7 +143,7 @@ Press `w` for web, `a` for Android, `i` for iOS, or scan the QR code with **Expo
 
 ### 3. Register a web app & grab the config
 
-1. **Project settings** ⚙️ → **Your apps** → **Web** (`</>`)
+1. **Project settings**  → **Your apps** → **Web** (`</>`)
 2. Copy the `firebaseConfig` values (apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId, measurementId)
 
 ### 4. Create your `.env` file
@@ -168,7 +168,7 @@ Fill in every `EXPO_PUBLIC_*` value. The required ones:
 | `EXPO_PUBLIC_GOOGLE_MAPS_IOS_API_KEY` / `..._ANDROID_API_KEY` | Google Cloud Console (native builds only) |
 | `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` / `..._IOS_CLIENT_ID` / `..._ANDROID_CLIENT_ID` | Firebase → Authentication → Google (native sign-in) |
 
-### 5. Deploy Firestore indexes (⚠️ don't skip)
+### 5. Deploy Firestore indexes ( don't skip)
 
 The app queries Firestore with combined `where` + `orderBy` clauses (sorted listings, filters, "my listings", chat list), which **require composite indexes**.
 
@@ -192,7 +192,7 @@ Deploy them:
 npx firebase-tools deploy --only firestore:rules,storage:rules
 ```
 
-> ⚠️ **Production:** review and tighten these rules so users can only read/write
+>  **Production:** review and tighten these rules so users can only read/write
 their own data.
 
 ### 7. Storage CORS (only needed for web uploads)
@@ -205,7 +205,7 @@ gsutil cors set cors.json gs://YOUR-PROJECT.firebasestorage.app
 
 ---
 
-## 🗺️ Google Maps Setup (native builds)
+##  Google Maps Setup (native builds)
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/) → create/select a billing-enabled project
 2. **APIs & Services** → **Credentials** → **Create Credentials** → **API Key**
@@ -216,7 +216,7 @@ gsutil cors set cors.json gs://YOUR-PROJECT.firebasestorage.app
 
 ---
 
-## ▶️ Running the App
+##  Running the App
 
 | Command | Description |
 |---|---|
@@ -234,7 +234,7 @@ gsutil cors set cors.json gs://YOUR-PROJECT.firebasestorage.app
 
 ---
 
-## 📁 Project Structure
+##  Project Structure
 
 ```
 HouseHunter/
@@ -266,7 +266,7 @@ HouseHunter/
 
 ---
 
-## ❓ Troubleshooting
+##  Troubleshooting
 
 **`FirebaseError: The query requires an index`**
 You haven't deployed the composite indexes yet. Run `npx firebase-tools deploy --only firestore:indexes` (or click the index link in the error message and hit **Create index**). See [Firebase Setup → Step 5](#5-deploy-firestore-indexes--dont-skip).
@@ -295,6 +295,6 @@ Storage CORS isn't configured — see [Firebase Setup → Step 7](#7-storage-cor
 
 ---
 
-## 📜 Scripts
+##  Scripts
 
 All commands run from the project root. See [Running the App](#-running-the-app) for the full list.

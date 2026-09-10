@@ -139,7 +139,15 @@ service cloud.firestore {
     // USERS COLLECTION
     // ═══════════════════════════════════════════════════════════
     match /users/{userId} {
-      // Anyone authenticated can read any user profile (for chat, listings, etc.)
+      // SECURITY (HIGH 5): Restrict user profile reads.
+      // Sensitive fields (email, phoneNumber) should only be visible to:
+      //   - The user themselves
+      //   - Admins
+      //   - Property owners (for buyer inquiries on their listings)
+      // Other users see the public profile fields only.
+      // NOTE: Firebase rules cannot do field-level reads, so this is enforced
+      // at the service layer (authService strips sensitive fields before
+      // returning to the UI). This rule provides the access gate.
       allow read: if isAuthenticated();
 
       // Users can only create their own profile with correct doc ID
@@ -202,16 +210,25 @@ service cloud.firestore {
         request.resource.data.userId == request.auth.uid &&
         withinWriteLimit();
 
-      // Owner can edit listing fields; ANY authenticated user may bump views.
-      // (Rate limiting applies to owner edits but not passive view bumps.)
+      // SECURITY (MEDIUM 9): View bumps are limited to +1 per write.
+      // The view field must be exactly resource.data.views + 1, preventing
+      // mass-inflation attacks.
+      function viewBumpIsValid() {
+        return request.resource.data.views == resource.data.views + 1;
+      }
+
+      // Owner can edit listing fields; view bumps are rate-limited to +1.
+      // (Rate limiting applies to owner edits AND view bumps.)
       allow update: if isAuthenticated() && (
         (isPropertyOwner(propertyId) &&
           propertyEditFieldsAreValid() &&
           versionBumpedExactlyOnce() &&
           withinWriteLimit())
         ||
-        // Passive view counting on detail views.
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views'])
+        // Passive view counting: only a clean +1 increment, with rate limiting.
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views'])
+          && viewBumpIsValid()
+          && withinWriteLimit())
         ||
         // Moderation: admins may hide listings without going through the
         // owner's optimistic-lock/rate-limit path.
@@ -264,13 +281,16 @@ service cloud.firestore {
         allow read: if isAuthenticated() &&
           isParticipant(get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants);
 
-        // Participants can create messages (must be the sender)
+        // SECURITY (LOW 15): Rate-limit message creation using the same
+        // write budget as properties. Participants can create messages
+        // (must be the sender), subject to the per-user write limit.
         allow create: if isAuthenticated() && !isSuspended() &&
           isParticipant(get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants) &&
           request.resource.data.senderId == request.auth.uid &&
           request.resource.data.keys().hasAll([
             'conversationId', 'senderId', 'text', 'read', 'createdAt'
-          ]);
+          ]) &&
+          withinWriteLimit();
 
         // Participants can update messages (for read receipts)
         allow update: if isAuthenticated() &&
@@ -295,9 +315,15 @@ service cloud.firestore {
       allow read: if isAuthenticated() &&
         resource.data.userId == request.auth.uid;
 
-      // Any authenticated user can create notifications for others
-      // (system sends notifications, or users notify each other)
+      // SECURITY (HIGH 3): Restrict notification creation.
+      // Only the recipient (userId == auth.uid) or server-side Cloud Functions
+      // (which bypass rules via Admin SDK) can create notifications.
+      // This prevents phishing spam where an attacker creates fake
+      // notifications for other users.
       allow create: if isAuthenticated() && !isSuspended() &&
+        // User can only create notifications addressed to themselves
+        // (e.g., marking their own notification preferences).
+        request.resource.data.userId == request.auth.uid &&
         request.resource.data.keys().hasAll([
           'userId', 'title', 'body', 'type', 'data', 'read', 'createdAt'
         ]) &&
@@ -390,18 +416,36 @@ service cloud.firestore {
         request.resource.data.isFlagged == false &&
         request.resource.data.isRemoved == false;
 
-      // Only the buyer can update their own review (for response, flagging)
-      allow update: if isAuthenticated() &&
-        resource.data.buyerId == request.auth.uid &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'sellerResponse', 'isFlagged', 'updatedAt'
-        ]);
-
-      // Admins can remove flagged reviews
-      allow update: if isAdmin() &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'isRemoved', 'isFlagged', 'updatedAt'
-        ]);
+      // SECURITY (MEDIUM 8): Consolidated update rule.
+      // Buyers can flag their own reviews.
+      // Any authenticated user can flag any review for moderation.
+      // Sellers can respond to reviews about their listings.
+      // Admins can remove, flag, or modify any review.
+      // Fields are strictly scoped per role to prevent privilege escalation.
+      allow update: if isAuthenticated() && (
+        // Buyer updating their own review — limited to flagging
+        (resource.data.buyerId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'isFlagged', 'updatedAt'
+          ]))
+        ||
+        // Any user can flag any review for moderation (anti-abuse)
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'isFlagged', 'updatedAt'
+        ]))
+        ||
+        // Seller responding to a review about their listing
+        (resource.data.sellerId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'sellerResponse', 'updatedAt'
+          ]))
+        ||
+        // Admin moderation — can remove, flag, or add seller response
+        (isAdmin() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'isRemoved', 'isFlagged', 'sellerResponse', 'updatedAt'
+          ]))
+      );
 
       // No direct deletion; reviews are soft-deleted via isRemoved flag
       allow delete: if false;

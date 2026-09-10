@@ -380,8 +380,15 @@ export async function getProperties(
 export async function searchProperties(
   searchTerm: string
 ): Promise<Property[]> {
+  // SECURITY (HIGH 6): Sanitize and truncate search input to prevent
+  // abuse (very long strings, excessive reads).
+  const MAX_SEARCH_LENGTH = 100;
+  const sanitized = searchTerm.trim().slice(0, MAX_SEARCH_LENGTH);
+  if (!sanitized) return [];
+
   // Firestore doesn't support full-text search natively,
-  // so we search on the client side
+  // so we search on the client side with a bounded result set.
+  const MAX_RESULTS = 50;
   const result = await trackMetric('properties.search', () =>
     firestoreCircuitBreaker.execute(() =>
       withRetry(() =>
@@ -391,10 +398,10 @@ export async function searchProperties(
               collection(db, PROPERTIES_COLLECTION),
               where('status', '==', 'active'),
               orderBy('createdAt', 'desc'),
-              limit(100)
+              limit(MAX_RESULTS)
             );
             const querySnapshot = await getDocs(q);
-            const term = searchTerm.toLowerCase();
+            const term = sanitized.toLowerCase();
 
             const results: Property[] = [];
             querySnapshot.forEach((doc) => {

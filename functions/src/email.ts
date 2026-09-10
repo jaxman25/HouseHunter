@@ -123,8 +123,16 @@ export async function sendEmail(message: EmailMessage): Promise<void> {
   if (!apiKey) {
     throw new Error('RESEND_API_KEY is not set in the functions environment');
   }
-  const from =
-    process.env.NOTIFICATION_FROM_EMAIL ?? 'House Hunter <no-reply@househunter.com>';
+  const from = process.env.NOTIFICATION_FROM_EMAIL;
+  if (!from) {
+    // SECURITY (LOW 12): Do not fall back to a potentially unverified email.
+    // If the env var is missing, fail explicitly instead of silently using
+    // an address that may bounce or fail SPF/DKIM checks.
+    throw new Error(
+      'NOTIFICATION_FROM_EMAIL is not set. Configure a verified sender address '
+      + 'in the Cloud Functions environment (e.g. "House Hunter <no-reply@yourdomain.com>").'
+    );
+  }
 
   const response = await fetch(RESEND_URL, {
     method: 'POST',

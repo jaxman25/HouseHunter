@@ -5,9 +5,8 @@ import PressableScale from '../common/PressableScale';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { Property } from '../../types';
-import { formatPrice, formatBedrooms, formatBathrooms, formatArea } from '../../utils/helpers';
+import { formatBedrooms, formatBathrooms, formatArea } from '../../utils/helpers';
 import PriceDisplay from '../common/PriceDisplay';
-import Badge from '../common/Badge';
 import StatusBadge from '../common/StatusBadge';
 import { shareProperty } from '../../utils/share';
 
@@ -35,6 +34,7 @@ export default function PropertyCard({
   const { colors, radius, fontSize, spacing, shadow } = useTheme();
   const isUnavailable = UNAVAILABLE_STATUSES.includes(property.status);
 
+  /* ────────── Grid Card ────────── */
   if (variant === 'grid') {
     return (
       <PressableScale
@@ -56,15 +56,28 @@ export default function PropertyCard({
               styles.gridImage,
               { borderRadius: radius.lg, opacity: isUnavailable ? 0.55 : 1 },
             ]}
+            contentFit="cover"
           />
-          <View style={styles.imageOverlay}>
-            <Badge
-              label={property.listingType === 'sale' ? 'For Sale' : 'For Rent'}
-              variant={property.listingType === 'sale' ? 'primary' : 'secondary'}
-              size="sm"
-            />
-            <StatusBadge status={property.status} style={{ marginTop: 4 }} />
+          {/* Badges */}
+          <View style={styles.gridOverlay}>
+            <View style={styles.gridBadges}>
+              <View
+                style={[
+                  styles.miniBadge,
+                  {
+                    backgroundColor: property.listingType === 'sale' ? colors.primary : colors.secondary,
+                    borderRadius: radius.round,
+                  },
+                ]}
+              >
+                <Text style={[styles.miniBadgeText, { color: colors.white, fontSize: 10 }]}>
+                  {property.listingType === 'sale' ? 'Sale' : 'Rent'}
+                </Text>
+              </View>
+              <StatusBadge status={property.status} size="sm" />
+            </View>
           </View>
+          {/* Share */}
           <TouchableOpacity
             onPress={(e) => {
               e.stopPropagation?.();
@@ -74,18 +87,19 @@ export default function PropertyCard({
             accessibilityRole="button"
             accessibilityLabel={`Share ${property.title}`}
           >
-            <MaterialCommunityIcons name="share-variant" size={14} color={colors.white} />
+            <MaterialCommunityIcons name="share-variant" size={13} color={colors.white} />
           </TouchableOpacity>
+          {/* Favorite */}
           {onFavorite && (
             <TouchableOpacity
               onPress={onFavorite}
-              style={[styles.heartButton, { backgroundColor: 'rgba(255,255,255,0.9)' }]}
+              style={[styles.heartButton, { backgroundColor: 'rgba(255,255,255,0.92)' }]}
               accessibilityRole="button"
               accessibilityLabel={`${isFavorite ? 'Remove' : 'Add'} ${property.title} ${isFavorite ? 'from' : 'to'} favorites`}
             >
               <MaterialCommunityIcons
                 name={isFavorite ? 'heart' : 'heart-outline'}
-                size={16}
+                size={15}
                 color={isFavorite ? colors.error : colors.gray500}
               />
             </TouchableOpacity>
@@ -117,7 +131,7 @@ export default function PropertyCard({
             </Text>
           </View>
           <Text
-            style={[styles.gridStats, { color: colors.textSecondary, fontSize: fontSize.xs }]}
+            style={[styles.gridStats, { color: colors.gray500, fontSize: fontSize.xs }]}
             numberOfLines={1}
           >
             {formatBedrooms(property.bedrooms)} · {formatBathrooms(property.bathrooms)} ·{' '}
@@ -128,6 +142,7 @@ export default function PropertyCard({
     );
   }
 
+  /* ────────── Horizontal Card ────────── */
   if (variant === 'horizontal') {
     return (
       <PressableScale
@@ -138,7 +153,7 @@ export default function PropertyCard({
             borderRadius: radius.lg,
             borderColor: colors.border,
           },
-          shadow.md,
+          shadow.sm,
           style,
         ]}
         onPress={onPress}
@@ -149,14 +164,23 @@ export default function PropertyCard({
             styles.horizontalImage,
             { borderRadius: radius.lg, opacity: isUnavailable ? 0.55 : 1 },
           ]}
+          contentFit="cover"
         />
-        <View style={styles.imageOverlay}>
-          <Badge
-            label={property.listingType === 'sale' ? 'For Sale' : 'For Rent'}
-            variant={property.listingType === 'sale' ? 'primary' : 'secondary'}
-            size="sm"
-          />
-          <StatusBadge status={property.status} style={{ marginTop: 4 }} />
+        <View style={styles.horizontalOverlay}>
+          <View
+            style={[
+              styles.miniBadge,
+              {
+                backgroundColor: property.listingType === 'sale' ? colors.primary : colors.secondary,
+                borderRadius: radius.round,
+              },
+            ]}
+          >
+            <Text style={[styles.miniBadgeText, { color: colors.white, fontSize: 10 }]}>
+              {property.listingType === 'sale' ? 'Sale' : 'Rent'}
+            </Text>
+          </View>
+          <StatusBadge status={property.status} size="sm" style={{ marginTop: 3 }} />
         </View>
         <TouchableOpacity
           onPress={(e) => {
@@ -167,7 +191,7 @@ export default function PropertyCard({
           accessibilityRole="button"
           accessibilityLabel={`Share ${property.title}`}
         >
-          <MaterialCommunityIcons name="share-variant" size={14} color={colors.white} />
+          <MaterialCommunityIcons name="share-variant" size={13} color={colors.white} />
         </TouchableOpacity>
         <View style={styles.horizontalContent}>
           <View style={styles.priceRow}>
@@ -185,7 +209,7 @@ export default function PropertyCard({
               >
                 <MaterialCommunityIcons
                   name={isFavorite ? 'heart' : 'heart-outline'}
-                  size={22}
+                  size={20}
                   color={isFavorite ? colors.error : colors.gray500}
                 />
               </TouchableOpacity>
@@ -200,7 +224,7 @@ export default function PropertyCard({
           <View style={styles.locationRow}>
             <MaterialCommunityIcons
               name="map-marker-outline"
-              size={14}
+              size={13}
               color={colors.textSecondary}
             />
             <Text
@@ -213,16 +237,17 @@ export default function PropertyCard({
               {property.address}, {property.city}
             </Text>
           </View>
-          <View style={styles.features}>
-            <Text style={[styles.featureText, { color: colors.textSecondary, fontSize: fontSize.xs }]}>
-              {formatBedrooms(property.bedrooms)} · {formatBathrooms(property.bathrooms)} · {formatArea(property.area, property.areaUnit)}
-            </Text>
+          <View style={[styles.featuresRow, { marginTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.sm }]}>
+            <FeatureItem icon="bed-outline" text={formatBedrooms(property.bedrooms)} colors={colors} fontSize={fontSize} />
+            <FeatureItem icon="bathtub-outline" text={formatBathrooms(property.bathrooms)} colors={colors} fontSize={fontSize} />
+            <FeatureItem icon="resize" text={formatArea(property.area, property.areaUnit)} colors={colors} fontSize={fontSize} />
           </View>
         </View>
       </PressableScale>
     );
   }
 
+  /* ────────── Vertical Card (default) ────────── */
   return (
     <PressableScale
       style={[
@@ -243,14 +268,26 @@ export default function PropertyCard({
             styles.verticalImage,
             { borderRadius: radius.lg, opacity: isUnavailable ? 0.55 : 1 },
           ]}
+          contentFit="cover"
         />
-        <View style={styles.imageOverlay}>
-          <Badge
-            label={property.listingType === 'sale' ? 'For Sale' : 'For Rent'}
-            variant={property.listingType === 'sale' ? 'primary' : 'secondary'}
-          />
-          <StatusBadge status={property.status} style={{ marginTop: 4 }} />
+        {/* Listing Type Badge */}
+        <View style={styles.verticalOverlay}>
+          <View
+            style={[
+              styles.miniBadge,
+              {
+                backgroundColor: property.listingType === 'sale' ? colors.primary : colors.secondary,
+                borderRadius: radius.round,
+              },
+            ]}
+          >
+            <Text style={[styles.miniBadgeText, { color: colors.white, fontSize: 10 }]}>
+              {property.listingType === 'sale' ? 'For Sale' : 'For Rent'}
+            </Text>
+          </View>
+          <StatusBadge status={property.status} size="sm" style={{ marginTop: 3 }} />
         </View>
+        {/* Share */}
         <TouchableOpacity
           onPress={(e) => {
             e.stopPropagation?.();
@@ -260,8 +297,9 @@ export default function PropertyCard({
           accessibilityRole="button"
           accessibilityLabel={`Share ${property.title}`}
         >
-          <MaterialCommunityIcons name="share-variant" size={14} color={colors.white} />
+          <MaterialCommunityIcons name="share-variant" size={13} color={colors.white} />
         </TouchableOpacity>
+        {/* Favorite */}
         {onFavorite && (
           <TouchableOpacity
             onPress={onFavorite}
@@ -271,7 +309,7 @@ export default function PropertyCard({
           >
             <MaterialCommunityIcons
               name={isFavorite ? 'heart' : 'heart-outline'}
-              size={20}
+              size={18}
               color={isFavorite ? colors.error : colors.gray500}
             />
           </TouchableOpacity>
@@ -292,7 +330,7 @@ export default function PropertyCard({
         <View style={styles.locationRow}>
           <MaterialCommunityIcons
             name="map-marker-outline"
-            size={14}
+            size={13}
             color={colors.textSecondary}
           />
           <Text
@@ -345,14 +383,15 @@ function FeatureItem({
     <View style={styles.featureItem}>
       <MaterialCommunityIcons
         name={icon as any}
-        size={16}
-        color={colors.textSecondary}
+        size={14}
+        color={colors.gray400}
       />
       <Text
         style={{
           color: colors.textSecondary,
           fontSize: fontSize.xs,
-          marginLeft: 4,
+          marginLeft: 3,
+          fontWeight: '500',
         }}
       >
         {text}
@@ -362,20 +401,17 @@ function FeatureItem({
 }
 
 const styles = StyleSheet.create({
-  // Grid (compact, multi-column) card
+  /* ── Grid ── */
   gridCard: {
     overflow: 'hidden',
   },
   gridImage: {
     width: '100%',
-    aspectRatio: 1.25,
+    aspectRatio: 1.3,
     backgroundColor: '#E5E7EB',
   },
   gridContent: {
     padding: 10,
-  },
-  gridPrice: {
-    fontWeight: '700',
   },
   gridTitle: {
     fontWeight: '600',
@@ -394,9 +430,17 @@ const styles = StyleSheet.create({
     marginTop: 5,
     fontWeight: '500',
   },
-  // Vertical card
+  gridOverlay: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+  },
+  gridBadges: {
+    gap: 3,
+  },
+  /* ── Vertical ── */
   verticalCard: {
-    marginBottom: 16,
+    marginBottom: 14,
     overflow: 'hidden',
   },
   verticalImage: {
@@ -405,7 +449,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#E5E7EB',
   },
   verticalContent: {},
-  // Horizontal card
+  verticalOverlay: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+  },
+  /* ── Horizontal ── */
   horizontalCard: {
     flexDirection: 'row',
     marginBottom: 12,
@@ -422,20 +471,20 @@ const styles = StyleSheet.create({
     padding: 12,
     justifyContent: 'center',
   },
-  // Common
-  imageOverlay: {
+  horizontalOverlay: {
     position: 'absolute',
     top: 8,
     left: 8,
   },
+  /* ── Common ── */
   shareButton: {
     position: 'absolute',
     bottom: 8,
     right: 8,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0,0,0,0.4)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -450,13 +499,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     boxShadow: '0px 1px 4px rgba(0,0,0,0.15)',
   },
+  miniBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  miniBadgeText: {
+    fontWeight: '700',
+  },
   priceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  price: {
-    fontWeight: '700',
   },
   heartBtn: {
     padding: 4,
@@ -474,18 +527,12 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     flex: 1,
   },
-  features: {
-    marginTop: 6,
-  },
   featuresRow: {
     flexDirection: 'row',
-    gap: 16,
+    gap: 14,
   },
   featureItem: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  featureText: {
-    fontWeight: '500',
   },
 });

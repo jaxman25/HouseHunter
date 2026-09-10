@@ -45,7 +45,6 @@ export default function SavedSearchesScreen() {
       } catch (error) {
         console.warn('Failed to run saved search:', error);
       }
-      // Apply the search's filters on the Explore tab.
       navigation.navigate('MainTabs', {
         screen: 'ExploreTab',
         params: { savedFilter: search.filters },
@@ -111,7 +110,7 @@ export default function SavedSearchesScreen() {
       <FlatList
         data={searches}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 100 }}
+        contentContainerStyle={{ padding: spacing.xl, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
@@ -139,7 +138,7 @@ export default function SavedSearchesScreen() {
             <EmptyState
               icon="bookmark-multiple-outline"
               title="No saved searches yet"
-              description="Save your first search to get notified of new listings"
+              description="Save your filters to quickly search again later."
               actionLabel="Create Saved Search"
               onAction={() => {
                 setEditing(null);

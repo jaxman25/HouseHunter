@@ -56,8 +56,6 @@ export default function ExploreScreen() {
 
   const responsive = useResponsive();
 
-  // Grid mode: real multi-column grid that reflows with the window. List mode
-  // keeps a single full-width column (a FlatList row per property).
   const gridColumns = viewMode === 'grid' ? responsive.gridColumns() : 1;
   const gridCellWidth = responsive.gridCellWidth(gridColumns);
 
@@ -82,16 +80,12 @@ export default function ExploreScreen() {
     }
   }, [filter]);
 
-  // Filter changes trigger a reload, debounced 300ms so rapid filter/sort
-  // taps coalesce into a single request.
   const debouncedLoad = useDebouncedCallback(loadProperties, 300);
 
   useEffect(() => {
     debouncedLoad();
   }, [filter, debouncedLoad]);
 
-  // A saved search was run elsewhere (Saved Searches screen / Home chip):
-  // apply its filters here, then clear the param so it doesn't re-apply.
   const savedFilterParam = route.params?.savedFilter;
   useEffect(() => {
     const apply = () => {
@@ -107,8 +101,6 @@ export default function ExploreScreen() {
     loadProperties();
   };
 
-  // Infinite scroll: fetch the next page using the last-document cursor.
-  // Wrapped in a 500ms throttle so end-of-list events can't fire a storm.
   const loadMore = useCallback(async () => {
     if (loadingMore || !lastDoc) return;
     setLoadingMore(true);
@@ -160,7 +152,6 @@ export default function ExploreScreen() {
         </View>
       );
     }
-    // Skeleton mirrors the grid rows so loading doesn't cause a jump.
     const skeletonRows: number[][] = [];
     for (let r = 0; r < 3; r++) {
       skeletonRows.push(Array.from({ length: gridColumns }, (_, c) => r * gridColumns + c));
@@ -319,7 +310,7 @@ export default function ExploreScreen() {
         keyExtractor={(item) => (item[0] ? item[0].id : 'row-empty')}
         contentContainerStyle={[
           styles.listContent,
-          { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
+          { paddingHorizontal: spacing.xl, paddingTop: spacing.md },
         ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -339,7 +330,7 @@ export default function ExploreScreen() {
             <EmptyState
               icon="home-search"
               title="No properties found"
-              description="Try adjusting your filters, searching nearby areas, or exploring different property types"
+              description="Try adjusting your filters, searching nearby areas, or exploring different property types."
               actionLabel="Reset Filters"
               onAction={() => setFilter({ sortBy: 'newest' })}
             />

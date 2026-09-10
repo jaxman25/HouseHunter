@@ -27,7 +27,6 @@ import ReportListingModal from '../../components/moderation/ReportListingModal';
 import { shareProperty } from '../../utils/share';
 import { getProperty } from '../../services/propertyService';
 import { getOrCreateConversation, sendMessage } from '../../services/chatService';
-import { createNotification } from '../../services/notificationService';
 import {
   formatPrice,
   formatBedrooms,
@@ -137,13 +136,11 @@ export default function PropertyDetailScreen() {
         undefined,
         property.userId
       );
-      await createNotification(
-        property.userId,
-        'New Message',
-        `${user.displayName} is interested in your listing: ${property.title}`,
-        'message',
-        { conversationId, senderId: user.uid }
-      );
+      // SECURITY: Removed client-side createNotification for other users.
+      // The sendMessage call already bumps unreadCount on the conversation,
+      // which the ConversationsScreen uses for badge display. Cross-user
+      // notifications should be created by Cloud Functions (Admin SDK)
+      // which bypasses Firestore security rules.
       navigation.navigate('Chat', {
         conversationId,
         recipientId: property.userId,

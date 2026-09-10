@@ -14,19 +14,17 @@ import { formatPrice } from '../../utils/helpers';
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 /**
- * \"Recently Viewed\" row for the home screen — a horizontal strip of compact
+ * "Recently Viewed" row for the home screen — a horizontal strip of compact
  * cards fed from local AsyncStorage. Refreshes whenever the screen regains
  * focus (e.g. returning from a property detail page). Non-critical: the
  * whole feature degrades to nothing on any failure.
  */
 export default function RecentlyViewedSection() {
-  const { colors, fontSize, spacing, radius } = useTheme();
+  const { colors, fontSize, spacing, radius, shadow } = useTheme();
   const navigation = useNavigation<Nav>();
   const responsive = useResponsive();
   const { items, loading, refresh } = useRecentlyViewed();
 
-  // Refresh when the tab regains focus so a freshly viewed property appears
-  // immediately after navigating back from its detail page.
   useFocusEffect(
     useCallback(() => {
       void refresh();
@@ -41,8 +39,8 @@ export default function RecentlyViewedSection() {
   if (loading) {
     return (
       <View style={{ marginTop: spacing.xxl }}>
-        <View style={[styles.sectionHeader, { paddingHorizontal: spacing.lg }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text, fontSize: fontSize.xl }]}>
+        <View style={[styles.sectionHeader, { paddingHorizontal: spacing.xl }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text, fontSize: fontSize.lg }]}>
             Recently Viewed
           </Text>
         </View>
@@ -50,7 +48,7 @@ export default function RecentlyViewedSection() {
           style={{
             flexDirection: 'row',
             gap: spacing.md,
-            paddingHorizontal: spacing.lg,
+            paddingHorizontal: spacing.xl,
             paddingTop: spacing.md,
           }}
         >
@@ -63,38 +61,18 @@ export default function RecentlyViewedSection() {
   }
 
   if (items.length === 0) {
-    return (
-      <View
-        style={[
-          styles.empty,
-          {
-            marginHorizontal: spacing.lg,
-            marginTop: spacing.xxl,
-            backgroundColor: colors.surface,
-            borderRadius: radius.lg,
-          },
-        ]}
-      >
-        <MaterialCommunityIcons
-          name="history"
-          size={22}
-          color={colors.textSecondary}
-        />
-        <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginLeft: 8, flex: 1 }}>
-          Start exploring to see your recently viewed properties
-        </Text>
-      </View>
-    );
+    return null;
   }
 
   return (
     <View style={{ marginTop: spacing.xxl }}>
-      <View style={[styles.sectionHeader, { paddingHorizontal: spacing.lg }]}>
-        <Text style={[styles.sectionTitle, { color: colors.text, fontSize: fontSize.xl }]}>
+      <View style={[styles.sectionHeader, { paddingHorizontal: spacing.xl }]}>
+        <Text style={[styles.sectionTitle, { color: colors.text, fontSize: fontSize.lg }]}>
           Recently Viewed
         </Text>
         <TouchableOpacity
           onPress={() => navigation.navigate('RecentlyViewed')}
+          style={[styles.seeAllBtn, { backgroundColor: colors.primaryLight, borderRadius: radius.round }]}
           accessibilityRole="button"
           accessibilityLabel="See all recently viewed properties"
         >
@@ -109,7 +87,7 @@ export default function RecentlyViewedSection() {
         data={items}
         showsHorizontalScrollIndicator={false}
         keyExtractor={(item) => item.propertyId}
-        contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md }}
+        contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingTop: spacing.md }}
         renderItem={({ item }) => (
           <RecentlyViewedCard
             item={item}
@@ -158,7 +136,7 @@ function RecentlyViewedCard({
         contentFit="cover"
       />
       <View style={{ padding: 10 }}>
-        <Text style={[styles.price, { color: colors.primary, fontSize: fontSize.md }]} numberOfLines={1}>
+        <Text style={[styles.price, { color: colors.primary, fontSize: fontSize.sm }]} numberOfLines={1}>
           {formatPrice(item.price, item.listingType)}
         </Text>
         <Text style={[styles.title, { color: colors.text, fontSize: fontSize.sm }]} numberOfLines={1}>
@@ -191,10 +169,9 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontWeight: '700',
   },
-  empty: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
+  seeAllBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
   card: {
     overflow: 'hidden',

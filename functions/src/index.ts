@@ -228,10 +228,10 @@ export const sendAccountDeletionConfirmation = onCall(async (request) => {
     throw new HttpsError('unauthenticated', 'You must be signed in.');
   }
 
-  // Prefer the verified token email; allow the caller's profile email as a
-  // fallback only if it matches the token email.
-  const email: string | undefined =
-    auth.token.email ?? (request.data?.email as string | undefined);
+  // SECURITY: Only use the verified auth token email. Never accept
+  // email from request.data — that would allow an attacker to use
+  // this callable as an open email relay.
+  const email: string | undefined = auth.token.email;
 
   if (!email) {
     // Accounts without an email (rare) get no confirmation message.

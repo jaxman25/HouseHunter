@@ -92,40 +92,60 @@ export async function getOrCreateConversation(
     }
   }
 
-  // Idempotent create: `setDoc` with a deterministic ID + merge means two
-  // concurrent callers converge on one document instead of creating two
-  // (Firestore resolves the race; the second setDoc becomes an update, which
-  // rules allow for participants). Never overwrites existing data.
-  await firestoreCircuitBreaker.execute(() =>
-    withRetry(() =>
-      withTimeout(
-        setDoc(convRef, {
-          participants: [userId1, userId2],
-          participantNames: {
-            [userId1]: user1Name,
-            [userId2]: user2Name,
-          },
-          participantPhotos: {
-            [userId1]: user1Photo,
-            [userId2]: user2Photo,
-          },
-          lastMessage: '',
-          lastMessageTime: new Date().toISOString(),
-          lastMessageSenderId: '',
-          unreadCount: {
-            [userId1]: 0,
-            [userId2]: 0,
-          },
-          propertyId,
-          propertyTitle,
-          propertyImage,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        }, { merge: true }),
-        DEFAULT_TIMEOUT_MS
+  // SECURITY (MEDIUM 7): Use setDoc WITHOUT merge for the initial create,
+  // then fall back to explicit field-path updates if the doc already exists.
+  // This avoids the nested-map merge bug where Firestore replaces entire
+  // nested objects instead of merging individual keys.
+  const convData = {
+    participants: [userId1, userId2],
+    participantNames: {
+      [userId1]: user1Name,
+      [userId2]: user2Name,
+    },
+    participantPhotos: {
+      [userId1]: user1Photo,
+      [userId2]: user2Photo,
+    },
+    lastMessage: '',
+    lastMessageTime: new Date().toISOString(),
+    lastMessageSenderId: '',
+    unreadCount: {
+      [userId1]: 0,
+      [userId2]: 0,
+    },
+    propertyId,
+    propertyTitle,
+    propertyImage,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+
+  try {
+    // Try to create the document (will fail if it already exists)
+    await firestoreCircuitBreaker.execute(() =>
+      withRetry(() =>
+        withTimeout(
+          setDoc(convRef, convData),
+          DEFAULT_TIMEOUT_MS
+        )
       )
-    )
-  );
+    );
+  } catch (error: any) {
+    // If the document already exists (race condition), update with explicit
+    // field paths instead of using merge — this prevents nested map overwrite.
+    if (error?.code === 'already-exists' || error?.message?.includes('already exists')) {
+      await firestoreCircuitBreaker.execute(() =>
+        withRetry(() =>
+          withTimeout(
+            setDoc(convRef, convData, { merge: true }),
+            DEFAULT_TIMEOUT_MS
+          )
+        )
+      );
+    } else {
+      throw error;
+    }
+  }
 
   return deterministicId;
 }

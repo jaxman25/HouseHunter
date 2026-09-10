@@ -22,7 +22,6 @@ import { confirmDialog } from '../../utils/ui/dialogs';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
-/** Shape a stored snapshot back into a Property for PropertyCard rendering. */
 function toProperty(item: RecentlyViewedItem): Property {
   return {
     id: item.propertyId,
@@ -31,7 +30,6 @@ function toProperty(item: RecentlyViewedItem): Property {
     price: item.price,
     listingType: item.listingType,
     propertyType: item.propertyType,
-    // Fall back to active for entries snapshotted before status existed.
     status: item.status ?? 'active',
     address: '',
     city: item.city,
@@ -70,7 +68,6 @@ export default function RecentlyViewedScreen() {
   const columns = responsive.gridColumns();
   const cellWidth = responsive.gridCellWidth(columns);
 
-  // Refresh when returning to the screen (e.g. after viewing a property).
   useFocusEffect(
     useCallback(() => {
       void refresh();
@@ -173,7 +170,7 @@ export default function RecentlyViewedScreen() {
             flexDirection: columns > 1 ? 'row' : undefined,
             flexWrap: columns > 1 ? 'wrap' : undefined,
             gap: columns > 1 ? spacing.md : undefined,
-            paddingHorizontal: spacing.lg,
+            paddingHorizontal: spacing.xl,
             paddingTop: spacing.md,
           }}
         >
@@ -189,7 +186,7 @@ export default function RecentlyViewedScreen() {
         <EmptyState
           icon="history"
           title="No recently viewed properties"
-          description="Properties you visit will show up here"
+          description="Properties you visit will show up here."
         />
       ) : (
         <FlatList
@@ -203,7 +200,7 @@ export default function RecentlyViewedScreen() {
               ? { gap: spacing.md, marginBottom: spacing.md }
               : undefined
           }
-          contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: 100 }}
+          contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingTop: spacing.md, paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl

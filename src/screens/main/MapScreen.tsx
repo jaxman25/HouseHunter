@@ -14,29 +14,25 @@ import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
 import { RootStackParamList, Property } from '../../types';
 import { getProperties } from '../../services/propertyService';
-import { formatPrice } from '../../utils/helpers';
-import { formatCurrencyCompact } from '../../utils/formatters';
 import { useCurrencyContext } from '../../context/CurrencyContext';
 import { formatCurrencyAmount } from '../../services/currencyService';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export default function MapScreen() {
-  const { colors, fontSize, spacing, radius, shadow } = useTheme();
+  const { colors, fontSize, spacing, radius } = useTheme();
   const { currency } = useCurrencyContext();
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView>(null);
 
-  /** Color-code markers by price range (in KES). */
   const getMarkerColor = (price: number): string => {
-    if (price < 5_000_000) return '#00843D'; // Green: under KSh 5M
-    if (price < 10_000_000) return '#F2A900'; // Yellow: KSh 5M-10M
-    if (price < 20_000_000) return '#F97316'; // Orange: KSh 10M-20M
-    return '#BB133E'; // Red: Over KSh 20M
+    if (price < 5_000_000) return '#00843D';
+    if (price < 10_000_000) return '#F2A900';
+    if (price < 20_000_000) return '#F97316';
+    return '#BB133E';
   };
 
-  /** Format price for marker display. */
   const formatMarkerPrice = (price: number): string => {
     return formatCurrencyAmount(price, currency, { compact: true });
   };
@@ -199,7 +195,9 @@ export default function MapScreen() {
                 backgroundColor: colors.surface,
                 borderRadius: radius.xl,
               },
-              shadow.lg,
+              {
+                boxShadow: '0px 4px 20px rgba(0,0,0,0.12)',
+              },
             ]}
             onPress={() =>
               navigation.navigate('PropertyDetail', {
@@ -212,6 +210,7 @@ export default function MapScreen() {
               <Image
                 source={{ uri: selectedProperty.images?.[0] }}
                 style={[styles.previewImageContent, { borderRadius: radius.lg }]}
+                contentFit="cover"
               />
             </View>
             <View style={styles.previewContent}>
@@ -274,7 +273,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingBottom: 12,
-    boxShadow: '0px 2px 4px rgba(0,0,0,0.1)',
+    boxShadow: '0px 2px 8px rgba(0,0,0,0.08)',
   },
   headerTitle: {
     fontWeight: '700',
@@ -289,7 +288,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    boxShadow: '0px 2px 4px rgba(0,0,0,0.1)',
+    boxShadow: '0px 2px 8px rgba(0,0,0,0.10)',
   },
   marker: {
     paddingHorizontal: 10,
@@ -321,8 +320,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   propertyPreview: {
-    // Full width on phones (minus the wrap's padding), capped + centered on
-    // larger screens so the sheet doesn't span the whole window.
     width: '100%',
     maxWidth: 600,
     flexDirection: 'row',

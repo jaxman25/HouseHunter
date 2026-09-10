@@ -1,5 +1,5 @@
 import React from 'react';
-import { Platform, View } from 'react-native';
+import { Platform, View, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { MainTabParamList } from '../types';
@@ -13,12 +13,12 @@ import ProfileScreen from '../screens/main/ProfileScreen';
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 export default function MainTabNavigator() {
-  const { colors } = useTheme();
+  const { colors, radius } = useTheme();
 
   const getTabBarIcon = (route: string, focused: boolean) => {
     let iconName: string;
-    let color = focused ? colors.primary : colors.gray500;
-    let size = 24;
+    let color = focused ? colors.primary : colors.gray400;
+    let size = 23;
 
     switch (route) {
       case 'HomeTab':
@@ -41,17 +41,15 @@ export default function MainTabNavigator() {
     }
 
     return (
-      <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+      <View style={styles.iconWrap}>
         <MaterialCommunityIcons name={iconName as any} size={size} color={color} />
-        {/* Reserve the indicator slot on every tab (transparent when not
-            focused) so the icon block height stays constant: the icon stays
-            centered above the label and never shifts when focus changes. */}
+        {/* Active indicator dot */}
         <View
           style={{
             width: 5,
             height: 5,
             borderRadius: 2.5,
-            marginTop: 2,
+            marginTop: 3,
             backgroundColor: focused ? colors.primary : 'transparent',
           }}
         />
@@ -65,7 +63,7 @@ export default function MainTabNavigator() {
         headerShown: false,
         tabBarIcon: ({ focused }) => getTabBarIcon(route.name, focused),
         tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.gray500,
+        tabBarInactiveTintColor: colors.gray400,
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
@@ -73,14 +71,10 @@ export default function MainTabNavigator() {
           height: Platform.OS === 'ios' ? 88 : 65,
           paddingBottom: Platform.OS === 'ios' ? 28 : 8,
           paddingTop: 8,
-          // On web the tab bar lives inside the centered 480px frame; cap it
-          // so it never stretches full-screen even if the frame is removed.
           ...(Platform.OS === 'web'
             ? { width: '100%', maxWidth: 480, alignSelf: 'center' }
             : {}),
         },
-        // Pin the label below the icon on every platform/size so the icon is
-        // always on top of the tab name (never beside it).
         tabBarLabelPosition: 'below-icon',
         tabBarLabelStyle: {
           fontSize: 11,
@@ -116,3 +110,10 @@ export default function MainTabNavigator() {
     </Tab.Navigator>
   );
 }
+
+const styles = StyleSheet.create({
+  iconWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});

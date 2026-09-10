@@ -11,7 +11,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 /** Top 3 saved searches as one-tap chips on the home screen. */
 export default function SavedSearchChips() {
-  const { colors, fontSize, spacing } = useTheme();
+  const { colors, fontSize, spacing, radius, shadow } = useTheme();
   const navigation = useNavigation<Nav>();
   const { searches, run } = useSavedSearches();
 
@@ -33,7 +33,22 @@ export default function SavedSearchChips() {
   };
 
   return (
-    <View style={{ marginTop: spacing.lg, paddingHorizontal: spacing.lg }}>
+    <View style={{ marginTop: spacing.xxl, paddingHorizontal: spacing.xl }}>
+      <View style={styles.sectionRow}>
+        <Text style={[styles.sectionTitle, { color: colors.text, fontSize: fontSize.lg }]}>
+          Quick Searches
+        </Text>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('SavedSearches')}
+          style={[styles.seeAllBtn, { backgroundColor: colors.primaryLight, borderRadius: radius.round }]}
+          accessibilityRole="button"
+          accessibilityLabel="See all saved searches"
+        >
+          <Text style={{ color: colors.primary, fontSize: fontSize.xs, fontWeight: '600' }}>
+            See All
+          </Text>
+        </TouchableOpacity>
+      </View>
       <View style={styles.row}>
         {top.map((search) => (
           <TouchableOpacity
@@ -43,16 +58,17 @@ export default function SavedSearchChips() {
               {
                 backgroundColor: colors.surface,
                 borderColor: colors.border,
-                borderRadius: 20,
+                borderRadius: radius.lg,
               },
+              shadow.sm,
             ]}
             onPress={() => void handleRun(search.id)}
             activeOpacity={0.8}
             accessibilityRole="button"
             accessibilityLabel={`Run saved search ${search.name}`}
           >
-            <MaterialCommunityIcons name="bookmark" size={13} color={colors.primary} />
-            <Text style={{ color: colors.text, fontSize: fontSize.xs, fontWeight: '600', marginLeft: 4 }} numberOfLines={1}>
+            <MaterialCommunityIcons name="bookmark-outline" size={14} color={colors.primary} />
+            <Text style={{ color: colors.text, fontSize: fontSize.xs, fontWeight: '600', marginLeft: 5, flex: 1 }} numberOfLines={1}>
               {search.name}
             </Text>
             {search.newMatchCount > 0 && (
@@ -64,22 +80,25 @@ export default function SavedSearchChips() {
             )}
           </TouchableOpacity>
         ))}
-        <TouchableOpacity
-          onPress={() => navigation.navigate('SavedSearches')}
-          style={{ paddingHorizontal: 4, paddingVertical: 6 }}
-          accessibilityRole="button"
-          accessibilityLabel="See all saved searches"
-        >
-          <Text style={{ color: colors.primary, fontSize: fontSize.xs, fontWeight: '600' }}>
-            See all
-          </Text>
-        </TouchableOpacity>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  sectionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  sectionTitle: {
+    fontWeight: '700',
+  },
+  seeAllBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -90,7 +109,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingVertical: 9,
     borderWidth: 1,
     maxWidth: 200,
   },

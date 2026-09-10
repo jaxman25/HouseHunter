@@ -2,11 +2,12 @@
  * Neighborhood Data Cloud Function — weekly update of neighborhood scores.
  *
  * Scheduled function that runs weekly to refresh neighborhood data for
- * areas with active property listings. Uses Google Maps, WalkScore,
- * and other APIs to aggregate scores.
+ * areas with active property listings. Requires external API keys
+ * (WalkScore, Google Maps, GreatSchools, Census) to be configured.
  *
- * This is a skeleton implementation — the actual API calls would need
- * to be configured with the appropriate API keys.
+ * SECURITY: This function MUST NOT write mock/random data to production.
+ * If API keys are not configured, the function logs a warning and exits
+ * without modifying any documents.
  */
 
 import { onSchedule } from 'firebase-functions/v2/scheduler';
@@ -46,7 +47,15 @@ interface NeighborhoodUpdate {
 
 /**
  * Fetch neighborhood data from external APIs.
- * In production, this would call WalkScore, Google Maps, GreatSchools, etc.
+ *
+ * This is a stub. To activate, configure the required API keys as
+ * Cloud Functions environment variables and implement the real calls:
+ *   - WALKSCORE_API_KEY — https://www.walkscore.com/professional/api.php
+ *   - GOOGLE_MAPS_API_KEY — for Places / Geocoding
+ *   - GREATSCHOOLS_API_KEY — for school ratings
+ *   - CENSUS_API_KEY — for demographics
+ *
+ * Returns null when APIs are not configured (function exits without writing).
  */
 async function fetchNeighborhoodData(
   city: string,
@@ -54,49 +63,46 @@ async function fetchNeighborhoodData(
   zipCode: string,
   lat: number,
   lng: number
-): Promise<NeighborhoodUpdate> {
-  // In production, these would be actual API calls:
-  // - WalkScore API for walkability scores
-  // - Google Places API for amenities
-  // - GreatSchools API for school ratings
-  // - Census API for demographics
+): Promise<NeighborhoodUpdate | null> {
+  // Check that required API keys are present.
+  const walkscoreKey = process.env.WALKSCORE_API_KEY;
+  const mapsKey = process.env.GOOGLE_MAPS_API_KEY;
 
-  // Placeholder implementation returning mock data
-  return {
-    walkScore: Math.floor(Math.random() * 100),
-    transitScore: Math.floor(Math.random() * 100),
-    bikeScore: Math.floor(Math.random() * 100),
-    crimeRate: ['Low', 'Moderate', 'High'][Math.floor(Math.random() * 3)] as 'Low' | 'Moderate' | 'High',
-    schools: {
-      elementary: [],
-      middle: [],
-      high: [],
-    },
-    amenities: {
-      restaurants: Math.floor(Math.random() * 50),
-      shopping: Math.floor(Math.random() * 30),
-      parks: Math.floor(Math.random() * 15),
-      gyms: Math.floor(Math.random() * 20),
-      transitStops: Math.floor(Math.random() * 25),
-      hospitals: Math.floor(Math.random() * 5),
-    },
-    propertyTrends: {
-      averagePrice: 300000 + Math.floor(Math.random() * 200000),
-      yearOverYearChange: Math.round((Math.random() * 10 - 3) * 10) / 10,
-      yearlyData: Array.from({ length: 5 }, (_, i) => ({
-        year: new Date().getFullYear() - 4 + i,
-        price: 280000 + Math.floor(Math.random() * 100000) + i * 10000,
-      })),
-    },
-    population: 50000 + Math.floor(Math.random() * 100000),
-    medianIncome: 50000 + Math.floor(Math.random() * 50000),
-    medianHomeValue: 250000 + Math.floor(Math.random() * 200000),
-  };
+  if (!walkscoreKey || !mapsKey) {
+    // APIs not configured — return null so the caller skips the write.
+    return null;
+  }
+
+  // ── WalkScore ────────────────────────────────────────────────
+  // Example: https://api.walkscore.com/score?format=json&address=...&lat=...&lon=...&wsapikey=...
+  // const walkRes = await fetch(`https://api.walkscore.com/score?format=json&address=${encodeURIComponent(`${city}, ${state} ${zipCode}`)}&lat=${lat}&lon=${lng}&wsapikey=${walkscoreKey}`);
+  // const walkData = await walkRes.json();
+
+  // ── Google Places (amenities) ────────────────────────────────
+  // const placesRes = await fetch(`https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=1609&type=restaurant&key=${mapsKey}`);
+
+  // ── GreatSchools (schools) ───────────────────────────────────
+  // const schoolsRes = await fetch(`https://api.greatschools.org/schools?key=...&zip=${zipCode}`);
+
+  // ── Census (demographics) ────────────────────────────────────
+  // const censusRes = await fetch(`https://api.census.gov/data/...`);
+
+  // When implemented, assemble the real data and return it.
+  // For now, returning null prevents any data from being written.
+
+  console.warn(
+    `[neighborhood] API keys configured but real implementations not yet built. `
+    + `Skipping write for ${city}, ${state} ${zipCode}.`
+  );
+  return null;
 }
 
 /**
  * Scheduled function: runs weekly (Sundays at 2 AM) to update neighborhood
  * data for all areas with active property listings.
+ *
+ * SECURITY: Only writes data returned by real API calls. Never writes
+ * random or mock data to production.
  */
 export const updateNeighborhoodData = onSchedule(
   'every week on sunday at 02:00',
@@ -128,6 +134,7 @@ export const updateNeighborhoodData = onSchedule(
     console.log(`[updateNeighborhoodData] Found ${uniqueLocations.size} unique locations`);
 
     let updated = 0;
+    let skipped = 0;
     let failed = 0;
 
     for (const [key, location] of uniqueLocations) {
@@ -139,6 +146,11 @@ export const updateNeighborhoodData = onSchedule(
           location.lat,
           location.lng
         );
+
+        if (!neighborhoodData) {
+          skipped++;
+          continue;
+        }
 
         await db.doc(`neighborhood_data/${key}`).set({
           ...neighborhoodData,
@@ -155,6 +167,8 @@ export const updateNeighborhoodData = onSchedule(
       }
     }
 
-    console.log(`[updateNeighborhoodData] Complete: ${updated} updated, ${failed} failed`);
+    console.log(
+      `[updateNeighborhoodData] Complete: ${updated} updated, ${skipped} skipped (APIs not configured), ${failed} failed`
+    );
   }
 );

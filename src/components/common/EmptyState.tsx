@@ -19,38 +19,38 @@ export default function EmptyState({
   actionLabel,
   onAction,
 }: EmptyStateProps) {
-  const { colors, fontSize, spacing } = useTheme();
+  const { colors, fontSize, spacing, radius } = useTheme();
 
   return (
     <View style={styles.container}>
       <View
         style={[
           styles.iconContainer,
-          { backgroundColor: colors.primaryLight },
+          { backgroundColor: colors.primaryLight, borderRadius: radius.xl },
         ]}
       >
         <MaterialCommunityIcons
           name={icon as any}
-          size={48}
+          size={40}
           color={colors.primary}
         />
       </View>
       <Text
-        style={[styles.title, { color: colors.text, fontSize: fontSize.xl }]}
+        style={[styles.title, { color: colors.text, fontSize: fontSize.lg }]}
       >
         {title}
       </Text>
       <Text
         style={[
           styles.description,
-          { color: colors.textSecondary, fontSize: fontSize.md },
+          { color: colors.textSecondary, fontSize: fontSize.sm },
         ]}
       >
         {description}
       </Text>
       {actionLabel && onAction && (
         <View style={{ marginTop: spacing.xl, width: 200 }}>
-          <Button title={actionLabel} onPress={onAction} variant="primary" />
+          <Button title={actionLabel} onPress={onAction} variant="primary" size="sm" />
         </View>
       )}
     </View>
@@ -59,26 +59,26 @@ export default function EmptyState({
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 40,
+    paddingVertical: 40,
   },
   iconContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 80,
+    height: 80,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   title: {
     fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   description: {
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 20,
   },
 });

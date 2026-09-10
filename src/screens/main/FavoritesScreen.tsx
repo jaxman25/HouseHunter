@@ -21,7 +21,7 @@ import { useResponsive } from '../../hooks/useResponsive';
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export default function FavoritesScreen() {
-  const { colors, fontSize, spacing } = useTheme();
+  const { colors, fontSize, spacing, radius } = useTheme();
   const { user, isFavorite, toggleFavorite } = useAuthContext();
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
@@ -31,7 +31,6 @@ export default function FavoritesScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const responsive = useResponsive();
-  // 1 column on phones; 2 on tablets/desktop (frame-aware).
   const columns = responsive.gridColumns();
   const cellWidth = responsive.gridCellWidth(columns);
 
@@ -45,8 +44,6 @@ export default function FavoritesScreen() {
 
   const loadFavorites = useCallback(async () => {
     const favIds = user?.favorites || [];
-    // getPropertiesByIds resolves [] immediately for empty input, so the
-    // no-favorites case needs no synchronous setState here.
     try {
       const properties = await getPropertiesByIds(favIds);
       setFavorites(properties);
@@ -59,8 +56,6 @@ export default function FavoritesScreen() {
   }, [user?.favorites]);
 
   useEffect(() => {
-    // setState happens after the awaited service call, never synchronously
-    // during the effect (see react-hooks/set-state-in-effect).
     const run = async () => {
       await loadFavorites();
     };
@@ -122,7 +117,7 @@ export default function FavoritesScreen() {
         )}
         contentContainerStyle={[
           styles.list,
-          { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
+          { paddingHorizontal: spacing.xl, paddingTop: spacing.md },
         ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -140,8 +135,8 @@ export default function FavoritesScreen() {
           ) : (
             <EmptyState
               icon="heart-outline"
-              title="No saved properties"
-              description="Tap the heart icon on any property to save it here for later"
+              title="Nothing saved yet"
+              description="Tap the heart on a property to save it here for later."
               actionLabel="Explore Properties"
               onAction={() => navigation.navigate('ExploreTab' as any)}
             />
