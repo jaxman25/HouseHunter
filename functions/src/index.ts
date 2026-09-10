@@ -24,8 +24,9 @@ import { updateRatings } from './reviews';
 import { tourReminders, tourNotifications } from './tours';
 import { updateNeighborhoodData } from './neighborhood';
 import { exportUserData } from './exportData';
+import { runSavedSearches } from './savedSearchNotifications';
 
-export { autoArchiveProperties, updateRatings, tourReminders, tourNotifications, updateNeighborhoodData, exportUserData };
+export { autoArchiveProperties, updateRatings, tourReminders, tourNotifications, updateNeighborhoodData, exportUserData, runSavedSearches };
 import {
   SecurityAlertInput,
   sendEmail,

@@ -4,7 +4,8 @@ import { auth , db } from '../config/firebase';
 import { User } from '../types';
 import * as authService from '../services/authService';
 import { USERS_COLLECTION } from '../utils/constants';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { registerForPushNotifications } from '../services/notificationService';
 
 interface AuthContextType {
   user: User | null;
@@ -72,6 +73,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => unsubscribe();
   }, []);
+
+  // Register for push notifications and save the token to the user doc
+  // so the scheduled saved-search Cloud Function can send pushes.
+  useEffect(() => {
+    const uid = firebaseUser?.uid;
+    if (!uid) return;
+
+    registerForPushNotifications(uid).then((token) => {
+      if (token) {
+        updateDoc(doc(db, USERS_COLLECTION, uid), {
+          expoPushToken: token,
+        }).catch(() => {
+          // Best-effort; token registration failure is non-fatal.
+        });
+      }
+    });
+  }, [firebaseUser?.uid]);
 
   // Real-time user data subscription
   useEffect(() => {

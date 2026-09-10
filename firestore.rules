@@ -155,11 +155,9 @@ service cloud.firestore {
 
       // Users can only update their own profile (admins may suspend via the
       // dedicated suspend fields — see users/update allowlist).
-      allow update: if isOwner(userId) && (
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'displayName', 'phoneNumber', 'photoURL', 'bio', 'role',
-          'favorites', 'termsAcceptedAt', 'termsAcceptedVersion',
-          'updatedAt'
+      allow update: if isOwner(userId) && (        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'displayName', 'phoneNumber', 'photoURL', 'bio', 'role', 'favorites',
+          'termsAcceptedAt', 'termsAcceptedVersion', 'expoPushToken', 'updatedAt'
         ])
       ) || (isAdmin() && (
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
