@@ -4,8 +4,8 @@ import { auth , db } from '../config/firebase';
 import { User } from '../types';
 import * as authService from '../services/authService';
 import { USERS_COLLECTION } from '../utils/constants';
-import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
-import { registerForPushNotifications } from '../services/notificationService';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { persistPushToken, clearPushToken } from '../services/notificationService';
 
 interface AuthContextType {
   user: User | null;
@@ -74,21 +74,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  // Register for push notifications and save the token to the user doc
+  // Register for push notifications and persist the token to the user doc
   // so the scheduled saved-search Cloud Function can send pushes.
   useEffect(() => {
     const uid = firebaseUser?.uid;
     if (!uid) return;
-
-    registerForPushNotifications(uid).then((token) => {
-      if (token) {
-        updateDoc(doc(db, USERS_COLLECTION, uid), {
-          expoPushToken: token,
-        }).catch(() => {
-          // Best-effort; token registration failure is non-fatal.
-        });
-      }
-    });
+    void persistPushToken(uid);
   }, [firebaseUser?.uid]);
 
   // Real-time user data subscription
@@ -132,10 +123,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(async () => {
+    const uid = user?.uid;
     await authService.logout();
     setUser(null);
     setFirebaseUser(null);
-  }, []);
+    // Clear push token so stale tokens don't receive phantom notifications.
+    if (uid) void clearPushToken(uid);
+  }, [user?.uid]);
 
   const updateProfile = useCallback(
     async (data: Partial<User>) => {

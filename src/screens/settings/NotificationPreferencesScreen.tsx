@@ -121,7 +121,7 @@ export default function NotificationPreferencesScreen() {
         showToast('Failed to update. Please try again.');
       }
     },
-    [uid, notificationsPaused, prevPaused, writeUserField]
+    [notificationsPaused, prevPaused, writeUserField]
   );
 
   const handleTogglePref = useCallback(
@@ -137,7 +137,7 @@ export default function NotificationPreferencesScreen() {
         showToast('Failed to update. Please try again.');
       }
     },
-    [uid, prefs, prevPrefs, writeUserField]
+    [prefs, prevPrefs, writeUserField]
   );
 
   const handleFrequencyChange = useCallback(

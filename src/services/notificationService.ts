@@ -9,10 +9,11 @@ import {
   updateDoc,
   doc,
   serverTimestamp,
+  deleteField,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { AppNotification } from '../types';
-import { NOTIFICATIONS_COLLECTION } from '../utils/constants';
+import { NOTIFICATIONS_COLLECTION, USERS_COLLECTION } from '../utils/constants';
 
 // expo-notifications is not supported on web, so it is only loaded on
 // iOS/Android. On web these functions become safe no-ops.
@@ -61,6 +62,39 @@ export async function registerForPushNotifications(
 
   const token = (await Notifications.getExpoPushTokenAsync()).data;
   return token;
+}
+
+/**
+ * Persist the push token to the user's Firestore doc so the scheduled
+ * saved-search Cloud Function can send remote notifications.
+ * Writes `expoPushToken` on the user doc (single-device model — new
+ * token overwrites old; Expo invalidates stale tokens automatically).
+ */
+export async function persistPushToken(
+  userId: string
+): Promise<string | null> {
+  const token = await registerForPushNotifications(userId);
+  if (!token) return null;
+
+  await updateDoc(doc(db, USERS_COLLECTION, userId), {
+    expoPushToken: token,
+  }).catch(() => {
+    // Best-effort; token persistence failure is non-fatal.
+  });
+
+  return token;
+}
+
+/**
+ * Clear the push token on logout. The old token is useless after sign-out
+ * (Expo will reject pushes), and re-login will write a fresh one.
+ */
+export async function clearPushToken(userId: string): Promise<void> {
+  await updateDoc(doc(db, USERS_COLLECTION, userId), {
+    expoPushToken: deleteField(),
+  }).catch(() => {
+    // Best-effort; cleanup failure is non-fatal.
+  });
 }
 
 export async function scheduleLocalNotification(

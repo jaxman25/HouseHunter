@@ -15,7 +15,7 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<LanguageCode>('en');
   const [languageInfo, setLanguageInfo] = useState<LanguageInfo>(LANGUAGES.en);
-  const [isRTL, setIsRTL] = useState(false);
+  const [isRTLMode, setIsRTLMode] = useState(false);
   const [languages] = useState(() => getAllLanguages());
 
   // Load saved language on mount
@@ -23,14 +23,14 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     getSavedLanguage().then((saved) => {
       setLanguageState(saved);
       setLanguageInfo(getLanguageInfo(saved));
-      setIsRTL(isRTL(saved));
+      setIsRTLMode(isRTL(saved));
     });
   }, []);
 
   const setLanguage = useCallback(async (code: LanguageCode) => {
     setLanguageState(code);
     setLanguageInfo(getLanguageInfo(code));
-    setIsRTL(isRTL(code));
+    setIsRTLMode(isRTL(code));
     await saveLanguage(code);
   }, []);
 
@@ -40,7 +40,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
         language,
         setLanguage,
         languageInfo,
-        isRTL,
+        isRTL: isRTLMode,
         languages,
       }}
     >

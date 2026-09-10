@@ -5,7 +5,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LanguageCode, LANGUAGES } from '../types';
+import { LanguageCode, LanguageInfo, LANGUAGES } from '../types';
 
 const STORAGE_KEY = '@househunter/language';
 

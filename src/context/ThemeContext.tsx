@@ -2,7 +2,7 @@ import React, { createContext, useContext, ReactNode, useMemo, useState, useEffe
 import { Platform, useWindowDimensions, Appearance } from 'react-native';
 import { LIGHT_COLORS, DARK_COLORS, SPACING, RADIUS, FONT_SIZE, SHADOW, getColorsForMode } from '../config/theme';
 import { ThemeColors, ThemeMode } from '../types';
-import { getSavedTheme, saveTheme, getSystemTheme } from '../services/themeService';
+import { getSavedTheme, saveTheme } from '../services/themeService';
 
 interface ThemeContextType {
   colors: ThemeColors;
@@ -49,7 +49,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       setIsDark(false);
     } else {
       // System mode - check actual system appearance
-      setIsDark(Appearance.colorScheme === 'dark');
+      setIsDark(Appearance.getColorScheme() === 'dark');
     }
   }, []);
 
@@ -79,7 +79,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       return LIGHT_COLORS;
     }
     // System mode
-    return Appearance.colorScheme === 'dark' ? DARK_COLORS : LIGHT_COLORS;
+    return Appearance.getColorScheme() === 'dark' ? DARK_COLORS : LIGHT_COLORS;
   }, [themeMode]);
 
   // Slightly larger type on desktop web so text reads well in the centered

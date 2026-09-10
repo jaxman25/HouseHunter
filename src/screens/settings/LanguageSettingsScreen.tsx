@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { RootStackParamList } from '../../types';
-import { LanguageCode } from '../../services/languageService';
+import { LanguageCode } from '../../types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 

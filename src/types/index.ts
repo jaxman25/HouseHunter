@@ -22,6 +22,8 @@ export interface User {
   notificationsPaused?: boolean;
   /** Per-type notification toggles. Defaults to all-true for legacy users. */
   notificationPrefs?: NotificationPrefs;
+  /** Expo push token for remote notifications (scheduled saved-search job). */
+  expoPushToken?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -321,6 +323,7 @@ export type RootStackParamList = {
   LanguageSettings: undefined;
   ThemeSettings: undefined;
   NotificationPreferences: undefined;
+  SellerPerformance: undefined;
 };
 
 // ─── Theme Types ──────────────────────────────────────────
