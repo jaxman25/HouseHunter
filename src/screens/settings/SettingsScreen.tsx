@@ -38,9 +38,6 @@ export default function SettingsScreen() {
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
 
-  const [pushNotifications, setPushNotifications] = useState(true);
-  const [emailNotifications, setEmailNotifications] = useState(true);
-  const [messageNotifications, setMessageNotifications] = useState(true);
   const [showOnlineStatus, setShowOnlineStatus] = useState(true);
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [checkingHealth, setCheckingHealth] = useState(true);
@@ -83,27 +80,10 @@ export default function SettingsScreen() {
       items: [
         {
           icon: 'bell',
-          label: 'Push Notifications',
-          subtitle: 'Receive push notifications',
-          type: 'toggle' as const,
-          value: pushNotifications,
-          onToggle: setPushNotifications,
-        },
-        {
-          icon: 'email',
-          label: 'Email Notifications',
-          subtitle: 'Receive email updates',
-          type: 'toggle' as const,
-          value: emailNotifications,
-          onToggle: setEmailNotifications,
-        },
-        {
-          icon: 'message-text',
-          label: 'Message Alerts',
-          subtitle: 'Get notified for new messages',
-          type: 'toggle' as const,
-          value: messageNotifications,
-          onToggle: setMessageNotifications,
+          label: 'Notifications',
+          subtitle: 'Manage notification preferences',
+          type: 'link' as const,
+          onPress: () => navigation.navigate('NotificationPreferences'),
         },
       ],
     },

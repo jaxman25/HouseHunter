@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -6,11 +6,13 @@ import {
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
+  Animated,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
 import { RootStackParamList, SavedSearch } from '../../types';
 import { useSavedSearches } from '../../hooks/useSavedSearches';
@@ -18,19 +20,66 @@ import SaveSearchModal from '../../components/search/SaveSearchModal';
 import SavedSearchCard from '../../components/search/SavedSearchCard';
 import EmptyState from '../../components/common/EmptyState';
 import PropertyCardSkeleton from '../../components/common/PropertyCardSkeleton';
-import { confirmDialog } from '../../utils/ui/dialogs';
+import { confirmDialog, showAlert } from '../../utils/ui/dialogs';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
+type SavedSearchesRouteProp = RouteProp<RootStackParamList, 'SavedSearches'>;
 
 export default function SavedSearchesScreen() {
   const { colors, fontSize, spacing, radius } = useTheme();
   const navigation = useNavigation<Nav>();
+  const route = useRoute<SavedSearchesRouteProp>();
   const insets = useSafeAreaInsets();
   const { searches, loading, refresh, create, update, remove, toggleActive, run } =
     useSavedSearches();
   const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [editing, setEditing] = useState<SavedSearch | null>(null);
+
+  // Highlight state: the savedSearchId to highlight (from route param or notification tap).
+  const highlightId = route.params?.savedSearchId;
+  const flatListRef = useRef<FlatList<SavedSearch>>(null);
+  const highlightAnim = useRef(new Animated.Value(0)).current;
+
+  // When searches load and highlightId is set, scroll to and animate the card.
+  useEffect(() => {
+    if (!highlightId || loading || searches.length === 0) return;
+
+    const index = searches.findIndex((s) => s.id === highlightId);
+    if (index === -1) {
+      // Saved search not found (deleted or stale). Show a non-blocking toast.
+      if (Platform.OS === 'web') {
+        showAlert('Saved search not found', 'This search may have been deleted.');
+      } else {
+        // Use a brief toast-like alert for native
+        showAlert('Saved search not found', 'This search may have been deleted.');
+      }
+      return;
+    }
+
+    // Scroll to the card after a brief delay to ensure FlatList has rendered.
+    const scrollTimer = setTimeout(() => {
+      flatListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.3 });
+
+      // Animate highlight: fade in border + subtle background pulse, then fade out.
+      highlightAnim.setValue(0);
+      Animated.sequence([
+        Animated.timing(highlightAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+        Animated.delay(2000),
+        Animated.timing(highlightAnim, {
+          toValue: 0,
+          duration: 500,
+          useNativeDriver: false,
+        }),
+      ]).start();
+    }, 300);
+
+    return () => clearTimeout(scrollTimer);
+  }, [highlightId, loading, searches, highlightAnim]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -63,6 +112,16 @@ export default function SavedSearchesScreen() {
       'Delete'
     );
   };
+
+  // Interpolate highlight border color and background opacity from the animation value.
+  const highlightBorderColor = highlightAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['transparent', colors.primary],
+  });
+  const highlightBgOpacity = highlightAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 0.08],
+  });
 
   return (
     <View
@@ -108,6 +167,7 @@ export default function SavedSearchesScreen() {
       </View>
 
       <FlatList
+        ref={flatListRef}
         data={searches}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: spacing.xl, paddingBottom: 100 }}
@@ -115,18 +175,37 @@ export default function SavedSearchesScreen() {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
         }
-        renderItem={({ item }) => (
-          <SavedSearchCard
-            search={item}
-            onRun={() => void handleRun(item)}
-            onEdit={() => {
-              setEditing(item);
-              setModalVisible(true);
-            }}
-            onDelete={() => handleDelete(item)}
-            onToggleActive={(active) => void toggleActive(item.id, active)}
-          />
-        )}
+        renderItem={({ item }) => {
+          const isHighlighted = item.id === highlightId;
+          return (
+            <Animated.View
+              style={
+                isHighlighted
+                  ? {
+                      borderColor: highlightBorderColor,
+                      borderWidth: 2,
+                      borderRadius: radius.lg,
+                      backgroundColor: highlightBgOpacity.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ['transparent', colors.primaryLight],
+                      }),
+                    }
+                  : undefined
+              }
+            >
+              <SavedSearchCard
+                search={item}
+                onRun={() => void handleRun(item)}
+                onEdit={() => {
+                  setEditing(item);
+                  setModalVisible(true);
+                }}
+                onDelete={() => handleDelete(item)}
+                onToggleActive={(active) => void toggleActive(item.id, active)}
+              />
+            </Animated.View>
+          );
+        }}
         ListEmptyComponent={
           loading ? (
             <View>

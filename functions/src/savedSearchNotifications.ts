@@ -57,6 +57,15 @@ interface SavedSearchDoc {
 interface UserDoc {
   expoPushToken?: string;
   displayName?: string;
+  notificationsPaused?: boolean;
+  notificationPrefs?: {
+    message: boolean;
+    inquiry: boolean;
+    price_drop: boolean;
+    new_listing: boolean;
+    favorite: boolean;
+    system: boolean;
+  };
 }
 
 interface RunSummary {
@@ -163,16 +172,39 @@ export const runSavedSearches = onSchedule(
       let batch = db.batch();
       let batchOps = 0;
 
-      // Per-user push aggregation: userId → { token, searches[] }
+      // Per-user push aggregation: userId → { token, searches[], notificationIds[] }
       const pushQueue: Map<
         string,
-        { token: string; searches: { name: string; count: number }[] }
+        {
+          token: string;
+          searches: { name: string; count: number }[];
+          notificationIds: string[];
+        }
       > = new Map();
 
       for (const userDoc of usersSnap.docs) {
         summary.usersScanned++;
         const uid = userDoc.id;
         const userData = userDoc.data() as UserDoc;
+
+        // Global pause — skip this user entirely.
+        if (userData.notificationsPaused === true) continue;
+
+        // Per-type prefs: default to all-true for legacy users.
+        const notifPrefs = userData.notificationPrefs ?? {
+          message: true,
+          inquiry: true,
+          price_drop: true,
+          new_listing: true,
+          favorite: true,
+          system: true,
+        };
+
+        // If new_listing notifications are disabled, skip the user's
+        // saved searches entirely (they only produce new_listing notifs).
+        // Still advance lastRunAt on each search so the user doesn't get
+        // a backlog when they re-enable.
+        const skipNewListingNotifs = notifPrefs.new_listing === false;
 
         // Fetch this user's saved searches.
         const searchesSnap = await db
@@ -208,7 +240,29 @@ export const runSavedSearches = onSchedule(
 
             const result = await executeSavedSearch(filters as never, since);
 
-            if (result.count === 0) continue;
+            if (result.count === 0) {
+              // No matches — still advance lastRunAt so cadence gates stay fresh.
+              batch.update(searchDoc.ref, {
+                lastRunAt: FieldValue.serverTimestamp(),
+                matchCount: 0,
+                updatedAt: FieldValue.serverTimestamp(),
+              });
+              batchOps++;
+              continue;
+            }
+
+            if (skipNewListingNotifs) {
+              // User disabled new_listing notifications — skip the
+              // notification doc and push, but advance lastRunAt so
+              // they don't get a backlog when they re-enable.
+              batch.update(searchDoc.ref, {
+                lastRunAt: FieldValue.serverTimestamp(),
+                matchCount: result.count,
+                updatedAt: FieldValue.serverTimestamp(),
+              });
+              batchOps++;
+              continue;
+            }
 
             // Write notification doc to top-level notifications collection
             // (matches existing pattern: archive.ts, tours.ts, index.ts).
@@ -231,6 +285,12 @@ export const runSavedSearches = onSchedule(
             });
             batchOps++;
             summary.notificationsWritten++;
+            // Track the notification ID for the push payload so the client
+            // can mark it as read on tap.
+            const pendingEntry = pushQueue.get(uid);
+            if (pendingEntry) {
+              pendingEntry.notificationIds.push(notificationRef.id);
+            }
 
             // Update the saved search doc with run timestamps.
             batch.update(searchDoc.ref, {
@@ -263,13 +323,13 @@ export const runSavedSearches = onSchedule(
 
         // Queue push notification for this user (aggregated across searches).
         if (userPushMatches.length > 0 && userData.expoPushToken) {
-          const totalMatches = userPushMatches.reduce((s, m) => s + m.count, 0);
           pushQueue.set(uid, {
             token: userData.expoPushToken,
             searches: userPushMatches,
+            notificationIds: [],
           });
           // We'll send the push after committing the batch so the notification
-          // doc exists when the user taps the push.
+          // docs exist when the user taps the push.
         }
 
         // Commit the batch if approaching the limit.
@@ -292,14 +352,17 @@ export const runSavedSearches = onSchedule(
         body: string;
         data: Record<string, string>;
       }[] = [];
-      for (const [, { token, searches }] of pushQueue) {
+      for (const [, { token, searches, notificationIds }] of pushQueue) {
         const totalMatches = searches.reduce((s, m) => s + m.count, 0);
         const searchNames = searches.map((s) => s.name).join(', ');
         pushMessages.push({
           to: token,
           title: `${totalMatches} new listing${totalMatches > 1 ? 's' : ''} found`,
           body: `Your saved searches (${searchNames}) have new matches.`,
-          data: { type: 'new_listing' },
+          data: {
+            type: 'new_listing',
+            notificationIds: notificationIds.join(','),
+          },
         });
       }
       summary.pushesSent += await sendPushBatch(pushMessages);

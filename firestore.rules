@@ -157,7 +157,8 @@ service cloud.firestore {
       // dedicated suspend fields — see users/update allowlist).
       allow update: if isOwner(userId) && (        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'displayName', 'phoneNumber', 'photoURL', 'bio', 'role', 'favorites',
-          'termsAcceptedAt', 'termsAcceptedVersion', 'expoPushToken', 'updatedAt'
+          'termsAcceptedAt', 'termsAcceptedVersion', 'expoPushToken', 'updatedAt',
+          'notificationsPaused', 'notificationPrefs'
         ])
       ) || (isAdmin() && (
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -182,7 +183,7 @@ service cloud.firestore {
           request.resource.data.name is string &&
           request.resource.data.name.size() >= 1 &&
           request.resource.data.name.size() <= 60 &&
-          request.resource.data.notificationFrequency in ['instant', 'daily', 'weekly'] &&
+          request.resource.data.notificationFrequency in ['instant', 'daily', 'weekly', 'off'] &&
           request.resource.data.isActive is bool &&
           request.resource.data.filters is map;
 

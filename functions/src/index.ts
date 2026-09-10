@@ -396,20 +396,36 @@ export const sendSellerInquiry = onCall(async (request) => {
     .catch((error: unknown) => {
       console.error('[sendSellerInquiry] inquiry counter update failed:', error);
     });
-  await db
-    .collection('notifications')
-    .add({
-      userId: property.userId,
-      title: 'New inquiry',
-      body: `${buyerName} is interested in your listing: ${property.title}`,
-      type: 'inquiry',
-      data: { propertyId, buyerId: uid },
-      read: false,
-      createdAt: FieldValue.serverTimestamp(),
-    })
-    .catch((error: unknown) => {
-      console.error('[sendSellerInquiry] seller notification failed:', error);
-    });
+
+  // Check if the seller has inquiry notifications enabled.
+  // Legacy users (no notificationPrefs) default to all-on.
+  const sellerSnap = await db.doc(`users/${property.userId}`).get().catch(() => null);
+  const sellerPrefs = sellerSnap?.data()?.notificationPrefs ?? {
+    message: true,
+    inquiry: true,
+    price_drop: true,
+    new_listing: true,
+    favorite: true,
+    system: true,
+  };
+  const isPaused = sellerSnap?.data()?.notificationsPaused === true;
+
+  if (!isPaused && sellerPrefs.inquiry !== false) {
+    await db
+      .collection('notifications')
+      .add({
+        userId: property.userId,
+        title: 'New inquiry',
+        body: `${buyerName} is interested in your listing: ${property.title}`,
+        type: 'inquiry',
+        data: { propertyId, buyerId: uid },
+        read: false,
+        createdAt: FieldValue.serverTimestamp(),
+      })
+      .catch((error: unknown) => {
+        console.error('[sendSellerInquiry] seller notification failed:', error);
+      });
+  }
 
   return { ok: true };
 });

@@ -18,6 +18,10 @@ export interface User {
   suspended?: boolean;
   suspensionReason?: string;
   suspensionExpiry?: string;
+  /** Global pause — when true, the scheduled function skips this user entirely. */
+  notificationsPaused?: boolean;
+  /** Per-type notification toggles. Defaults to all-true for legacy users. */
+  notificationPrefs?: NotificationPrefs;
   createdAt: string;
   updatedAt: string;
 }
@@ -168,8 +172,29 @@ export interface RecentlyViewedItem {
   viewedAt: string;
 }
 
+// ─── Notification Prefs ─────────────────────────────────
+/** Per-type notification toggles stored on the user doc. */
+export interface NotificationPrefs {
+  message: boolean;
+  inquiry: boolean;
+  price_drop: boolean;
+  new_listing: boolean;
+  favorite: boolean;
+  system: boolean; // always true — not user-toggleable
+}
+
+/** Default prefs (all on) for legacy users without notificationPrefs. */
+export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
+  message: true,
+  inquiry: true,
+  price_drop: true,
+  new_listing: true,
+  favorite: true,
+  system: true,
+};
+
 // ─── Saved Searches ───────────────────────────────────────
-export type NotificationFrequency = 'instant' | 'daily' | 'weekly';
+export type NotificationFrequency = 'instant' | 'daily' | 'weekly' | 'off';
 
 /** Filter criteria persisted with a saved search (subset of PropertyFilter). */
 export interface SavedSearchFilters {
@@ -277,7 +302,7 @@ export type RootStackParamList = {
   EditProfile: undefined;
   ChangePassword: undefined;
   DeleteAccount: undefined;
-  SavedSearches: undefined;
+  SavedSearches: { savedSearchId?: string } | undefined;
   Terms: undefined;
   PrivacyPolicy: undefined;
   // ─── Feature Screens ──────────────────────────────────
@@ -295,6 +320,7 @@ export type RootStackParamList = {
   CurrencySettings: undefined;
   LanguageSettings: undefined;
   ThemeSettings: undefined;
+  NotificationPreferences: undefined;
 };
 
 // ─── Theme Types ──────────────────────────────────────────
