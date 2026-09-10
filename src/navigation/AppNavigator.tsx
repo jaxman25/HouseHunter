@@ -46,6 +46,7 @@ import CurrencySettingsScreen from '../screens/settings/CurrencySettingsScreen';
 import LanguageSettingsScreen from '../screens/settings/LanguageSettingsScreen';
 import ThemeSettingsScreen from '../screens/settings/ThemeSettingsScreen';
 import NotificationPreferencesScreen from '../screens/settings/NotificationPreferencesScreen';
+import SellerPerformanceScreen from '../screens/property/SellerPerformanceScreen';
 import TermsGate from '../screens/legal/TermsGate';
 import {
   PrivacyPolicyScreen,
@@ -118,6 +119,7 @@ function MainStack() {
       <Stack.Screen name="LanguageSettings" component={withErrorBoundary(LanguageSettingsScreen)} />
       <Stack.Screen name="ThemeSettings" component={withErrorBoundary(ThemeSettingsScreen)} />
       <Stack.Screen name="NotificationPreferences" component={withErrorBoundary(NotificationPreferencesScreen)} />
+      <Stack.Screen name="SellerPerformance" component={withErrorBoundary(SellerPerformanceScreen)} />
     </Stack.Navigator>
   );
 }

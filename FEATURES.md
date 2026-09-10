@@ -35,6 +35,7 @@ Storage, Hosting, Cloud Functions) and **Google Maps**.
 | Listing types: Buy / Rent | |
 | 20 amenities/features (parking, pool, gym, pet-friendly, AC, …) | |
 | View counts & inquiry tracking per listing | `src/services/propertyService.ts` |
+| Seller Performance Dashboard — per-listing views, inquiries, days-on-market; portfolio summary with totals; sort by newest/views/inquiries; stale indicator for listings > 30 days | `src/screens/property/SellerPerformanceScreen.tsx`, reads existing `views`, `inquiries`, `createdAt` fields |
 | Current-location capture when adding a listing | `expo-location` in `AddPropertyScreen.tsx` |
 | Optimistic concurrency control | Firestore rules enforce a `version` bump on every owner edit |
 | Write rate limiting | Firestore rules budget writes per user/minute via `counters/{uid}`; client increments in the same batch (`src/services/propertyService.ts`) |

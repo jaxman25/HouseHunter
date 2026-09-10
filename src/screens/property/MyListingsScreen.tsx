@@ -397,12 +397,22 @@ export default function MyListingsScreen() {
         <Text style={[styles.headerTitle, { color: colors.text, fontSize: fontSize.xl }]}>
           My Listings
         </Text>
-        <TouchableOpacity
-          onPress={() => navigation.navigate('AddProperty')}
-          style={[styles.addBtn, { backgroundColor: colors.primary }]}
-        >
-          <MaterialCommunityIcons name="plus" size={20} color={colors.white} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('SellerPerformance' as any)}
+            style={[styles.headerActionBtn, { backgroundColor: colors.gray100 }]}
+            accessibilityRole="button"
+            accessibilityLabel="View performance metrics"
+          >
+            <MaterialCommunityIcons name="chart-bar" size={20} color={colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('AddProperty')}
+            style={[styles.addBtn, { backgroundColor: colors.primary }]}
+          >
+            <MaterialCommunityIcons name="plus" size={20} color={colors.white} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Status filter tabs with counts */}
@@ -493,6 +503,7 @@ const styles = StyleSheet.create({
   backBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontWeight: '700' },
   addBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  headerActionBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   list: { paddingBottom: 100 },
   tabBar: { flexDirection: 'row', paddingVertical: 10, borderBottomWidth: 0.5 },
   tabChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8 },
