@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { Platform, AppState, AppStateStatus } from 'react-native';
 import {
   collection,
   addDoc,
@@ -95,6 +95,34 @@ export async function clearPushToken(userId: string): Promise<void> {
   }).catch(() => {
     // Best-effort; cleanup failure is non-fatal.
   });
+}
+
+/**
+ * Watch for app foreground transitions and re-register the push token.
+ * Expo can rotate tokens at any time; re-registering on foreground
+ * ensures the stored token stays valid. The permission check in
+ * registerForPushNotifications is a no-op if already granted, and
+ * persistPushToken writes only if the token actually changed (Expo
+ * returns the same token if nothing rotated).
+ */
+let foregroundSub: ReturnType<typeof AppState.addEventListener> | null = null;
+let lastForegroundUid: string | null = null;
+
+export function startForegroundTokenWatch(userId: string): void {
+  lastForegroundUid = userId;
+  if (foregroundSub) return; // already watching
+
+  foregroundSub = AppState.addEventListener('change', (state: AppStateStatus) => {
+    if (state === 'active' && lastForegroundUid) {
+      void persistPushToken(lastForegroundUid);
+    }
+  });
+}
+
+export function stopForegroundTokenWatch(): void {
+  foregroundSub?.remove();
+  foregroundSub = null;
+  lastForegroundUid = null;
 }
 
 export async function scheduleLocalNotification(

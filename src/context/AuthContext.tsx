@@ -5,7 +5,7 @@ import { User } from '../types';
 import * as authService from '../services/authService';
 import { USERS_COLLECTION } from '../utils/constants';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { persistPushToken, clearPushToken } from '../services/notificationService';
+import { persistPushToken, clearPushToken, startForegroundTokenWatch, stopForegroundTokenWatch } from '../services/notificationService';
 
 interface AuthContextType {
   user: User | null;
@@ -78,8 +78,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // so the scheduled saved-search Cloud Function can send pushes.
   useEffect(() => {
     const uid = firebaseUser?.uid;
-    if (!uid) return;
+    if (!uid) {
+      stopForegroundTokenWatch();
+      return;
+    }
     void persistPushToken(uid);
+    startForegroundTokenWatch(uid);
+    return () => stopForegroundTokenWatch();
   }, [firebaseUser?.uid]);
 
   // Real-time user data subscription
