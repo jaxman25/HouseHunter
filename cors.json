@@ -1,6 +1,26 @@
 [
   {
     "origin": [
+      "https://househunter.app",
+      "https://househunter.web.app",
+      "https://househunter.firebaseapp.com"
+    ],
+    "method": [
+      "GET",
+      "POST",
+      "PUT",
+      "DELETE",
+      "HEAD"
+    ],
+    "maxAgeSeconds": 3600,
+    "responseHeader": [
+      "Content-Type",
+      "Authorization",
+      "X-Request-ID"
+    ]
+  },
+  {
+    "origin": [
       "http://localhost:8081",
       "http://localhost:19006",
       "http://localhost:3000"
@@ -12,6 +32,11 @@
       "DELETE",
       "HEAD"
     ],
-    "maxAgeSeconds": 3600
+    "maxAgeSeconds": 3600,
+    "responseHeader": [
+      "Content-Type",
+      "Authorization",
+      "X-Request-ID"
+    ]
   }
 ]

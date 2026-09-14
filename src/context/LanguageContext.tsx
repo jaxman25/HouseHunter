@@ -1,6 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { LanguageCode, LanguageInfo, LANGUAGES } from '../types';
-import { getSavedLanguage, saveLanguage, getLanguageInfo, getAllLanguages, isRTL } from '../services/languageService';
+import { getSavedLanguage, saveLanguage, getLanguageInfo, getAllLanguages, isRTL as _isRTL } from '../services/languageService';
+
+/**
+ * Defensive guard — if the Metro web bundler produces a stale module where the
+ * named export is undefined, fall back to a safe inline implementation so the
+ * app doesn't crash at runtime.
+ */
+const isRTL: (code: LanguageCode) => boolean =
+  typeof _isRTL === 'function' ? _isRTL : (code) => LANGUAGES[code]?.direction === 'rtl';
 
 interface LanguageContextType {
   language: LanguageCode;
@@ -23,14 +31,14 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     getSavedLanguage().then((saved) => {
       setLanguageState(saved);
       setLanguageInfo(getLanguageInfo(saved));
-      setIsRTLMode(isRTL(saved));
+      setIsRTLMode(typeof isRTL === 'function' ? isRTL(saved) : false);
     });
   }, []);
 
   const setLanguage = useCallback(async (code: LanguageCode) => {
     setLanguageState(code);
     setLanguageInfo(getLanguageInfo(code));
-    setIsRTLMode(isRTL(code));
+    setIsRTLMode(typeof isRTL === 'function' ? isRTL(code) : false);
     await saveLanguage(code);
   }, []);
 

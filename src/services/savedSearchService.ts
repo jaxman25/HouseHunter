@@ -13,10 +13,11 @@ import {
   Timestamp,
   DocumentSnapshot,
 } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { auth, db } from '../config/firebase';
 import { Property, PropertyFilter, SavedSearch, SavedSearchFilters } from '../types';
 import { SAVED_SEARCHES_COLLECTION, MAX_SAVED_SEARCHES } from '../utils/constants';
 import { getProperties } from './propertyService';
+import { sanitize } from '../utils/security/sanitize';
 
 /**
  * Saved searches: filter criteria a user stores under `users/{uid}/savedSearches`
@@ -88,13 +89,23 @@ export async function createSavedSearch(
   userId: string,
   input: SavedSearchInput
 ): Promise<SavedSearch> {
+  // SECURITY (IDOR): Verify the caller owns this userId.
+  const user = auth.currentUser;
+  if (!user || user.uid !== userId) {
+    throw new Error('Unauthorized: you can only create saved searches for yourself');
+  }
+
   const existing = await getSavedSearches(userId);
   if (existing.length >= MAX_SAVED_SEARCHES) {
     throw new Error(`You've reached the maximum of ${MAX_SAVED_SEARCHES} saved searches`);
   }
+  // SECURITY: Sanitize input fields.
+  const sanitizedName = sanitize(input.name, 60);
+  if (!sanitizedName) throw new Error('Search name cannot be empty');
+
   const now = serverTimestamp();
   const ref = await addDoc(savedSearchesRef(userId), {
-    name: input.name.trim(),
+    name: sanitizedName,
     filters: input.filters,
     notificationFrequency: input.notificationFrequency,
     isActive: true,
@@ -112,6 +123,11 @@ export async function updateSavedSearch(
   searchId: string,
   data: Partial<Pick<SavedSearch, 'name' | 'filters' | 'notificationFrequency' | 'isActive'>>
 ): Promise<void> {
+  // SECURITY (IDOR): Verify the caller owns this userId.
+  const user = auth.currentUser;
+  if (!user || user.uid !== userId) {
+    throw new Error('Unauthorized: you can only update your own saved searches');
+  }
   await updateDoc(searchRef(userId, searchId), { ...data, updatedAt: serverTimestamp() });
 }
 
@@ -119,6 +135,11 @@ export async function deleteSavedSearch(
   userId: string,
   searchId: string
 ): Promise<void> {
+  // SECURITY (IDOR): Verify the caller owns this userId.
+  const user = auth.currentUser;
+  if (!user || user.uid !== userId) {
+    throw new Error('Unauthorized: you can only delete your own saved searches');
+  }
   await deleteDoc(searchRef(userId, searchId));
 }
 
@@ -127,6 +148,11 @@ export async function toggleSavedSearchActive(
   searchId: string,
   isActive: boolean
 ): Promise<void> {
+  // SECURITY (IDOR): Verify the caller owns this userId.
+  const user = auth.currentUser;
+  if (!user || user.uid !== userId) {
+    throw new Error('Unauthorized: you can only toggle your own saved searches');
+  }
   await updateDoc(searchRef(userId, searchId), {
     isActive,
     updatedAt: serverTimestamp(),

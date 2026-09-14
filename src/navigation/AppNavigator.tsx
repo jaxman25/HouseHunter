@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useCallback } from 'react';
-import { ActivityIndicator, View, StyleSheet, Platform } from 'react-native';
+import { ActivityIndicator, View, StyleSheet, Platform, AppState } from 'react-native';
 import * as Linking from 'expo-linking';
 import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -33,6 +33,7 @@ import UsersManagementScreen from '../screens/admin/UsersManagementScreen';
 import ReportsManagementScreen from '../screens/admin/ReportsManagementScreen';
 import SystemSettingsScreen from '../screens/admin/SystemSettingsScreen';
 import AnalyticsScreen from '../screens/admin/AnalyticsScreen';
+import AuditLogScreen from '../screens/admin/AuditLogScreen';
 import ReviewModerationScreen from '../screens/admin/ReviewModerationScreen';
 import ReviewsScreen from '../screens/property/ReviewsScreen';
 import WriteReviewScreen from '../screens/property/WriteReviewScreen';
@@ -48,6 +49,9 @@ import ThemeSettingsScreen from '../screens/settings/ThemeSettingsScreen';
 import NotificationPreferencesScreen from '../screens/settings/NotificationPreferencesScreen';
 import SellerPerformanceScreen from '../screens/property/SellerPerformanceScreen';
 import TermsGate from '../screens/legal/TermsGate';
+import EmailVerificationGate from '../screens/auth/EmailVerificationGate';
+import { useSessionTimeout } from '../utils/auth/useSessionTimeout';
+import { checkSessionValidity } from '../services/sessionService';
 import {
   PrivacyPolicyScreen,
   TermsOfServiceScreen,
@@ -99,6 +103,7 @@ function MainStack() {
       <Stack.Screen name="AdminReports" component={withErrorBoundary(ReportsManagementScreen)} />
       <Stack.Screen name="AdminSettings" component={withErrorBoundary(SystemSettingsScreen)} />
       <Stack.Screen name="AdminAnalytics" component={withErrorBoundary(AnalyticsScreen)} />
+      <Stack.Screen name="AdminAuditLog" component={withErrorBoundary(AuditLogScreen)} />
       <Stack.Screen name="Settings" component={withErrorBoundary(SettingsScreen)} />
       <Stack.Screen name="EditProfile" component={withErrorBoundary(EditProfileScreen)} />
       <Stack.Screen name="ChangePassword" component={withErrorBoundary(ChangePasswordScreen)} />
@@ -125,8 +130,28 @@ function MainStack() {
 }
 
 export default function AppNavigator() {
-  const { user, loading } = useAuthContext();
+  const { user, loading, logout } = useAuthContext();
   const { colors } = useTheme();
+
+  // SECURITY: Auto-logout after 30 minutes of inactivity.
+  // This protects against abandoned sessions on shared devices.
+  useSessionTimeout(logout, { timeoutMinutes: 30, enabled: Boolean(user) });
+
+  // SECURITY: Check session validity when app comes to foreground.
+  // If the password was changed on another device, this forces a re-login.
+  useEffect(() => {
+    if (!user) return;
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        checkSessionValidity().then((valid) => {
+          if (!valid) {
+            logout().catch(() => {});
+          }
+        });
+      }
+    });
+    return () => subscription.remove();
+  }, [user?.uid, logout]);
 
   // Deep-link routing: househunter://property/{id} (native) and
   // {origin}/property/{id} (web) open the property detail screen. Initial
@@ -256,6 +281,13 @@ export default function AppNavigator() {
   // accounts) must agree before reaching the app.
   const needsTermsConsent = Boolean(user && !user.termsAcceptedVersion);
 
+  // SECURITY: Email accounts that haven't verified their email must
+  // complete verification before accessing the main app. This prevents
+  // attackers from registering throwaway accounts with stolen emails.
+  const needsEmailVerification =
+    Boolean(user?.email) &&
+    user?.emailVerified === false;
+
   return (
     <NavigationContainer
       ref={navigationRef}
@@ -274,6 +306,8 @@ export default function AppNavigator() {
         <ErrorBoundary><AuthNavigator /></ErrorBoundary>
       ) : needsTermsConsent ? (
         <TermsGate userId={user.uid} />
+      ) : needsEmailVerification ? (
+        <EmailVerificationGate />
       ) : (
         <MainStack />
       )}

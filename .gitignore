@@ -19,6 +19,12 @@ expo-env.d.ts
 .env
 .env.local
 .env.*.local
+.env.development
+.env.production
+.env.staging
+.env.*
+!.env.example
+!functions/.env.example
 
 # Firebase Cloud Functions (own .gitignore in functions/)
 functions/lib/

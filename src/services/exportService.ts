@@ -10,7 +10,7 @@ import {
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { auth, db } from '../config/firebase';
 import { DataExport } from '../types';
 import {
   EXPORTS_COLLECTION,
@@ -53,6 +53,12 @@ function toExport(docSnap: any): DataExport {
 
 /** Request a data export (GDPR). The actual compilation is done via Cloud Function. */
 export async function requestDataExport(userId: string): Promise<string> {
+  // SECURITY (IDOR): Verify the caller owns this userId.
+  const user = auth.currentUser;
+  if (!user || user.uid !== userId) {
+    throw new Error('Unauthorized: you can only request exports for yourself');
+  }
+
   // Check for existing pending/processing export
   const existing = await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
@@ -95,6 +101,12 @@ export async function requestDataExport(userId: string): Promise<string> {
 
 /** Get the user's export history. */
 export async function getUserExports(userId: string): Promise<DataExport[]> {
+  // SECURITY (IDOR): Verify the caller owns this userId.
+  const user = auth.currentUser;
+  if (!user || user.uid !== userId) {
+    throw new Error('Unauthorized: you can only view your own exports');
+  }
+
   const result = await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(

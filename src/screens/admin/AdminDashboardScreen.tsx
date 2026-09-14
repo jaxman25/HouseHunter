@@ -15,6 +15,7 @@ const QUICK_ACTIONS: { icon: string; label: string; description: string; route: 
   { icon: 'account-group-outline', label: 'Users', description: 'Search, suspend, and manage accounts', route: 'AdminUsers' },
   { icon: 'flag-outline', label: 'Reports', description: 'Triage reported listings and users', route: 'AdminReports' },
   { icon: 'chart-bar', label: 'Analytics', description: 'Platform metrics and trends', route: 'AdminAnalytics' },
+  { icon: 'file-document-outline', label: 'Audit Log', description: 'Security events and admin actions', route: 'AdminAuditLog' },
   { icon: 'bullhorn-outline', label: 'Announcements', description: 'Publish in-app notices', route: 'AdminSettings' },
 ];
 

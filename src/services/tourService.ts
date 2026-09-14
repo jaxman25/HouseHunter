@@ -22,9 +22,11 @@ import {
   PROPERTIES_COLLECTION,
   USERS_COLLECTION,
 } from '../utils/constants';
+import { auth } from '../config/firebase';
 import { firestoreCircuitBreaker } from '../utils/network/circuitBreaker';
 import { withRetry } from '../utils/network/retry';
 import { withTimeout, DEFAULT_TIMEOUT_MS } from '../utils/network/timeout';
+import { sanitize } from '../utils/security/sanitize';
 
 function toISO(value: unknown): string {
   if (!value) return new Date().toISOString();
@@ -66,6 +68,12 @@ function toTour(docSnap: DocumentSnapshot): Tour {
 
 /** Set or update seller availability settings. */
 export async function setAvailability(availability: Omit<TourAvailability, 'createdAt' | 'updatedAt'>): Promise<void> {
+  // SECURITY (IDOR): Verify the caller is the seller.
+  const user = auth.currentUser;
+  if (!user || user.uid !== availability.sellerId) {
+    throw new Error('Unauthorized: you can only set your own availability');
+  }
+
   const docRef = doc(db, TOUR_AVAILABILITY_COLLECTION, availability.sellerId);
   await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
@@ -187,6 +195,24 @@ export async function isSlotAvailable(
 
 /** Create a tour request. */
 export async function createTour(tour: Omit<Tour, 'id' | 'createdAt' | 'updatedAt' | 'reminderSent' | 'status'>): Promise<string> {
+  // SECURITY (IDOR): Verify the caller is the buyer creating the tour.
+  const user = auth.currentUser;
+  if (!user || user.uid !== tour.buyerId) {
+    throw new Error('Unauthorized: you can only book tours as yourself');
+  }
+
+  // SECURITY: Sanitize tour text fields.
+  const sanitizedTour = {
+    ...tour,
+    buyerName: sanitize(tour.buyerName, 100),
+    sellerName: sanitize(tour.sellerName, 100),
+    propertyTitle: sanitize(tour.propertyTitle, 200),
+    notes: sanitize(tour.notes, 1000),
+    // Enforce numeric bounds
+    duration: Math.max(15, Math.min(240, Math.round(tour.duration))),
+    attendees: Math.max(1, Math.min(20, Math.round(tour.attendees))),
+  };
+
   const isAvailable = await isSlotAvailable(tour.sellerId, tour.datetime, tour.duration);
   if (!isAvailable) {
     throw new Error('This time slot is not available. Please choose another.');
@@ -196,7 +222,7 @@ export async function createTour(tour: Omit<Tour, 'id' | 'createdAt' | 'updatedA
     withRetry(() =>
       withTimeout(
         addDoc(collection(db, TOURS_COLLECTION), {
-          ...tour,
+          ...sanitizedTour,
           status: 'pending',
           reminderSent: false,
           createdAt: serverTimestamp(),
@@ -250,6 +276,19 @@ export async function updateTourStatus(
   userId?: string,
   reason?: string
 ): Promise<void> {
+  // SECURITY (IDOR): Verify the caller is a participant in this tour.
+  const user = auth.currentUser;
+  if (user && userId && user.uid !== userId) {
+    throw new Error('Unauthorized: you can only update your own tours');
+  }
+
+  // Verify the user is a participant by reading the tour.
+  const tour = await getTour(tourId);
+  if (!tour) throw new Error('Tour not found');
+  if (user && user.uid !== tour.buyerId && user.uid !== tour.sellerId) {
+    throw new Error('Unauthorized: you are not a participant in this tour');
+  }
+
   const updateData: Record<string, unknown> = {
     status,
     updatedAt: serverTimestamp(),
@@ -260,7 +299,7 @@ export async function updateTourStatus(
   }
   if (status === 'canceled' && userId) {
     updateData.canceledBy = userId;
-    updateData.cancelReason = reason || '';
+    updateData.cancelReason = reason ? sanitize(reason, 500) : '';
   }
   if (status === 'completed') {
     updateData.status = 'completed';
@@ -283,6 +322,12 @@ export async function rescheduleTour(
 ): Promise<void> {
   const tour = await getTour(tourId);
   if (!tour) throw new Error('Tour not found');
+
+  // SECURITY (IDOR): Verify the caller is a participant.
+  const user = auth.currentUser;
+  if (user && user.uid !== tour.buyerId && user.uid !== tour.sellerId) {
+    throw new Error('Unauthorized: you are not a participant in this tour');
+  }
 
   const isAvailable = await isSlotAvailable(tour.sellerId, newDatetime, tour.duration);
   if (!isAvailable) {

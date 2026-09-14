@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,8 @@ import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import LoadingOverlay from '../../components/common/LoadingOverlay';
 import { validateEmail } from '../../utils/validators';
+import { getLoginCooldownMs } from '../../utils/auth/loginRateLimiter';
+import HoneypotField, { isFormSubmittedTooFast } from '../../components/common/HoneypotField';
 
 type Props = {
   navigation: NativeStackNavigationProp<AuthStackParamList, 'Login'>;
@@ -36,6 +38,9 @@ export default function LoginScreen({ navigation }: Props) {
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const [loading, setLoading] = useState(false);
   const [generalError, setGeneralError] = useState('');
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  const [honeypot, setHoneypot] = useState('');
+  const formMountedAt = useRef(Date.now());
 
   const validate = (): boolean => {
     const newErrors: { email?: string; password?: string } = {};
@@ -58,7 +63,22 @@ export default function LoginScreen({ navigation }: Props) {
   };
 
   const handleLogin = async () => {
+    // SECURITY: Bot detection — reject if honeypot filled or submitted too fast.
+    if (honeypot) return;
+    if (isFormSubmittedTooFast(formMountedAt.current)) return;
+
     if (!validate()) return;
+
+    // SECURITY: Check client-side rate limit before attempting login.
+    const cooldownMs = getLoginCooldownMs(email);
+    if (cooldownMs > 0) {
+      const seconds = Math.ceil(cooldownMs / 1000);
+      setGeneralError(
+        `Too many failed attempts. Please wait ${seconds} second${seconds !== 1 ? 's' : ''} before trying again.`
+      );
+      return;
+    }
+
     setLoading(true);
     setGeneralError('');
     try {
@@ -158,6 +178,9 @@ export default function LoginScreen({ navigation }: Props) {
             returnKeyType="done"
             onSubmitEditing={handleLogin}
           />
+
+          {/* SECURITY: Honeypot field — invisible to users, catches bots */}
+          <HoneypotField value={honeypot} onChangeText={setHoneypot} />
 
           <TouchableOpacity
             onPress={() => navigation.navigate('ForgotPassword')}

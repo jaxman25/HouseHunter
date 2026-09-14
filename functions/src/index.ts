@@ -25,8 +25,27 @@ import { tourReminders, tourNotifications } from './tours';
 import { updateNeighborhoodData } from './neighborhood';
 import { exportUserData } from './exportData';
 import { runSavedSearches } from './savedSearchNotifications';
+import { revokeRefreshTokens, checkSessionValid } from './session';
+import { logFailedLoginAttempt, logSuccessfulLogin } from './audit';
+import { blockingBeforeSignIn } from './blocking';
+import { logSecurityEvent, analyzeSecurityLogs } from './securityMonitor';
 
-export { autoArchiveProperties, updateRatings, tourReminders, tourNotifications, updateNeighborhoodData, exportUserData, runSavedSearches };
+export {
+  autoArchiveProperties,
+  updateRatings,
+  tourReminders,
+  tourNotifications,
+  updateNeighborhoodData,
+  exportUserData,
+  runSavedSearches,
+  revokeRefreshTokens,
+  checkSessionValid,
+  logFailedLoginAttempt,
+  logSuccessfulLogin,
+  blockingBeforeSignIn,
+  logSecurityEvent,
+  analyzeSecurityLogs,
+};
 import {
   SecurityAlertInput,
   sendEmail,
@@ -259,6 +278,12 @@ const DAILY_INQUIRY_LIMIT = 5;
  * seller's email address is resolved server-side and is never exposed to the
  * client (the client only ever sees the callable's success/failure).
  */
+import {
+  validateSellerInquiry,
+  requireId,
+  requireEmail,
+} from './validation';
+
 export const sendSellerInquiry = onCall(async (request) => {
   const auth = request.auth;
   if (!auth) {
@@ -266,20 +291,8 @@ export const sendSellerInquiry = onCall(async (request) => {
   }
   const uid = auth.uid;
 
-  const data = (request.data ?? {}) as { propertyId?: string; message?: string };
-  const propertyId =
-    typeof data.propertyId === 'string' ? data.propertyId.trim() : '';
-  const message = typeof data.message === 'string' ? data.message.trim() : '';
-
-  if (!propertyId) {
-    throw new HttpsError('invalid-argument', 'propertyId is required.');
-  }
-  if (message.length < 20 || message.length > 1000) {
-    throw new HttpsError(
-      'invalid-argument',
-      'Message must be between 20 and 1000 characters.'
-    );
-  }
+  // SECURITY: Strict input validation — rejects malformed/malicious input.
+  const { propertyId, message } = validateSellerInquiry(request.data);
   // Buyer must have a verified email before contacting sellers (anti-spam).
   if (auth.token.email_verified !== true) {
     throw new HttpsError(

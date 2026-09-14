@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -26,6 +26,7 @@ import {
   validateName,
 } from '../../utils/validators';
 import { TERMS_VERSION } from '../../utils/constants';
+import HoneypotField, { isFormSubmittedTooFast } from '../../components/common/HoneypotField';
 
 type Props = {
   navigation: NativeStackNavigationProp<AuthStackParamList, 'Register'>;
@@ -49,6 +50,8 @@ export default function RegisterScreen({ navigation }: Props) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [generalError, setGeneralError] = useState('');
+  const [honeypot, setHoneypot] = useState('');
+  const formMountedAt = useRef(Date.now());
 
   const roles: { key: Role; label: string; icon: string; description: string }[] = [
     { key: 'buyer', label: 'Buyer', icon: 'home-search', description: 'Looking for properties' },
@@ -94,6 +97,10 @@ export default function RegisterScreen({ navigation }: Props) {
   };
 
   const handleRegister = async () => {
+    // SECURITY: Bot detection — reject if honeypot filled or submitted too fast.
+    if (honeypot) return;
+    if (isFormSubmittedTooFast(formMountedAt.current)) return;
+
     if (!validate()) return;
     setLoading(true);
     setGeneralError('');
@@ -237,7 +244,7 @@ export default function RegisterScreen({ navigation }: Props) {
 
           <Input
             label="Password"
-            placeholder="Min 8 characters"
+            placeholder="Min 8 chars, upper, lower, number, special"
             value={password}
             onChangeText={(t) => {
               setPassword(t);
@@ -262,6 +269,9 @@ export default function RegisterScreen({ navigation }: Props) {
             returnKeyType="done"
             onSubmitEditing={handleRegister}
           />
+
+          {/* SECURITY: Honeypot field — invisible to users, catches bots */}
+          <HoneypotField value={honeypot} onChangeText={setHoneypot} />
         </View>
 
         {/* Terms agreement */}

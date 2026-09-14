@@ -44,11 +44,17 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
       await resetPassword(email);
       setSent(true);
     } catch (error: any) {
-      let message = 'Failed to send reset email. Try again.';
+      // SECURITY: Always show the same generic success message regardless of
+      // whether the email exists. This prevents email enumeration attacks
+      // where an attacker can probe which email addresses are registered.
+      // Firebase's sendPasswordResetEmail does not throw for non-existent
+      // emails by default, but if it does (e.g. user-not-found), we swallow
+      // it and show the success screen anyway.
       if (error.code === 'auth/user-not-found') {
-        message = 'No account found with this email.';
+        setSent(true);
+      } else {
+        setError('Failed to send reset email. Please try again.');
       }
-      setError(message);
     } finally {
       setLoading(false);
     }

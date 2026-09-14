@@ -19,7 +19,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { db, storage } from '../config/firebase';
+import { auth, db, storage } from '../config/firebase';
 import { Property, PropertyFilter } from '../types';
 import { PROPERTIES_COLLECTION, ITEMS_PER_PAGE } from '../utils/constants';
 import {
@@ -43,6 +43,7 @@ import {
   invalidatePropertyDetail,
 } from '../utils/cache/cacheInvalidation';
 import { trackMetric } from '../utils/monitoring/metrics';
+import { sanitize, sanitizeStrict } from '../utils/security/sanitize';
 
 /** Collection storing per-user write budgets (see firestore.rules). */
 const COUNTERS_COLLECTION = 'counters';
@@ -109,6 +110,30 @@ export async function createProperty(
    */
   docId?: string
 ): Promise<string> {
+  // SECURITY: Sanitize all string fields to prevent stored XSS.
+  const sanitizedProperty = {
+    ...property,
+    title: sanitize(property.title, 200),
+    description: sanitize(property.description, 5000),
+    address: sanitize(property.address, 300),
+    city: sanitize(property.city, 100),
+    state: sanitize(property.state, 100),
+    zipCode: sanitizeStrict(property.zipCode, 20),
+    userName: sanitize(property.userName, 100),
+    userPhone: sanitizeStrict(property.userPhone, 30),
+    // Enforce numeric bounds
+    price: Math.max(0, Math.min(property.price, 100_000_000)),
+    bedrooms: Math.max(0, Math.min(property.bedrooms, 50)),
+    bathrooms: Math.max(0, Math.min(property.bathrooms, 50)),
+    area: Math.max(0, Math.min(property.area, 1_000_000)),
+    yearBuilt: Math.max(1800, Math.min(property.yearBuilt, new Date().getFullYear() + 5)),
+    // Sanitize array items
+    features: (property.features || []).slice(0, 50).map((f) => sanitize(f, 50)),
+    amenities: (property.amenities || []).slice(0, 50).map((a) => sanitize(a, 50)),
+    // Validate images array
+    images: (property.images || []).slice(0, 10),
+  };
+
   const propRef = docId
     ? doc(db, PROPERTIES_COLLECTION, docId)
     : doc(collection(db, PROPERTIES_COLLECTION));
@@ -118,7 +143,7 @@ export async function createProperty(
   const commitCreate = () => {
     const batch = writeBatch(db);
     batch.set(propRef, {
-      ...property,
+      ...sanitizedProperty,
       views: 0,
       inquiries: 0,
       version: 1,
@@ -152,6 +177,12 @@ export async function updateProperty(
   const ownerId = existing.exists() ? existing.data().userId : data.userId;
   if (!ownerId) {
     throw new Error('Cannot update property: missing owner');
+  }
+
+  // SECURITY (IDOR): Verify the caller is the property owner.
+  const currentUser = auth.currentUser;
+  if (!currentUser || currentUser.uid !== ownerId) {
+    throw new Error('Unauthorized: you can only edit your own listings');
   }
 
   // Optimistic locking: docs without a `version` are treated as version 0, so
@@ -193,6 +224,13 @@ export async function deleteProperty(id: string): Promise<void> {
   );
   if (propDoc.exists()) {
     const ownerId = propDoc.data().userId;
+
+    // SECURITY (IDOR): Verify the caller is the property owner.
+    const currentUser = auth.currentUser;
+    if (!currentUser || currentUser.uid !== ownerId) {
+      throw new Error('Unauthorized: you can only delete your own listings');
+    }
+
     const images = propDoc.data().images || [];
     for (const imageUrl of images) {
       try {

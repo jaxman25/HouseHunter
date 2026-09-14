@@ -22,6 +22,7 @@ import { REVIEWS_COLLECTION, PROPERTIES_COLLECTION, USERS_COLLECTION } from '../
 import { firestoreCircuitBreaker } from '../utils/network/circuitBreaker';
 import { withRetry } from '../utils/network/retry';
 import { withTimeout, DEFAULT_TIMEOUT_MS } from '../utils/network/timeout';
+import { sanitize, sanitizeRichText } from '../utils/security/sanitize';
 
 /** Normalize a Firestore timestamp to an ISO string. */
 function toISO(value: unknown): string {
@@ -105,11 +106,22 @@ export async function canUserReview(
 export async function createReview(
   review: Omit<Review, 'id' | 'createdAt' | 'updatedAt' | 'isFlagged' | 'isRemoved'>
 ): Promise<string> {
+  // SECURITY: Sanitize all text fields to prevent stored XSS.
+  const sanitizedReview = {
+    ...review,
+    title: sanitize(review.title, 200),
+    content: sanitizeRichText(review.content, 3000),
+    pros: (review.pros || []).slice(0, 10).map((p) => sanitize(p, 200)),
+    cons: (review.cons || []).slice(0, 10).map((c) => sanitize(c, 200)),
+    // Enforce rating bounds
+    rating: Math.max(1, Math.min(5, Math.round(review.rating))),
+  };
+
   const docRef = await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
         addDoc(collection(db, REVIEWS_COLLECTION), {
-          ...review,
+          ...sanitizedReview,
           isFlagged: false,
           isRemoved: false,
           createdAt: serverTimestamp(),
@@ -228,9 +240,13 @@ export async function respondToReview(
   const review = reviewDoc.data();
   if (review.sellerId !== sellerId) throw new Error('Not authorized');
 
+  // SECURITY: Sanitize response content.
+  const sanitizedContent = sanitizeRichText(content, 2000);
+  if (!sanitizedContent) throw new Error('Response cannot be empty');
+
   await updateDoc(doc(db, REVIEWS_COLLECTION, reviewId), {
     sellerResponse: {
-      content,
+      content: sanitizedContent,
       respondedAt: new Date().toISOString(),
     },
     updatedAt: serverTimestamp(),

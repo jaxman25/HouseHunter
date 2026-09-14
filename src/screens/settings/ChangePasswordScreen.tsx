@@ -161,7 +161,7 @@ export default function ChangePasswordScreen() {
           error={errors.newPassword}
           leftIcon="lock-plus-outline"
           isPassword
-          placeholder="Min 8 characters"
+          placeholder="Min 8 chars, upper, lower, number, special"
           returnKeyType="next"
         />
 

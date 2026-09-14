@@ -17,7 +17,7 @@ import {
 } from 'firebase/firestore';
 import * as Crypto from 'expo-crypto';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '../config/firebase';
+import { auth, db, storage } from '../config/firebase';
 import { Conversation, Message } from '../types';
 import { CHAT_COLLECTION, MESSAGES_COLLECTION } from '../utils/constants';
 import {
@@ -31,6 +31,7 @@ import {
   UPLOAD_TIMEOUT_MS,
 } from '../utils/network/timeout';
 import { trackMetric } from '../utils/monitoring/metrics';
+import { sanitizeRichText, sanitize, sanitizeFilename } from '../utils/security/sanitize';
 
 /**
  * Deterministic conversation ID for a (buyer, seller, property) triple.
@@ -99,8 +100,8 @@ export async function getOrCreateConversation(
   const convData = {
     participants: [userId1, userId2],
     participantNames: {
-      [userId1]: user1Name,
-      [userId2]: user2Name,
+      [userId1]: sanitize(user1Name, 100),
+      [userId2]: sanitize(user2Name, 100),
     },
     participantPhotos: {
       [userId1]: user1Photo,
@@ -157,18 +158,44 @@ export async function sendMessage(
   image?: string,
   recipientId?: string
 ): Promise<string> {
+  // SECURITY (IDOR): Verify the caller is the sender.
+  const user = auth.currentUser;
+  if (!user || user.uid !== senderId) {
+    throw new Error('Unauthorized: you can only send messages as yourself');
+  }
+
+  // SECURITY (IDOR): Verify the caller is a participant in this conversation.
+  const convDoc = await firestoreCircuitBreaker.execute(() =>
+    withRetry(() => withTimeout(getDoc(doc(db, CHAT_COLLECTION, conversationId)), DEFAULT_TIMEOUT_MS))
+  );
+  if (!convDoc.exists()) throw new Error('Conversation not found');
+  const participants = convDoc.data().participants as string[];
+  if (!participants.includes(senderId)) {
+    throw new Error('Unauthorized: you are not a participant in this conversation');
+  }
+
   // Resolve the recipient (needed for the unread-count bump). Callers that
   // already know the other participant (ChatScreen, PropertyDetailScreen)
   // pass it to skip an extra read.
   let recipient = recipientId;
   if (!recipient) {
-    const convDoc = await firestoreCircuitBreaker.execute(() =>
-      withRetry(() => withTimeout(getDoc(doc(db, CHAT_COLLECTION, conversationId)), DEFAULT_TIMEOUT_MS))
-    );
-    if (!convDoc.exists()) throw new Error('Conversation not found');
-    const participants = convDoc.data().participants as string[];
     recipient = participants.find((id: string) => id !== senderId);
     if (!recipient) throw new Error('Conversation has no recipient');
+  }
+
+  // SECURITY: Sanitize message text — strip dangerous HTML, enforce length.
+  const sanitizedText = sanitizeRichText(text, 2000);
+  if (!sanitizedText) {
+    throw new Error('Message cannot be empty');
+  }
+
+  // SECURITY: Validate image URL if provided.
+  let sanitizedImage: string | undefined;
+  if (image) {
+    if (!image.startsWith('https://firebasestorage.googleapis.com/')) {
+      throw new Error('Invalid image URL');
+    }
+    sanitizedImage = image;
   }
 
   // createdAt uses serverTimestamp() so message ordering comes from Firestore's
@@ -177,12 +204,12 @@ export async function sendMessage(
   const messageData: Record<string, unknown> = {
     conversationId,
     senderId,
-    text,
+    text: sanitizedText,
     read: false,
     createdAt: serverTimestamp(),
   };
-  if (image) {
-    messageData.image = image;
+  if (sanitizedImage) {
+    messageData.image = sanitizedImage;
   }
 
   // One atomic batch: message + conversation metadata + unread-count bump
@@ -201,7 +228,7 @@ export async function sendMessage(
     const batch = writeBatch(db);
     batch.set(messageRef, messageData);
     batch.update(doc(db, CHAT_COLLECTION, conversationId), {
-      lastMessage: text || 'Photo',
+      lastMessage: sanitizedText || 'Photo',
       lastMessageTime: new Date().toISOString(),
       lastMessageSenderId: senderId,
       updatedAt: serverTimestamp(),
@@ -287,6 +314,12 @@ export async function markAsRead(
   conversationId: string,
   userId: string
 ): Promise<void> {
+  // SECURITY (IDOR): Verify the caller is marking their own messages as read.
+  const user = auth.currentUser;
+  if (!user || user.uid !== userId) {
+    throw new Error('Unauthorized: you can only mark your own messages as read');
+  }
+
   const convRef = doc(db, CHAT_COLLECTION, conversationId);
 
   // Mark individual messages as read — one query, then batched writes.

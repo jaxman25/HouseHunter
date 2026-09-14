@@ -1,5 +1,9 @@
 node_modules/
 lib/
 .env
-.env.*.local
+.env.*
+!.env.example
 *.log
+service-account*.json
+*.pem
+*.key

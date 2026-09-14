@@ -300,6 +300,7 @@ export type RootStackParamList = {
   AdminReports: undefined;
   AdminSettings: undefined;
   AdminAnalytics: undefined;
+  AdminAuditLog: undefined;
   Settings: undefined;
   EditProfile: undefined;
   ChangePassword: undefined;
