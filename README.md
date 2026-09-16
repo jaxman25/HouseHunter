@@ -67,7 +67,7 @@ A full-featured real estate app built with **React Native (Expo)**, **Firebase**
 - Archiving is a soft-hide: data stays in Firestore, listings just leave default browse
 
 ###  Admin Dashboard
-- Role-gated moderation suite (`admin/roles`) — no self-service admin access
+- Role-gated moderation suite (`admin_roles`) — no self-service admin access
 - Live metrics, user search + suspend (reason & duration), reports triage (dismiss/resolve/delete)
 - Announcement publishing (renders in the in-app notice banner) and audit logging
 

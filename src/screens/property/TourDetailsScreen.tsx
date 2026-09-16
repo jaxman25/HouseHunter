@@ -34,10 +34,6 @@ export default function TourDetailsScreen() {
   const [tour, setTour] = useState<Tour | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadTour();
-  }, [tourId]);
-
   const loadTour = async () => {
     setLoading(true);
     try {
@@ -50,6 +46,10 @@ export default function TourDetailsScreen() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadTour();
+  }, [tourId]);
 
   const handleCancel = () => {
     Alert.alert('Cancel Tour', 'Are you sure you want to cancel this tour?', [

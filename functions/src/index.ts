@@ -4,8 +4,8 @@
  * Turns documented workflows into runnable triggers so the moment a breach is
  * confirmed the team can notify users without standing up new infrastructure:
  *
- *   1. admin/security_alerts/{id}   — created → emails the on-call/owner inbox
- *   2. admin/breach_broadcasts/{id} — created → emails every affected user
+ *   1. admin_security_alerts/{id}   — created → emails the on-call/owner inbox
+ *   2. admin_breach_broadcasts/{id} — created → emails every affected user
  *   3. sendAccountDeletionConfirmation (HTTPS callable) — email sent to the
  *      user right before their account is permanently deleted
  *
@@ -69,13 +69,13 @@ function alertRecipients(): string[] {
 
 /**
  * Trigger 1 — a security alert doc was created (by an operator or future
- * automation writing to `admin/security_alerts`). Emails the on-call inbox
+ * automation writing to `admin_security_alerts`). Emails the on-call inbox
  * and records delivery state on the doc. The Firestore rules deny client
- * writes to `admin/**`, so only server-side writers (console, this function,
+ * writes to these `admin_*` collections, so only server-side writers (console, this function,
  * a future admin tool) can raise alerts.
  */
 export const emailOnSecurityAlert = onDocumentCreated(
-  'admin/security_alerts/{alertId}',
+  'admin_security_alerts/{alertId}',
   async (event) => {
     const snap = event.data;
     if (!snap) return;
@@ -130,7 +130,7 @@ interface BroadcastData {
 /**
  * Trigger 2 — a breach broadcast doc was created:
  *
- *   admin/breach_broadcasts/{id} = {
+ *   admin_breach_broadcasts/{id} = {
  *     status: 'pending',           // 'pending' → sent/partial/failed
  *     subject: '...',
  *     body: '...',                 // plain text, user-facing
@@ -140,10 +140,10 @@ interface BroadcastData {
  *
  * Emails each recipient (bounded concurrency), then marks the doc with a
  * status + per-recipient results. Written by an operator from the Firebase
- * console / Admin SDK — client rules deny access to admin/**.
+ * console / Admin SDK — client rules deny access to the admin_* collections.
  */
 export const emailBreachBroadcast = onDocumentCreated(
-  'admin/breach_broadcasts/{broadcastId}',
+  'admin_breach_broadcasts/{broadcastId}',
   async (event) => {
     const snap = event.data;
     if (!snap) return;

@@ -1,7 +1,7 @@
 /**
  * Audit Log Viewer — admin screen for monitoring security events.
  *
- * Displays entries from the `admin/auditLog` collection with:
+ * Displays entries from the `admin_auditLog` collection with:
  *   - Action filtering (login.failed, suspend_user, etc.)
  *   - Actor name resolution
  *   - Infinite scroll pagination

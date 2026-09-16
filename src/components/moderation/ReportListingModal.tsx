@@ -16,7 +16,7 @@ const REASONS: { key: ReportReason; label: string }[] = [
   { key: 'other', label: 'Other' },
 ];
 
-/** Report a listing to moderators (admin/reports — see firestore.rules). */
+/** Report a listing to moderators (admin_reports — see firestore.rules). */
 export default function ReportListingModal({
   visible,
   onClose,

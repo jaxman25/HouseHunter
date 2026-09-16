@@ -13,7 +13,7 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() &&
-        exists(/databases/$(database)/documents/admin/roles/$(request.auth.uid));
+        exists(/databases/$(database)/documents/admin_roles/$(request.auth.uid));
     }
 
     // Suspended accounts may keep reading their own data (GDPR) but cannot
@@ -239,7 +239,7 @@ service cloud.firestore {
       );
 
       // Only the property owner can delete; admins may remove listings for
-      // moderation (reports) — the removal is audited via admin/auditLog.
+      // moderation (reports) — the removal is audited via admin_auditLog.
       allow delete: if (isPropertyOwner(propertyId) && withinWriteLimit()) || isAdmin();
 
       // ─── Messages Subcollection (under properties for direct messaging) ───
@@ -357,9 +357,10 @@ service cloud.firestore {
     // ADMIN COLLECTION (role-gated moderation)
     // ═══════════════════════════════════════════════════════════
     // Role docs are provisioned by operators (console/Admin SDK) and gate
-    // everything else under /admin. Firestore triggers in functions/ watch
-    // security_alerts / breach_broadcasts (server writes bypass rules).
-    match /admin/roles/{uid} {
+    // everything else in the admin_* collections. Firestore triggers in
+    // functions/ watch admin_security_alerts / admin_breach_broadcasts
+    // (server writes bypass rules).
+    match /admin_roles/{uid} {
       // A user may check their own role (used to gate the admin UI).
       allow read: if isAuthenticated() && request.auth.uid == uid;
       allow write: if false;
@@ -367,13 +368,13 @@ service cloud.firestore {
 
     // Announcements are authored by admins and read by all signed-in users
     // (NoticeBanner renders the latest active one).
-    match /admin/announcements/{announcementId} {
+    match /admin_announcements/{announcementId} {
       allow read: if isAuthenticated();
       allow create, update, delete: if isAdmin();
     }
 
     // Reports are created by any signed-in user; only admins triage them.
-    match /admin/reports/{reportId} {
+    match /admin_reports/{reportId} {
       allow create: if isAuthenticated() && !isSuspended() &&
         request.resource.data.keys().hasAll([
           'propertyId', 'reporterId', 'reason', 'status', 'createdAt'
@@ -385,15 +386,28 @@ service cloud.firestore {
     }
 
     // Audit trail: admins append; operators may query via Admin SDK.
-    match /admin/auditLog/{entryId} {
+    match /admin_auditLog/{entryId} {
       allow create, read: if isAdmin();
       allow update, delete: if false;
     }
 
-    // Everything else under /admin (metrics, settings, security_alerts,
-    // breach_broadcasts) is admin-only for clients.
-    match /admin/{document=**} {
+    // Server-side security namespaces (written via the Admin SDK / console —
+    // see functions/src/securityMonitor.ts). Admin-only for clients.
+    match /admin_securityLogs/{document=**} {
       allow read, write: if isAdmin();
+    }
+    match /admin_securityReports/{document=**} {
+      allow read, write: if isAdmin();
+    }
+    match /admin_security_alerts/{document=**} {
+      allow read, write: if isAdmin();
+    }
+    match /admin_breach_broadcasts/{document=**} {
+      allow read, write: if isAdmin();
+    }
+    // Audit rate-limit counters are internal — never client-accessible.
+    match /admin_auditRateLimits/{document=**} {
+      allow read, write: if false;
     }
 
     // ═══════════════════════════════════════════════════════════

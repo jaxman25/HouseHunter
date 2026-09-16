@@ -22,7 +22,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#1B6EF3"
+        "foregroundImage": "./assets/adaptive-icon.png"
       },
       "package": "com.househunter.app",
       "permissions": [
@@ -54,12 +54,19 @@
         }
       ],
       "expo-font",
-      "@sentry/react-native"
+      [
+        "@sentry/react-native",
+        {
+          "organization": "TODO_YOUR_SENTRY_ORG",
+          "project": "TODO_YOUR_SENTRY_PROJECT"
+        }
+      ]
     ],
     "extra": {
       "eas": {
-        "projectId": "your-project-id"
+        "projectId": "e316931e-5844-4bb9-a7f4-bcfcadb40440"
       }
-    }
+    },
+    "owner": "johnbundi"
   }
 }

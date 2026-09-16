@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -40,7 +40,12 @@ export default function LoginScreen({ navigation }: Props) {
   const [generalError, setGeneralError] = useState('');
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const [honeypot, setHoneypot] = useState('');
-  const formMountedAt = useRef(Date.now());
+  // Mount time is captured in an effect (not during render) so the component
+  // stays pure. 0 reads as "not too fast" until the effect runs.
+  const formMountedAt = useRef(0);
+  useEffect(() => {
+    formMountedAt.current = Date.now();
+  }, []);
 
   const validate = (): boolean => {
     const newErrors: { email?: string; password?: string } = {};

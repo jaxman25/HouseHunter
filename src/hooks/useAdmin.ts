@@ -4,7 +4,7 @@ import { isAdminUser } from '../services/adminService';
 
 /**
  * Role gate for the admin suite. `isAdmin` becomes true only when the signed-in
- * user is listed in admin/roles (operator-provisioned — see firestore.rules).
+ * user is listed in admin_roles (operator-provisioned — see firestore.rules).
  */
 export function useAdmin() {
   const { user } = useAuthContext();

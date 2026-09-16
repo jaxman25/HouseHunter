@@ -6,11 +6,6 @@ export function useExport(userId: string) {
   const [exports, setExports] = useState<DataExport[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!userId) return;
-    loadExports();
-  }, [userId]);
-
   const loadExports = async () => {
     setLoading(true);
     try {
@@ -22,6 +17,11 @@ export function useExport(userId: string) {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!userId) return;
+    loadExports();
+  }, [userId]);
 
   return { exports, loading, refresh: loadExports };
 }

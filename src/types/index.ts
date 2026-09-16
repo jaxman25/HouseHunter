@@ -239,7 +239,7 @@ export interface SavedSearch {
 export type ReportReason = 'inappropriate' | 'scam' | 'duplicate' | 'other';
 export type ReportStatus = 'pending' | 'dismissed' | 'resolved';
 
-/** A user-submitted report stored under admin/reports/{id}. */
+/** A user-submitted report stored under admin_reports/{id}. */
 export interface Report {
   id: string;
   propertyId: string;
@@ -254,7 +254,7 @@ export interface Report {
   resolutionNote?: string;
 }
 
-/** An operator-authored announcement under admin/announcements/{id}. */
+/** An operator-authored announcement under admin_announcements/{id}. */
 export interface Announcement {
   id: string;
   title?: string;

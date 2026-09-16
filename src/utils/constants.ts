@@ -21,12 +21,17 @@ export const USERS_COLLECTION = 'users';
 export const NOTIFICATIONS_COLLECTION = 'notifications';
 export const SAVED_SEARCHES_COLLECTION = 'savedSearches';
 
-/** Admin collections (role-gated; see firestore.rules). */
-export const ADMIN_COLLECTION = 'admin';
-export const ADMIN_ROLES_COLLECTION = 'admin/roles';
-export const ADMIN_REPORTS_COLLECTION = 'admin/reports';
-export const ADMIN_ANNOUNCEMENTS_COLLECTION = 'admin/announcements';
-export const ADMIN_AUDIT_COLLECTION = 'admin/auditLog';
+/**
+ * Admin collections (role-gated; see firestore.rules).
+ *
+ * NOTE: these must be single-segment Firestore collection IDs. A value like
+ * 'admin/roles' is a 3-segment document path, which `doc()`/`collection()`
+ * reject ("Document references must have an even number of segments").
+ */
+export const ADMIN_ROLES_COLLECTION = 'admin_roles';
+export const ADMIN_REPORTS_COLLECTION = 'admin_reports';
+export const ADMIN_ANNOUNCEMENTS_COLLECTION = 'admin_announcements';
+export const ADMIN_AUDIT_COLLECTION = 'admin_auditLog';
 
 export const REVIEWS_COLLECTION = 'reviews';
 export const TOURS_COLLECTION = 'tours';

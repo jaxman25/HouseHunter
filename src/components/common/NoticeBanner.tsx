@@ -7,7 +7,7 @@ import {
   Linking,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { doc, collection, collectionGroup, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { doc, collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
@@ -83,12 +83,12 @@ export default function NoticeBanner() {
     return unsubscribe;
   }, []);
 
-  // Admin-authored announcements (admin/announcements, signed-in users only).
+  // Admin-authored announcements (admin_announcements, signed-in users only).
   // The most recent active announcement takes precedence over the config doc.
   useEffect(() => {
     try {
       const q = query(
-        collectionGroup(db, 'announcements'),
+        collection(db, ADMIN_ANNOUNCEMENTS_COLLECTION),
         where('active', '==', true),
         orderBy('createdAt', 'desc'),
         limit(1)

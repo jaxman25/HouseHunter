@@ -62,7 +62,7 @@ export const revokeRefreshTokens = onCall(async (request) => {
     });
 
     // Audit log entry.
-    await getFirestore().collection('admin/auditLog').add({
+    await getFirestore().collection('admin_auditLog').add({
       action: 'session.revoked',
       uid,
       reason: 'password_changed',

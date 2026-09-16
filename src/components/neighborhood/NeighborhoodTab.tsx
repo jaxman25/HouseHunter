@@ -25,10 +25,6 @@ export default function NeighborhoodTab({ city, state, zipCode, latitude, longit
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  useEffect(() => {
-    loadNeighborhoodData();
-  }, [city, state, zipCode]);
-
   const loadNeighborhoodData = async () => {
     setLoading(true);
     setError(false);
@@ -41,6 +37,10 @@ export default function NeighborhoodTab({ city, state, zipCode, latitude, longit
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadNeighborhoodData();
+  }, [city, state, zipCode]);
 
   if (loading) {
     return (

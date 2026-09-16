@@ -7,14 +7,6 @@ export function useNeighborhood(city: string, state: string, zipCode: string) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  useEffect(() => {
-    if (!city || !state) {
-      setLoading(false);
-      return;
-    }
-    loadData();
-  }, [city, state, zipCode]);
-
   const loadData = async () => {
     setLoading(true);
     setError(false);
@@ -27,6 +19,14 @@ export function useNeighborhood(city: string, state: string, zipCode: string) {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!city || !state) {
+      setLoading(false);
+      return;
+    }
+    loadData();
+  }, [city, state, zipCode]);
 
   return { data, loading, error, refresh: loadData };
 }

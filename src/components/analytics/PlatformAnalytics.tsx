@@ -12,10 +12,6 @@ export default function PlatformAnalytics() {
   const [data, setData] = useState<PlatformAnalyticsType | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadAnalytics();
-  }, []);
-
   const loadAnalytics = async () => {
     setLoading(true);
     try {
@@ -27,6 +23,10 @@ export default function PlatformAnalytics() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadAnalytics();
+  }, []);
 
   if (loading) {
     return (

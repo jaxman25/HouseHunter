@@ -6,7 +6,7 @@
  *
  * Coverage:
  *   - sendEmail: request shape (URL, method, auth header, JSON body), HTML
- *     escaping, missing-key failure, non-2xx failure.
+ *     escaping, missing-key/sender failure, non-2xx failure.
  *   - buildDeletionConfirmationMessage: subject + recipient wiring.
  *   - formatSecurityAlertText: severity/title/body/source rendering.
  */
@@ -19,12 +19,15 @@ const {
   buildDeletionConfirmationMessage,
   formatSecurityAlertText,
 } = require('../lib/email');
+const { setEmailEnv } = require('../test-support/emailEnv');
 
 const ORIGINAL_FETCH = globalThis.fetch;
 
+// Start every test from valid Resend config so a missing env var is never
+// mistaken for the behaviour under test. Tests that need it absent pass
+// `{ KEY: null }` to setEmailEnv (see ../test-support/emailEnv).
 beforeEach(() => {
-  delete process.env.RESEND_API_KEY;
-  delete process.env.NOTIFICATION_FROM_EMAIL;
+  setEmailEnv();
 });
 
 afterEach(() => {
@@ -48,8 +51,6 @@ const okResponse = {
 };
 
 test('sendEmail posts the Resend payload with an auth header and HTML body', async () => {
-  process.env.RESEND_API_KEY = 're_test_key';
-  process.env.NOTIFICATION_FROM_EMAIL = 'House Hunter <no-reply@househunter.com>';
   const getCaptured = stubFetch(okResponse);
 
   await sendEmail({
@@ -75,8 +76,27 @@ test('sendEmail posts the Resend payload with an auth header and HTML body', asy
   assert.doesNotMatch(body.html, /Second & <line>/);
 });
 
+test('sendEmail escapes markup and quotes, and preserves line structure', async () => {
+  const getCaptured = stubFetch(okResponse);
+
+  await sendEmail({
+    to: 'user@example.com',
+    subject: 'Escaping',
+    text: 'Tom & "Jerry" <b>x</b>\nsecond line\n\nNext & <para>',
+  });
+
+  const { html } = JSON.parse(getCaptured().init.body);
+  // &, ", < and > are escaped — no raw markup survives.
+  assert.match(html, /Tom &amp; &quot;Jerry&quot; &lt;b&gt;x&lt;\/b&gt;/);
+  assert.doesNotMatch(html, /<b>|<para>/);
+  // Escaping is applied once (no double-encoding of entities).
+  assert.doesNotMatch(html, /&amp;amp;/);
+  // A single newline becomes a <br>; a blank line starts a new paragraph.
+  assert.match(html, /&lt;\/b&gt;<br>second line<\/p>/);
+  assert.match(html, /<p[^>]*>Next &amp; &lt;para&gt;<\/p>/);
+});
+
 test('sendEmail normalizes a recipient array', async () => {
-  process.env.RESEND_API_KEY = 're_test_key';
   const getCaptured = stubFetch(okResponse);
 
   await sendEmail({ to: ['a@x.com', 'b@x.com'], subject: 'S', text: 'T' });
@@ -85,6 +105,7 @@ test('sendEmail normalizes a recipient array', async () => {
 });
 
 test('sendEmail throws when RESEND_API_KEY is missing', async () => {
+  setEmailEnv({ RESEND_API_KEY: null });
   const getCaptured = stubFetch(okResponse);
   await assert.rejects(
     sendEmail({ to: 'user@example.com', subject: 'S', text: 'T' }),
@@ -93,8 +114,17 @@ test('sendEmail throws when RESEND_API_KEY is missing', async () => {
   assert.equal(getCaptured(), undefined); // no request was made
 });
 
+test('sendEmail throws when NOTIFICATION_FROM_EMAIL is missing', async () => {
+  setEmailEnv({ NOTIFICATION_FROM_EMAIL: null });
+  const getCaptured = stubFetch(okResponse);
+  await assert.rejects(
+    sendEmail({ to: 'user@example.com', subject: 'S', text: 'T' }),
+    /NOTIFICATION_FROM_EMAIL is not set/
+  );
+  assert.equal(getCaptured(), undefined); // no request was made
+});
+
 test('sendEmail throws with the API detail on a non-2xx response', async () => {
-  process.env.RESEND_API_KEY = 're_test_key';
   stubFetch({ ok: false, status: 422, text: async () => 'missing from address' });
 
   await assert.rejects(

@@ -26,6 +26,9 @@ expo-env.d.ts
 !.env.example
 !functions/.env.example
 
+# Firebase CLI local cache (file hashes for hosting deploys)
+.firebase/
+
 # Firebase Cloud Functions (own .gitignore in functions/)
 functions/lib/
 

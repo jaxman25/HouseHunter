@@ -6,11 +6,6 @@ export function useUserAnalytics(userId: string) {
   const [analytics, setAnalytics] = useState<UserAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!userId) return;
-    loadAnalytics();
-  }, [userId]);
-
   const loadAnalytics = async () => {
     setLoading(true);
     try {
@@ -23,16 +18,17 @@ export function useUserAnalytics(userId: string) {
     }
   };
 
+  useEffect(() => {
+    if (!userId) return;
+    loadAnalytics();
+  }, [userId]);
+
   return { analytics, loading, refresh: loadAnalytics };
 }
 
 export function usePlatformAnalytics(date?: string) {
   const [analytics, setAnalytics] = useState<PlatformAnalyticsType | null>(null);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadAnalytics();
-  }, [date]);
 
   const loadAnalytics = async () => {
     setLoading(true);
@@ -45,6 +41,10 @@ export function usePlatformAnalytics(date?: string) {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadAnalytics();
+  }, [date]);
 
   return { analytics, loading, refresh: loadAnalytics };
 }

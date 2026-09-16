@@ -34,14 +34,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [themeMode, setThemeModeState] = useState<ThemeMode>('light');
   const [isDark, setIsDark] = useState(false);
 
-  // Load saved theme preference on mount
-  useEffect(() => {
-    getSavedTheme().then((saved) => {
-      setThemeModeState(saved);
-      updateIsDark(saved);
-    });
-  }, []);
-
   const updateIsDark = useCallback((mode: ThemeMode) => {
     if (mode === 'dark') {
       setIsDark(true);
@@ -51,6 +43,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       // System mode - check actual system appearance
       setIsDark(Appearance.getColorScheme() === 'dark');
     }
+  }, []);
+
+  // Load saved theme preference on mount
+  useEffect(() => {
+    getSavedTheme().then((saved) => {
+      setThemeModeState(saved);
+      updateIsDark(saved);
+    });
   }, []);
 
   // Listen for system theme changes when in system mode

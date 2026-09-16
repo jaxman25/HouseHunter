@@ -277,7 +277,7 @@
       ]
     },
     {
-      "collectionGroup": "reports",
+      "collectionGroup": "admin_reports",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "status", "order": "ASCENDING" },
@@ -285,7 +285,7 @@
       ]
     },
     {
-      "collectionGroup": "announcements",
+      "collectionGroup": "admin_announcements",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "active", "order": "ASCENDING" },

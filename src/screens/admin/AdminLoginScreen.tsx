@@ -14,7 +14,7 @@ import Button from '../../components/common/Button';
  * Admin access screen. Reached from the Profile menu; shows the dashboard when
  * the signed-in user holds an admin role and an access-denied state otherwise.
  * (Sign-in itself uses the standard Login flow — there is no separate admin
- * credential system; access is decided by the admin/roles collection.)
+ * credential system; access is decided by the admin_roles collection.)
  */
 export default function AdminLoginScreen() {
   const { colors, fontSize, spacing, radius } = useTheme();

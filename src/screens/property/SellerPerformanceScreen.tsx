@@ -47,6 +47,9 @@ export default function SellerPerformanceScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [sortBy, setSortBy] = useState<SortKey>('newest');
+  // "Now" is sampled when listings load (never during render) so the metrics
+  // stay a pure function of state.
+  const [nowMs, setNowMs] = useState(0);
 
   const contentWidth = Math.min(responsive.contentWidth, CONTENT_MAX_WIDTH);
   const columns = responsive.gridColumns();
@@ -57,6 +60,7 @@ export default function SellerPerformanceScreen() {
     try {
       const result = await getUserProperties(uid);
       setProperties(result);
+      setNowMs(Date.now());
     } catch (error) {
       console.error('Error loading properties:', error);
     } finally {
@@ -76,13 +80,12 @@ export default function SellerPerformanceScreen() {
 
   // ─── Computed metrics ─────────────────────────────────────────
   const metrics: ListingMetric[] = useMemo(() => {
-    const now = Date.now();
     return properties.map((p) => {
       const created = new Date(p.createdAt).getTime();
-      const daysOnMarket = Math.max(0, Math.floor((now - created) / 86_400_000));
+      const daysOnMarket = Math.max(0, Math.floor((nowMs - created) / 86_400_000));
       return { property: p, daysOnMarket };
     });
-  }, [properties]);
+  }, [properties, nowMs]);
 
   const sorted = useMemo(() => {
     const copy = [...metrics];

@@ -86,7 +86,7 @@ Channels available today:
    users, write a breach-broadcast doc (see `functions/README.md`):
 
    ```
-   admin/breach_broadcasts/{id} = {
+   admin_breach_broadcasts/{id} = {
      status: "pending",
      subject: "…",
      body: "…",                 // template below
@@ -123,7 +123,7 @@ coordinate with law enforcement before publishing if they ask.
 ## 6. Operator alerting (before user notification)
 
 The same email channel pages the on-call owner first. Writing a doc to
-`admin/security_alerts/{id}` emails `ADMIN_ALERT_EMAILS` (or the doc's
+`admin_security_alerts/{id}` emails `ADMIN_ALERT_EMAILS` (or the doc's
 `recipientEmails`) with severity/title/body — use it to notify the team the
 moment a breach is suspected, before deciding whether users must be told.
 (Sentry remains the primary automated detector; this is the human paging
@@ -148,12 +148,12 @@ project; never send to real users.
 1. **Deletion confirmation email** — sign in as the throwaway account,
    delete it, and verify the confirmation email arrives at the account's
    address (`functions/README.md` → end-to-end verification, step 1).
-2. **Security alert email** — write `admin/security_alerts/drill` with
+2. **Security alert email** — write `admin_security_alerts/drill` with
    `{ severity: "medium", title: "Drill", body: "…",
    recipientEmails: ["oncall@yourdomain.com"] }` and confirm the email
    lands and the doc flips to `status: sent`.
 3. **Breach broadcast doc (the core practice)** — write
-   `admin/breach_broadcasts/drill` with
+   `admin_breach_broadcasts/drill` with
    `{ status: "pending", subject: "Security notice regarding your House
    Hunter account", body: <template from §5>, recipientEmails:
    ["oncall@yourdomain.com"] }`. Verify the doc ends at `status: sent`
@@ -173,7 +173,7 @@ infrastructure change beyond writing the trigger docs.
 
 ### After the drill
 
-- Delete the drill docs (`admin/security_alerts/drill`,
-  `admin/breach_broadcasts/drill`) and reset `config/app_notice`.
+- Delete the drill docs (`admin_security_alerts/drill`,
+  `admin_breach_broadcasts/drill`) and reset `config/app_notice`.
 - Note anything that needed manual intervention and fix it before the next
   drill (e.g. missing Resend env var, alert routing gap).

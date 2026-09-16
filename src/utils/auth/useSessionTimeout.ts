@@ -49,7 +49,11 @@ export function useSessionTimeout(
   const warningRef = useRef<ReturnType<typeof setTimeout> | null>( null);
   const warningShownRef = useRef(false);
   const logoutRef = useRef(logout);
-  logoutRef.current = logout;
+  // Keep the latest callback in a ref, but update it in an effect rather than
+  // during render (React Compiler flags ref writes during render).
+  useEffect(() => {
+    logoutRef.current = logout;
+  }, [logout]);
 
   // ─── Reset the idle timer ──────────────────────────────────────────
   const resetTimer = useCallback(() => {

@@ -3,7 +3,7 @@
  *
  * Provides callable functions that the client invokes to record security-
  * sensitive events on the server side. The audit log lives in Firestore
- * under `admin/auditLog` (read-only for admins, write-only for server SDK).
+ * under `admin_auditLog` (read-only for admins, write-only for server SDK).
  *
  * Events logged:
  *   - login.failed  — rate-limited, records email hash + IP + user-agent
@@ -62,7 +62,7 @@ const AUDIT_RATE_LIMIT = 30; // max writes per IP per minute
 const RATE_WINDOW_MS = 60_000;
 
 async function checkAuditRateLimit(ip: string): Promise<boolean> {
-  const counterRef = db.doc(`admin/auditRateLimits/${ip.replace(/\./g, '_')}`);
+  const counterRef = db.doc(`admin_auditRateLimits/${ip.replace(/\./g, '_')}`);
   const now = Date.now();
   const windowStart = now - RATE_WINDOW_MS;
 
@@ -110,7 +110,7 @@ export const logFailedLoginAttempt = onCall(async (request) => {
   }
 
   try {
-    await db.collection('admin/auditLog').add({
+    await db.collection('admin_auditLog').add({
       action: 'login.failed',
       emailHash: hashEmail(email),
       ip,
@@ -144,7 +144,7 @@ export const logSuccessfulLogin = onCall(async (request) => {
   }
 
   try {
-    await db.collection('admin/auditLog').add({
+    await db.collection('admin_auditLog').add({
       action: 'login.success',
       uid: auth.uid,
       ip,

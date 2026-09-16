@@ -39,7 +39,10 @@ export default function SavedSearchesScreen() {
   // Highlight state: the savedSearchId to highlight (from route param or notification tap).
   const highlightId = route.params?.savedSearchId;
   const flatListRef = useRef<FlatList<SavedSearch>>(null);
-  const highlightAnim = useRef(new Animated.Value(0)).current;
+  // Animated.Value is a stable mutable instance. Hold it in state (lazy init)
+  // rather than a ref so it can be read during render (interpolate) without
+  // accessing ref.current during render.
+  const [highlightAnim] = useState(() => new Animated.Value(0));
 
   // When searches load and highlightId is set, scroll to and animate the card.
   useEffect(() => {

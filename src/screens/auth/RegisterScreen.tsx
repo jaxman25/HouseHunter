@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -51,7 +51,12 @@ export default function RegisterScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(false);
   const [generalError, setGeneralError] = useState('');
   const [honeypot, setHoneypot] = useState('');
-  const formMountedAt = useRef(Date.now());
+  // Mount time is captured in an effect (not during render) so the component
+  // stays pure. 0 reads as "not too fast" until the effect runs.
+  const formMountedAt = useRef(0);
+  useEffect(() => {
+    formMountedAt.current = Date.now();
+  }, []);
 
   const roles: { key: Role; label: string; icon: string; description: string }[] = [
     { key: 'buyer', label: 'Buyer', icon: 'home-search', description: 'Looking for properties' },

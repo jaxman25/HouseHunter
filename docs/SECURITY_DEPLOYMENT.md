@@ -82,7 +82,7 @@ These are **never exposed to clients**:
 - **Authentication required**: Every collection requires `request.auth != null`
 - **Ownership enforced**: Users can only modify their own documents
 - **Write rate limiting**: 100 writes/minute per user via `counters/{uid}`
-- **Admin gating**: Admin operations require `admin/roles/{uid}` document
+- **Admin gating**: Admin operations require `admin_roles/{uid}` document
 
 ### Storage Rules (storage.rules)
 - **Default deny**: Unmatched paths blocked
@@ -110,7 +110,7 @@ These are **never exposed to clients**:
 ## 5. Security Monitoring & Logging
 
 ### Automated Logging
-All security events are logged to `admin/securityLogs/{date}/events`:
+All security events are logged to `admin_securityLogs/{date}/events`:
 
 | Event Type | When Logged | Purpose |
 |------------|-------------|---------|
@@ -134,7 +134,7 @@ The `analyzeSecurityLogs` Cloud Function runs hourly and detects:
 | High error rate (per IP) | >50% error rate (≥10 requests) | Medium severity |
 
 ### Alert Flow
-1. Threshold exceeded → `admin/security_alerts` document created
+1. Threshold exceeded → `admin_security_alerts` document created
 2. `emailOnSecurityAlert` trigger → emails `ADMIN_ALERT_EMAILS`
 3. Admin dashboard displays alerts in real-time
 4. Audit log records all actions for compliance
@@ -143,7 +143,7 @@ The `analyzeSecurityLogs` Cloud Function runs hourly and detects:
 1. Set `ADMIN_ALERT_EMAILS` in Cloud Functions config
 2. Verify the `emailOnSecurityAlert` trigger is deployed
 3. Test alert flow by triggering a threshold breach
-4. Review `admin/securityReports/{date}` for daily summaries
+4. Review `admin_securityReports/{date}` for daily summaries
 
 ---
 

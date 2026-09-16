@@ -88,8 +88,8 @@ export const blockingBeforeSignIn = beforeUserSignedIn(async (event) => {
     claims.role = userData.role;
   }
 
-  // Check admin role from admin/roles collection.
-  const adminSnap = await db.doc(`admin/roles/${uid}`).get();
+  // Check admin role from the admin_roles collection.
+  const adminSnap = await db.doc(`admin_roles/${uid}`).get();
   if (adminSnap.exists) {
     claims.admin = true;
   }

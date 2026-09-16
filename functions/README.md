@@ -2,10 +2,10 @@
 
 Transactional email for the workflows documented in `docs/BREACH_NOTIFICATION.md`:
 
-1. **Security alerts** — writing a doc to `admin/security_alerts/{id}` emails the
+1. **Security alerts** — writing a doc to `admin_security_alerts/{id}` emails the
    on-call inbox (Sentry stays the primary real-time detector; this is the
    paging/email channel).
-2. **Breach broadcasts** — writing a doc to `admin/breach_broadcasts/{id}`
+2. **Breach broadcasts** — writing a doc to `admin_breach_broadcasts/{id}`
    emails every affected user (or an explicit recipient list).
 3. **Deletion confirmation** — the app calls `sendAccountDeletionConfirmation`
    right before an account is deleted so the user gets a confirmation email.
@@ -78,7 +78,7 @@ The root `firebase.json` already points at `functions/`. Runtime is Node 20
 From the Firebase console (or an Admin SDK script), create:
 
 ```
-Collection: admin/security_alerts
+Collection: admin_security_alerts
 Doc id:     <anything unique>
 Fields:
   severity:   "critical" | "high" | "medium" | "low"
@@ -94,7 +94,7 @@ an `error` field).
 ### Broadcast a breach notice to users
 
 ```
-Collection: admin/breach_broadcasts
+Collection: admin_breach_broadcasts
 Doc id:     <anything unique>
 Fields:
   status:   "pending"
@@ -143,11 +143,11 @@ function and a real Resend key. Run this after the first `firebase deploy`:
    - Confirm the callable was invoked: `firebase functions:log --only
      sendAccountDeletionConfirmation`.
 2. **Security alert email** — from the Firebase console create
-   `admin/security_alerts/smoke-test` with `{ severity: "low",
+   `admin_security_alerts/smoke-test` with `{ severity: "low",
    title: "Smoke test", body: "Verifying alert email",
    recipientEmails: ["you@yourdomain.com"] }`. You should receive the alert
    email and the doc should flip to `status: sent`.
-3. **Breach broadcast email** — create `admin/breach_broadcasts/smoke-test`
+3. **Breach broadcast email** — create `admin_breach_broadcasts/smoke-test`
    with `{ status: "pending", subject: "Test broadcast", body: "Test",
    recipientEmails: ["you@yourdomain.com"] }` (never omit `recipientEmails`
    for a smoke test — omitting it emails every user). The doc should end at

@@ -2,19 +2,19 @@
 
 The admin suite is a set of moderation tools for platform staff. Access is
 **role-gated**: an account only sees the admin UI when its uid is listed in
-the `admin/roles` collection (`admin/roles/{uid}`). Roles are provisioned by
+the `admin_roles` collection (`admin_roles/{uid}`). Roles are provisioned by
 an operator via the Firebase console or Admin SDK — there is no self-service
-admin signup, and client rules deny writes to `admin/roles`.
+admin signup, and client rules deny writes to `admin_roles`.
 
 ## Granting admin access
 
 ```
-Firebase console → Firestore → admin/roles → Add document
+Firebase console → Firestore → admin_roles → Add document
   Document ID: <user's Firebase Auth uid>
   Fields: { grantedAt: <server timestamp>, grantedBy: "<operator email>" }
 ```
 
-The user's `admin/roles/{uid}` document is readable by that user (used by
+The user's `admin_roles/{uid}` document is readable by that user (used by
 `useAdmin()` to gate the UI) and writable only by operators (rules: `write:
 if false` for clients).
 
@@ -47,7 +47,7 @@ if false` for clients).
 
 ### Triaging reports
 
-- Reports arrive under `admin/reports` with status `pending`, created by any
+- Reports arrive under `admin_reports` with status `pending`, created by any
   signed-in user from the property detail screen (reason: inappropriate,
   scam, duplicate, or other). The reporter's identity is never shown to the
   seller.
@@ -66,7 +66,7 @@ if false` for clients).
 
 ## Audit trail
 
-Every admin action calls `logAudit()` writing to `admin/auditLog`:
+Every admin action calls `logAudit()` writing to `admin_auditLog`:
 
 ```
 { actorUid, action, detail, createdAt }
@@ -79,7 +79,8 @@ Actions recorded: `user.suspend`, `user.unsuspend`, `report.dismiss`,
 ## Notes & limits
 
 - The admin UI is client-side; the security rules are the real enforcement
-  layer. Rules deny all client writes to `admin/**` except: role reads,
+  layer. Rules deny all client writes to the `admin_*` collections except: role
+  reads,
   report creation by any signed-in user, and admin read/write of
   announcements/reports/auditLog.
 - Metrics use Firestore `count()` aggregation (no backend needed); they are

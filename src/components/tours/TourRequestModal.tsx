@@ -43,11 +43,16 @@ export default function TourRequestModal({
   const [loading, setLoading] = useState(false);
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
 
-  useEffect(() => {
-    if (visible && sellerId) {
-      loadAvailability();
+  const generateTimeSlots = (start: string, end: string) => {
+    const [startH, startM] = start.split(':').map(Number);
+    const [endH] = end.split(':').map(Number);
+    const slots: string[] = [];
+    for (let h = startH; h < endH; h++) {
+      slots.push(`${h.toString().padStart(2, '0')}:00`);
+      if (h + 0.5 < endH) slots.push(`${h.toString().padStart(2, '0')}:30`);
     }
-  }, [visible, sellerId]);
+    setAvailableSlots(slots);
+  };
 
   const loadAvailability = async () => {
     try {
@@ -62,16 +67,11 @@ export default function TourRequestModal({
     }
   };
 
-  const generateTimeSlots = (start: string, end: string) => {
-    const [startH, startM] = start.split(':').map(Number);
-    const [endH] = end.split(':').map(Number);
-    const slots: string[] = [];
-    for (let h = startH; h < endH; h++) {
-      slots.push(`${h.toString().padStart(2, '0')}:00`);
-      if (h + 0.5 < endH) slots.push(`${h.toString().padStart(2, '0')}:30`);
+  useEffect(() => {
+    if (visible && sellerId) {
+      loadAvailability();
     }
-    setAvailableSlots(slots);
-  };
+  }, [visible, sellerId]);
 
   const handleSubmit = async () => {
     if (!user) return;

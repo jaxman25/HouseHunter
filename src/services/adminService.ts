@@ -30,12 +30,12 @@ import { User, Report, ReportStatus, Announcement } from '../types';
 import { sanitize } from '../utils/security/sanitize';
 
 /**
- * Admin suite — moderation tools gated by the admin/roles collection
+ * Admin suite — moderation tools gated by the admin_roles collection
  * (provisioned by operators; see firestore.rules). Every mutation here is
- * role-checked server-side by the rules and appended to admin/auditLog.
+ * role-checked server-side by the rules and appended to admin_auditLog.
  */
 
-/** True when `uid` is listed in admin/roles (operator-provisioned). */
+/** True when `uid` is listed in admin_roles (operator-provisioned). */
 export async function isAdminUser(uid: string): Promise<boolean> {
   const snap = await getDoc(doc(db, ADMIN_ROLES_COLLECTION, uid));
   return snap.exists();

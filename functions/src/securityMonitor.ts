@@ -12,8 +12,8 @@
  *   - Scheduled: `analyzeSecurityLogs` — runs hourly to detect anomalies
  *   - Trigger: `onSecurityAlert` — emails ops when threshold exceeded
  *
- * All events are written to `admin/securityLogs/{date}/{eventId}` for analysis
- * and to `admin/auditLog` for the admin dashboard.
+ * All events are written to `admin_securityLogs/{date}/events/{eventId}` for
+ * analysis and to `admin_auditLog` for the admin dashboard.
  *
  * Deploy:
  *   firebase deploy --only functions:logSecurityEvent,functions:analyzeSecurityLogs
@@ -126,12 +126,12 @@ export const logSecurityEvent = onCall(async (request) => {
 
   // Write to daily security logs for analysis.
   const today = new Date().toISOString().slice(0, 10);
-  await db.collection('admin/securityLogs').doc(today)
+  await db.collection('admin_securityLogs').doc(today)
     .collection('events')
     .add(event);
 
   // Also write to audit log for the admin dashboard.
-  await db.collection('admin/auditLog').add({
+  await db.collection('admin_auditLog').add({
     action: data.type,
     actorUid: event.uid,
     ip: event.ip,
@@ -252,7 +252,7 @@ export const analyzeSecurityLogs = onSchedule('every 1 hours', async () => {
       }
 
       // Write alert to Firestore so the admin dashboard can display it.
-      await db.collection('admin/security_alerts').add({
+      await db.collection('admin_security_alerts').add({
         title: `Security Alert — ${alerts.length} issue(s) detected`,
         body: alerts.join('\n\n'),
         severity: 'high',
@@ -262,7 +262,7 @@ export const analyzeSecurityLogs = onSchedule('every 1 hours', async () => {
       });
 
       // Write summary to daily security report.
-      await db.collection('admin/securityReports').doc(today).set(
+      await db.collection('admin_securityReports').doc(today).set(
         {
           alertCount: FieldValue.increment(alerts.length),
           alerts,
@@ -280,7 +280,7 @@ export const analyzeSecurityLogs = onSchedule('every 1 hours', async () => {
     }
 
     // ─── 5. Write analysis summary (always, even if no alerts) ───────
-    await db.collection('admin/securityReports').doc(today).set(
+    await db.collection('admin_securityReports').doc(today).set(
       {
         lastAnalysisAt: FieldValue.serverTimestamp(),
         eventCount: events.length,

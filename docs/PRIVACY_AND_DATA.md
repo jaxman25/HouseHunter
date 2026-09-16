@@ -115,12 +115,12 @@ seller and increments the listing's inquiry counter. Guards in place:
 
 Reporting a listing stores the property id, a reason (inappropriate / scam /
 duplicate / other), optional details, and the reporter's user id under
-`admin/reports`; the seller does **not** see who reported. Suspension records a
+`admin_reports`; the seller does **not** see who reported. Suspension records a
 reason and expiry on the user document — a suspended user's data remains
 readable (GDPR) but they cannot create listings, messages, or inquiries.
 Announcements published by admins render as a dismissible banner. Every admin
-action is appended to `admin/auditLog` with the acting admin's uid. Admin
-roles live in `admin/roles` and are provisioned by operators only — there is
+action is appended to `admin_auditLog` with the acting admin's uid. Admin
+roles live in `admin_roles` and are provisioned by operators only — there is
 no self-service admin signup.
 
 ## Archives

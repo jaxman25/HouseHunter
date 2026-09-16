@@ -143,14 +143,14 @@ Storage, Hosting, Cloud Functions) and **Google Maps**.
 
 | Feature | Where |
 |---|---|
-| Role-gated admin suite (`admin/roles` provisioned by operators; client writes denied) | `src/hooks/useAdmin.ts`, `src/components/admin/AdminGuard.tsx`, `firestore.rules` |
+| Role-gated admin suite (`admin_roles` provisioned by operators; client writes denied) | `src/hooks/useAdmin.ts`, `src/components/admin/AdminGuard.tsx`, `firestore.rules` |
 | Dashboard with live metrics (users, listings, active, pending reports) | `src/screens/admin/AdminDashboardScreen.tsx`, `src/services/adminService.ts` |
 | User management — search, suspend (reason + 3d/14d/permanent), unsuspend | `src/screens/admin/UsersManagementScreen.tsx` |
 | Reports triage — dismiss / resolve / delete listing (admins may delete listings via rules) | `src/screens/admin/ReportsManagementScreen.tsx`, `firestore.rules` |
 | Announcements editor — publish / activate / pause; the latest active one renders in NoticeBanner | `src/screens/admin/SystemSettingsScreen.tsx`, `NoticeBanner.tsx` |
 | Analytics — count metrics + listings/reports status distributions (no chart dependency) | `src/screens/admin/AnalyticsScreen.tsx` |
 | Report a listing from the detail screen (inappropriate / scam / duplicate / other, anonymous to the seller) | `src/components/moderation/ReportListingModal.tsx`, `PropertyDetailScreen.tsx` |
-| Audit log appended for every admin action | `admin/auditLog` + `adminService.logAudit()` |
+| Audit log appended for every admin action | `admin_auditLog` + `adminService.logAudit()` |
 | Suspended users blocked from creating listings/messages/inquiries while their data stays readable (GDPR) | `firestore.rules` |
 
 ## 13. Share & Deep Links
@@ -228,7 +228,7 @@ Storage, Hosting, Cloud Functions) and **Google Maps**.
 | Service | What the app uses |
 |---|---|
 | **Auth** | Email/password + Google (native idToken / web popup) |
-| **Firestore** | Collections: `users` (+ `savedSearches`, `inquiryCounters` subcollections), `properties`, `conversations`/`messages`, `notifications`, `counters` (rate limiting), `config` (public notices), `healthcheck`, `admin` (roles, reports, announcements, audit log) |
+| **Firestore** | Collections: `users` (+ `savedSearches`, `inquiryCounters` subcollections), `properties`, `conversations`/`messages`, `notifications`, `counters` (rate limiting), `config` (public notices), `healthcheck`, `admin_roles`/`admin_reports`/`admin_announcements`/`admin_auditLog` (admin suite) |
 | **Security rules** | `firestore.rules` — ownership checks, field allowlists, rate limiting, optimistic locking, per-message deletion; `storage.rules` for media |
 | **Storage** | Property images, chat images, profile photos |
 | **Cloud Functions v2** | `functions/src/index.ts` — security-alert emails, breach broadcasts, `sendAccountDeletionConfirmation` + `sendSellerInquiry` callables; `functions/src/archive.ts` — daily auto-archive job; all email via Resend (`functions/src/email.ts`) |

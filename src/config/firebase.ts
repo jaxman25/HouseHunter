@@ -43,6 +43,24 @@ const storage = getStorage(app);// ─── App Check ────────�
 
 let appCheckActive = false;
 
+// ─── App Check debug provider (DEVELOPMENT ONLY) ──────────────────────────
+// reCAPTCHA v3 rejects localhost / low-score requests, so App Check answers
+// with 403 and throttles the app for 24h (appCheck/initial-throttle).
+// Setting this global BEFORE initializeAppCheck() makes the SDK mint a debug
+// token instead of calling reCAPTCHA. On first run the console prints:
+//   AppCheck debug token: "xxxx-xxxx-xxxx-xxxx"
+// Register that token once in Firebase Console → App Check → Apps →
+// Manage debug tokens (it is ignored when __DEV__ is false).
+// SECURITY: never enable this in production builds.
+// (The web SDK only exposes this global from its internal types, so it is
+// re-declared here to keep strict mode happy.)
+declare global {
+  var FIREBASE_APPCHECK_DEBUG_TOKEN: boolean | string | undefined;
+}
+if (__DEV__) {
+  globalThis.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+}
+
 if (Platform.OS === 'web') {
   const enterpriseKey = process.env.EXPO_PUBLIC_RECAPTCHA_ENTERPRISE_SITE_KEY;
   const v3Key = process.env.EXPO_PUBLIC_RECAPTCHA_SITE_KEY;
