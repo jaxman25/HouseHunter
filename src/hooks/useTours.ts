@@ -29,7 +29,7 @@ export function useSellerAvailability(sellerId: string) {
   const [availability, setAvailability] = useState<TourAvailability | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadAvailability = async () => {
+  const loadAvailability = useCallback(async () => {
     setLoading(true);
     try {
       const data = await getAvailability(sellerId);
@@ -39,12 +39,12 @@ export function useSellerAvailability(sellerId: string) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [sellerId]);
 
   useEffect(() => {
     if (!sellerId) return;
     loadAvailability();
-  }, [sellerId]);
+  }, [sellerId, loadAvailability]);
 
   return { availability, loading, refresh: loadAvailability };
 }

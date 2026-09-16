@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -34,7 +34,7 @@ export default function TourDetailsScreen() {
   const [tour, setTour] = useState<Tour | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadTour = async () => {
+  const loadTour = useCallback(async () => {
     setLoading(true);
     try {
       const data = await getTour(tourId);
@@ -45,11 +45,11 @@ export default function TourDetailsScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [tourId, navigation]);
 
   useEffect(() => {
     loadTour();
-  }, [tourId]);
+  }, [tourId, loadTour]);
 
   const handleCancel = () => {
     Alert.alert('Cancel Tour', 'Are you sure you want to cancel this tour?', [

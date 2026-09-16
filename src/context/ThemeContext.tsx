@@ -51,7 +51,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       setThemeModeState(saved);
       updateIsDark(saved);
     });
-  }, []);
+  }, [updateIsDark]);
 
   // Listen for system theme changes when in system mode
   useEffect(() => {

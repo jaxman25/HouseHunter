@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { NeighborhoodData } from '../types';
 import { getNeighborhoodData, getCommuteTime } from '../services/neighborhoodService';
 
@@ -7,7 +7,7 @@ export function useNeighborhood(city: string, state: string, zipCode: string) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setError(false);
     try {
@@ -18,7 +18,7 @@ export function useNeighborhood(city: string, state: string, zipCode: string) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [city, state, zipCode]);
 
   useEffect(() => {
     if (!city || !state) {
@@ -26,7 +26,7 @@ export function useNeighborhood(city: string, state: string, zipCode: string) {
       return;
     }
     loadData();
-  }, [city, state, zipCode]);
+  }, [city, state, zipCode, loadData]);
 
   return { data, loading, error, refresh: loadData };
 }

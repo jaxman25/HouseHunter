@@ -28,7 +28,7 @@ export function useSellerReviews(sellerId: string) {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadReviews = async () => {
+  const loadReviews = useCallback(async () => {
     setLoading(true);
     try {
       const data = await getSellerReviews(sellerId);
@@ -38,12 +38,12 @@ export function useSellerReviews(sellerId: string) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [sellerId]);
 
   useEffect(() => {
     if (!sellerId) return;
     loadReviews();
-  }, [sellerId]);
+  }, [sellerId, loadReviews]);
 
   return { reviews, loading, refresh: loadReviews };
 }
@@ -56,7 +56,7 @@ export function useSellerRating(sellerId: string) {
   });
   const [loading, setLoading] = useState(true);
 
-  const loadRating = async () => {
+  const loadRating = useCallback(async () => {
     setLoading(true);
     try {
       const data = await getSellerRating(sellerId);
@@ -66,12 +66,12 @@ export function useSellerRating(sellerId: string) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [sellerId]);
 
   useEffect(() => {
     if (!sellerId) return;
     loadRating();
-  }, [sellerId]);
+  }, [sellerId, loadRating]);
 
   return { rating, loading, refresh: loadRating };
 }
@@ -81,7 +81,7 @@ export function useCanReview(propertyId: string, userId: string | undefined) {
   const [reason, setReason] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
 
-  const check = async () => {
+  const check = useCallback(async () => {
     setLoading(true);
     try {
       const result = await canUserReview(propertyId, userId!);
@@ -92,7 +92,7 @@ export function useCanReview(propertyId: string, userId: string | undefined) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [propertyId, userId]);
 
   useEffect(() => {
     if (!propertyId || !userId) {
@@ -100,7 +100,7 @@ export function useCanReview(propertyId: string, userId: string | undefined) {
       return;
     }
     check();
-  }, [propertyId, userId]);
+  }, [propertyId, userId, check]);
 
   return { canReview, reason, loading, refresh: check };
 }

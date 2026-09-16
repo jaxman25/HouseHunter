@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -43,7 +43,7 @@ export default function TourRequestModal({
   const [loading, setLoading] = useState(false);
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
 
-  const generateTimeSlots = (start: string, end: string) => {
+  const generateTimeSlots = useCallback((start: string, end: string) => {
     const [startH, startM] = start.split(':').map(Number);
     const [endH] = end.split(':').map(Number);
     const slots: string[] = [];
@@ -52,9 +52,9 @@ export default function TourRequestModal({
       if (h + 0.5 < endH) slots.push(`${h.toString().padStart(2, '0')}:30`);
     }
     setAvailableSlots(slots);
-  };
+  }, []);
 
-  const loadAvailability = async () => {
+  const loadAvailability = useCallback(async () => {
     try {
       const avail = await getAvailability(sellerId);
       if (avail) {
@@ -65,13 +65,13 @@ export default function TourRequestModal({
     } catch {
       generateTimeSlots('09:00', '17:00');
     }
-  };
+  }, [sellerId, generateTimeSlots]);
 
   useEffect(() => {
     if (visible && sellerId) {
       loadAvailability();
     }
-  }, [visible, sellerId]);
+  }, [visible, sellerId, loadAvailability]);
 
   const handleSubmit = async () => {
     if (!user) return;

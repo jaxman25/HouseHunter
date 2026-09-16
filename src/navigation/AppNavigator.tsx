@@ -140,7 +140,7 @@ export default function AppNavigator() {
   // SECURITY: Check session validity when app comes to foreground.
   // If the password was changed on another device, this forces a re-login.
   useEffect(() => {
-    if (!user) return;
+    if (!user?.uid) return;
     const subscription = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
         checkSessionValidity().then((valid) => {

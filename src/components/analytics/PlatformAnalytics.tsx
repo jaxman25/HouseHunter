@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
@@ -12,7 +12,7 @@ export default function PlatformAnalytics() {
   const [data, setData] = useState<PlatformAnalyticsType | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadAnalytics = async () => {
+  const loadAnalytics = useCallback(async () => {
     setLoading(true);
     try {
       const result = await getPlatformAnalytics();
@@ -22,11 +22,11 @@ export default function PlatformAnalytics() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadAnalytics();
-  }, []);
+  }, [loadAnalytics]);
 
   if (loading) {
     return (

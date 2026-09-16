@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
@@ -25,7 +25,7 @@ export default function NeighborhoodTab({ city, state, zipCode, latitude, longit
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  const loadNeighborhoodData = async () => {
+  const loadNeighborhoodData = useCallback(async () => {
     setLoading(true);
     setError(false);
     try {
@@ -36,11 +36,11 @@ export default function NeighborhoodTab({ city, state, zipCode, latitude, longit
     } finally {
       setLoading(false);
     }
-  };
+  }, [city, state, zipCode]);
 
   useEffect(() => {
     loadNeighborhoodData();
-  }, [city, state, zipCode]);
+  }, [city, state, zipCode, loadNeighborhoodData]);
 
   if (loading) {
     return (
