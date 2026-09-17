@@ -24,6 +24,8 @@ export interface User {
   notificationPrefs?: NotificationPrefs;
   /** Expo push token for remote notifications (scheduled saved-search job). */
   expoPushToken?: string;
+  /** Admin-set verification flag on the user's listings (see firestore.rules). */
+  verified?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -86,6 +88,12 @@ export interface Property {
   archiveReason?: 'sold' | 'pending' | 'manual' | 'inactive';
   /** ISO date after which the auto-archive job may hide this listing. */
   expirationDate?: string;
+  /** Admin-set verification flag — only admins may change it (see firestore.rules). */
+  verified?: boolean;
+  /** Seller's average first-response time in minutes, populated by chatService. */
+  avgResponseMinutes?: number;
+  /** Number of conversations the seller has participated in (for badge gating). */
+  conversationCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -118,6 +126,8 @@ export interface Conversation {
   lastMessageTime: string;
   lastMessageSenderId: string;
   unreadCount: { [uid: string]: number };
+  /** ISO timestamp of the seller's first reply (null until tracked). */
+  firstSellerReplyAt?: string;
   propertyId: string;
   propertyTitle: string;
   propertyImage: string;
@@ -380,6 +390,17 @@ export const LANGUAGES: Record<LanguageCode, LanguageInfo> = {
   es: { code: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸', direction: 'ltr' },
   ar: { code: 'ar', name: 'Arabic', nativeName: 'العربية', flag: '🇸🇦', direction: 'rtl' },
 };
+
+// ─── Price History Types ────────────────────────────────
+/** A single price-change entry stored under properties/{id}/priceHistory. */
+export interface PriceHistoryEntry {
+  id: string;
+  price: number;
+  /** ISO timestamp (server-populated via serverTimestamp()). */
+  changedAt: string;
+  /** UID of the user who changed the price. */
+  changedBy: string;
+}
 
 // ─── Review Types ───────────────────────────────────────
 export interface Review {

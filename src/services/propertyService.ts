@@ -20,8 +20,8 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { auth, db, storage } from '../config/firebase';
-import { Property, PropertyFilter } from '../types';
-import { PROPERTIES_COLLECTION, ITEMS_PER_PAGE } from '../utils/constants';
+import { Property, PropertyFilter, PriceHistoryEntry } from '../types';
+import { PROPERTIES_COLLECTION, ITEMS_PER_PAGE, PRICE_HISTORY_SUBCOLLECTION } from '../utils/constants';
 import {
   firestoreCircuitBreaker,
   storageCircuitBreaker,
@@ -76,7 +76,7 @@ function toISO(value: unknown): string {
 }
 
 /** Map a Firestore property document to the `Property` type with ISO dates. */
-function toProperty(docSnap: DocumentSnapshot<DocumentData>): Property {
+export function toProperty(docSnap: DocumentSnapshot<DocumentData>): Property {
   const data = docSnap.data() as Property;
   return {
     ...data,
@@ -190,6 +190,9 @@ export async function updateProperty(
   const nextVersion = (existing.exists() ? existing.data().version ?? 0 : 0) + 1;
 
   // Rebuild the batch per retry attempt (a committed batch can't be reused).
+  // Price history is now recorded server-side by the trackPriceHistory Cloud
+  // Function (functions/src/priceHistoryTracking.ts) so the client only needs
+  // to commit the property update itself.
   const commitUpdate = () => {
     const batch = writeBatch(db);
     // `version` is set AFTER the spread so caller-supplied data can't override it.
@@ -557,4 +560,86 @@ export async function deletePropertyImage(imageUrl: string): Promise<void> {
   } catch {
     // Image might not be in storage
   }
+}
+
+/**
+ * Fetch price history for a property, ordered by change time ascending.
+ * Returns up to `maxEntries` most recent entries (default 50).
+ */
+export async function getPriceHistory(
+  propertyId: string,
+  maxEntries = 50
+): Promise<PriceHistoryEntry[]> {
+  const q = query(
+    collection(db, PROPERTIES_COLLECTION, propertyId, PRICE_HISTORY_SUBCOLLECTION),
+    orderBy('changedAt', 'asc'),
+    limit(maxEntries)
+  );
+  const snap = await firestoreCircuitBreaker.execute(() =>
+    withRetry(() => withTimeout(getDocs(q), DEFAULT_TIMEOUT_MS))
+  );
+  return snap.docs.map((d) => ({
+    id: d.id,
+    price: d.data().price,
+    changedAt: toISO(d.data().changedAt),
+    changedBy: d.data().changedBy,
+  }));
+}
+
+/**
+ * Find similar properties: same city + same propertyType + price ±20%.
+ * Excludes the current listing and inactive properties.
+ * Used by PropertyDetailScreen to show a "Similar Listings" section.
+ */
+/**
+ * Compute the price range for similar-property queries (±20%).
+ * Exported for unit testing.
+ */
+export function computeSimilarPriceRange(price: number): {
+  min: number;
+  max: number;
+} {
+  return {
+    min: Math.round(price * 0.8),
+    max: Math.round(price * 1.2),
+  };
+}
+
+/**
+ * Filter candidate properties for similarity: exclude the current listing
+ * and inactive properties, keep at most `limit` results.
+ * Exported for unit testing.
+ */
+export function filterSimilarProperties(
+  candidates: Property[],
+  currentId: string,
+  maxResults = 6
+): Property[] {
+  return candidates
+    .filter((p) => p.id !== currentId && p.status !== 'inactive')
+    .slice(0, maxResults);
+}
+
+export async function getSimilarProperties(
+  property: Property
+): Promise<Property[]> {
+  const { min, max } = computeSimilarPriceRange(property.price);
+
+  const q = query(
+    collection(db, PROPERTIES_COLLECTION),
+    where('city', '==', property.city),
+    where('propertyType', '==', property.propertyType),
+    where('status', 'in', ['active', 'pending', 'sold', 'rented']),
+    where('price', '>=', min),
+    where('price', '<=', max),
+    orderBy('price', 'asc'),
+    limit(10)
+  );
+
+  const snap = await firestoreCircuitBreaker.execute(() =>
+    withRetry(() => withTimeout(getDocs(q), DEFAULT_TIMEOUT_MS))
+  );
+
+  const candidates = snap.docs.map((d) => toProperty(d));
+  return filterSimilarProperties(candidates, property.id);
 }

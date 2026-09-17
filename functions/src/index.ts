@@ -29,6 +29,9 @@ import { revokeRefreshTokens, checkSessionValid } from './session';
 import { logFailedLoginAttempt, logSuccessfulLogin } from './audit';
 import { blockingBeforeSignIn } from './blocking';
 import { logSecurityEvent, analyzeSecurityLogs } from './securityMonitor';
+import { notifyOnPriceDrop } from './priceDropNotifications';
+import { trackSellerResponseTime } from './sellerResponseTracking';
+import { trackPriceHistory } from './priceHistoryTracking';
 
 export {
   autoArchiveProperties,
@@ -45,6 +48,9 @@ export {
   blockingBeforeSignIn,
   logSecurityEvent,
   analyzeSecurityLogs,
+  notifyOnPriceDrop,
+  trackSellerResponseTime,
+  trackPriceHistory,
 };
 import {
   SecurityAlertInput,

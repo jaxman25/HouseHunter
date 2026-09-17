@@ -5,6 +5,7 @@ import {
   TextInput,
   TouchableOpacity,
   Modal,
+  Switch,
   StyleSheet,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
@@ -14,7 +15,7 @@ import AdminLayout from '../../components/admin/AdminLayout';
 import Avatar from '../../components/common/Avatar';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
-import { getUsers, suspendUser, unsuspendUser, logAudit } from '../../services/adminService';
+import { getUsers, suspendUser, unsuspendUser, logAudit, setVerified } from '../../services/adminService';
 import { User } from '../../types';
 
 const DURATIONS: { label: string; days: number | null }[] = [
@@ -32,6 +33,8 @@ export default function UsersManagementScreen() {
   const [suspendTarget, setSuspendTarget] = useState<User | null>(null);
   const [reason, setReason] = useState('');
   const [duration, setDuration] = useState<number | null>(3);
+  const [verifyTarget, setVerifyTarget] = useState<User | null>(null);
+  const [verifyState, setVerifyState] = useState<boolean>(false);
 
   const load = async (query = '') => {
     setLoading(true);
@@ -152,18 +155,33 @@ export default function UsersManagementScreen() {
                       </Text>
                     </TouchableOpacity>
                   ) : (
-                    <TouchableOpacity
-                      onPress={() => {
-                        setSuspendTarget(u);
-                        setReason('');
-                      }}
-                      style={[styles.miniBtn, { backgroundColor: colors.error }]}
-                      accessibilityRole="button"
-                    >
-                      <Text style={{ color: colors.white, fontSize: fontSize.xs, fontWeight: '700' }}>
-                        Suspend
-                      </Text>
-                    </TouchableOpacity>
+                    <>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setVerifyTarget(u);
+                          setVerifyState(u.verified ?? false);
+                        }}
+                        style={[styles.miniBtn, { backgroundColor: u.verified ? colors.gray400 : colors.info }]}
+                        accessibilityRole="button"
+                        accessibilityLabel={u.verified ? 'Toggle verified off' : 'Toggle verified on'}
+                      >
+                        <Text style={{ color: colors.white, fontSize: fontSize.xs, fontWeight: '700' }}>
+                          {u.verified ? 'Unverify' : 'Verify'}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setSuspendTarget(u);
+                          setReason('');
+                        }}
+                        style={[styles.miniBtn, { backgroundColor: colors.error }]}
+                        accessibilityRole="button"
+                      >
+                        <Text style={{ color: colors.white, fontSize: fontSize.xs, fontWeight: '700' }}>
+                          Suspend
+                        </Text>
+                      </TouchableOpacity>
+                    </>
                   )}
                 </View>
               </View>
@@ -233,6 +251,59 @@ export default function UsersManagementScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Button title="Suspend" variant="danger" onPress={() => void confirmSuspend()} />
+                </View>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        <Modal visible={verifyTarget !== null} transparent animationType="fade" onRequestClose={() => setVerifyTarget(null)}>
+          <View style={styles.modalBackdrop}>
+            <View style={[styles.modalCard, { backgroundColor: colors.surface, borderRadius: radius.lg }]}>
+              <Text style={{ color: colors.text, fontSize: fontSize.lg, fontWeight: '800' }}>
+                Toggle listing verification
+              </Text>
+              <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginTop: 4 }}>
+                {verifyTarget?.displayName || verifyTarget?.email} — verified listings show a shield badge on cards and the detail screen.
+              </Text>
+              {verifyTarget && verifyTarget.verified !== undefined && (
+                <Text style={{ color: colors.textLight, fontSize: fontSize.xs, marginTop: 4 }}>
+                  Currently verified: {verifyTarget.verified ? 'Yes' : 'No'}
+                </Text>
+              )}                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 }}>
+                <Text style={{ color: colors.text, fontSize: fontSize.sm }}>
+                  {verifyTarget && verifyTarget.verified !== undefined
+                    ? (verifyTarget.verified ? 'Currently verified — uncheck to remove' : 'Currently unverified — check to enable')
+                    : 'Mark as verified'}
+                </Text>
+                <Switch
+                  value={verifyState}
+                  onValueChange={setVerifyState}
+                  trackColor={{ false: colors.gray300, true: colors.primary }}
+                  thumbColor={verifyState ? colors.white : colors.gray500}
+                />
+              </View>
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+                <View style={{ flex: 1 }}>
+                  <Button title="Cancel" variant="ghost" onPress={() => setVerifyTarget(null)} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Button
+                    title={verifyState ? 'Confirm Verified' : 'Confirm Unverified'}
+                    variant={verifyState ? 'secondary' : 'danger'}
+                    onPress={async () => {
+                      if (!verifyTarget || !me) return;
+                      try {
+                        await setVerified(verifyTarget.uid, verifyState);
+                        await logAudit(me.uid, 'user.set_verified', { targetUid: verifyTarget.uid, verified: verifyState });
+                        setVerifyTarget(null);
+                        setVerifyState(false);
+                        await load(search);
+                      } catch (error: unknown) {
+                        console.error('Verify toggle failed:', error);
+                      }
+                    }}
+                  />
                 </View>
               </View>
             </View>

@@ -51,7 +51,7 @@ service cloud.firestore {
         'areaUnit', 'yearBuilt', 'images', 'features', 'amenities',
         'userId', 'userName', 'userPhoto', 'userPhone',
         'views', 'inquiries', 'createdAt', 'updatedAt',
-        'archived', 'contactEnabled'
+        'archived', 'contactEnabled', 'verified'
       ]) &&
       request.resource.data.listingType in ['sale', 'rent'] &&
       request.resource.data.propertyType in [
@@ -73,7 +73,8 @@ service cloud.firestore {
         'areaUnit', 'yearBuilt', 'images', 'features', 'amenities',
         'views', 'inquiries', 'version', 'soldDate', 'pendingDate',
         'contactEnabled', 'archived', 'archivedAt', 'archiveReason',
-        'expirationDate', 'updatedAt'
+        'expirationDate', 'updatedAt', 'verified',
+        'avgResponseMinutes', 'conversationCount'
       ]);
     }
 
@@ -230,17 +231,34 @@ service cloud.firestore {
           && viewBumpIsValid()
           && withinWriteLimit())
         ||
+        // Seller response-time tracking: property owners may update the
+        // response-time stats without bumping the version or write counter.
+        (isPropertyOwner(propertyId) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'avgResponseMinutes', 'conversationCount'
+          ]))
+        ||
         // Moderation: admins may hide listings without going through the
         // owner's optimistic-lock/rate-limit path.
         (isAdmin() &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'status', 'archived', 'archivedAt', 'archiveReason', 'updatedAt'
+            'status', 'archived', 'archivedAt', 'archiveReason', 'updatedAt', 'verified'
           ]))
       );
 
       // Only the property owner can delete; admins may remove listings for
       // moderation (reports) — the removal is audited via admin_auditLog.
       allow delete: if (isPropertyOwner(propertyId) && withinWriteLimit()) || isAdmin();
+
+      // ─── Price History Subcollection ───
+      // Written by the property owner when price changes (in the same batch as
+      // the property edit — write limit is enforced on the property update).
+      // Read by any authenticated user for the detail-screen chart.
+      match /priceHistory/{entryId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated() && isPropertyOwner(propertyId);
+        allow update, delete: if false;
+      }
 
       // ─── Messages Subcollection (under properties for direct messaging) ───
       match /messages/{messageId} {
@@ -268,9 +286,14 @@ service cloud.firestore {
           'createdAt', 'updatedAt'
         ]);
 
-      // Participants can update conversation metadata (last message, unread counts)
+      // Participants can update conversation metadata (last message, unread counts,
+      // firstSellerReplyAt for response-time tracking).
       allow update: if isAuthenticated() &&
-        isParticipant(resource.data.participants);
+        isParticipant(resource.data.participants) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'lastMessage', 'lastMessageTime', 'lastMessageSenderId',
+          'unreadCount', 'updatedAt', 'firstSellerReplyAt'
+        ]);
 
       // No one should delete conversations directly
       allow delete: if false;

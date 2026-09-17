@@ -11,6 +11,7 @@ import {
   onSnapshot,
   serverTimestamp,
   increment,
+  updateDoc,
   Timestamp,
   DocumentReference,
   DocumentData,
@@ -19,7 +20,7 @@ import * as Crypto from 'expo-crypto';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from '../config/firebase';
 import { Conversation, Message } from '../types';
-import { CHAT_COLLECTION, MESSAGES_COLLECTION } from '../utils/constants';
+import { CHAT_COLLECTION, MESSAGES_COLLECTION, PROPERTIES_COLLECTION } from '../utils/constants';
 import {
   firestoreCircuitBreaker,
   storageCircuitBreaker,
@@ -368,4 +369,115 @@ export async function getConversation(
     return { id: docSnap.id, ...docSnap.data() } as Conversation;
   }
   return null;
+}
+
+export async function getConversationsForUser(
+  userId: string
+): Promise<Conversation[]> {
+  const q = query(
+    collection(db, CHAT_COLLECTION),
+    where('participants', 'array-contains', userId),
+    orderBy('updatedAt', 'desc')
+  );
+  const querySnapshot = await firestoreCircuitBreaker.execute(() =>
+    withRetry(() => withTimeout(getDocs(q), DEFAULT_TIMEOUT_MS))
+  );
+  const conversations: Conversation[] = [];
+  querySnapshot.forEach((doc) => {
+    conversations.push({ id: doc.id, ...doc.data() } as Conversation);
+  });
+  return conversations;
+}
+
+/**
+ * Track seller response time.
+ *
+ * Called after a seller sends their first message in a conversation. Records
+ * the time-to-first-reply on the conversation doc and updates a rolling
+ * average on the seller's property documents so the detail screen can show
+ * a "Usually responds in ~Xh" badge.
+ *
+ * Safe to call multiple times — idempotent (skips if firstSellerReplyAt
+ * already exists on the conversation).
+ */
+export async function recordSellerFirstReply(
+  conversationId: string,
+  sellerId: string
+): Promise<void> {
+  const convRef = doc(db, CHAT_COLLECTION, conversationId);
+  const convSnap = await firestoreCircuitBreaker.execute(() =>
+    withRetry(() => withTimeout(getDoc(convRef), DEFAULT_TIMEOUT_MS))
+  );
+  if (!convSnap.exists()) return;
+  const convData = convSnap.data();
+
+  // Already tracked — skip.
+  if (convData.firstSellerReplyAt) return;
+
+  // Verify the sender is actually a participant (and the seller).
+  const participants = convData.participants as string[];
+  if (!participants.includes(sellerId)) return;
+
+  // Calculate time-to-first-reply from conversation creation.
+  const createdAt = convData.createdAt;
+  let replyMs: number;
+  if (createdAt instanceof Timestamp) {
+    replyMs = Date.now() - createdAt.toDate().getTime();
+  } else if (createdAt && typeof createdAt === 'object' && 'seconds' in createdAt) {
+    replyMs = Date.now() - ((createdAt as any).seconds * 1000 + ((createdAt as any).nanoseconds || 0) / 1_000_000);
+  } else {
+    // Fallback: use updatedAt as an approximation.
+    const updatedAt = convData.updatedAt;
+    if (updatedAt instanceof Timestamp) {
+      replyMs = Date.now() - updatedAt.toDate().getTime();
+    } else {
+      return; // Can't compute — bail.
+    }
+  }
+
+  const replyMinutes = Math.max(0, Math.round(replyMs / 60_000));
+  const now = new Date().toISOString();
+
+  // 1. Mark the conversation so we don't re-track.
+  await firestoreCircuitBreaker.execute(() =>
+    withRetry(() =>
+      withTimeout(
+        updateDoc(convRef, { firstSellerReplyAt: now }),
+        DEFAULT_TIMEOUT_MS
+      )
+    )
+  );
+
+  // 2. Update every property owned by this seller with a rolling average.
+  //    We query all seller properties and update the avgResponseMinutes and
+  //    conversationCount fields (both are read by PropertyDetailScreen).
+  const propsQ = query(
+    collection(db, PROPERTIES_COLLECTION),
+    where('userId', '==', sellerId)
+  );
+  const propsSnap = await firestoreCircuitBreaker.execute(() =>
+    withRetry(() => withTimeout(getDocs(propsQ), DEFAULT_TIMEOUT_MS))
+  );
+
+  for (const propDoc of propsSnap.docs) {
+    const propData = propDoc.data();
+    const currentAvg = (propData.avgResponseMinutes as number) ?? 0;
+    const currentCount = (propData.conversationCount as number) ?? 0;
+
+    // Rolling average: newAvg = (oldAvg * oldCount + newReply) / (oldCount + 1)
+    const newCount = currentCount + 1;
+    const newAvg = Math.round((currentAvg * currentCount + replyMinutes) / newCount);
+
+    await firestoreCircuitBreaker.execute(() =>
+      withRetry(() =>
+        withTimeout(
+          updateDoc(propDoc.ref, {
+            avgResponseMinutes: newAvg,
+            conversationCount: newCount,
+          }),
+          DEFAULT_TIMEOUT_MS
+        )
+      )
+    );
+  }
 }

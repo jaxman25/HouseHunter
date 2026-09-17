@@ -14,7 +14,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuthContext } from '../../context/AuthContext';
-import { RootStackParamList, Property } from '../../types';
+import { RootStackParamList, Property, PriceHistoryEntry } from '../../types';
 import PropertyImageGallery from '../../components/property/PropertyImageGallery';
 import PropertyDetailSkeleton from '../../components/property/PropertyDetailSkeleton';
 import PropertyMap from '../../components/common/PropertyMap';
@@ -22,10 +22,13 @@ import Avatar from '../../components/common/Avatar';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import StatusBadge from '../../components/common/StatusBadge';
+import VerificationBadge from '../../components/reviews/VerificationBadge';
 import ContactSellerModal from '../../components/contact/ContactSellerModal';
 import ReportListingModal from '../../components/moderation/ReportListingModal';
+import PriceHistoryChart from '../../components/property/PriceHistoryChart';
+import PropertyCard from '../../components/property/PropertyCard';
 import { shareProperty } from '../../utils/share';
-import { getProperty } from '../../services/propertyService';
+import { getProperty, getSimilarProperties, getPriceHistory } from '../../services/propertyService';
 import { getOrCreateConversation, sendMessage } from '../../services/chatService';
 import {
   formatPrice,
@@ -61,15 +64,25 @@ export default function PropertyDetailScreen() {
   );
 
   const [property, setProperty] = useState<Property | null>(null);
+  const [similarProperties, setSimilarProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [contacting, setContacting] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [priceHistory, setPriceHistory] = useState<PriceHistoryEntry[]>([]);
 
   // Only Active listings accept new inquiries; Pending/Sold/Rented/Inactive
   // show an availability note and a disabled contact button.
-  const isAvailable = property?.status === 'active';
+    const isAvailable = property?.status === 'active';
   const isPending = property?.status === 'pending';
+
+  // Show seller response-time badge only when there's enough data to be
+  // meaningful (>= 3 conversations) and the seller has an average on file.
+  const sellerHasResponseBadge =
+    property != null &&
+    property.avgResponseMinutes != null &&
+    property.conversationCount != null &&
+    property.conversationCount >= 3;
 
   useEffect(() => {
     let ignore = false;
@@ -83,6 +96,16 @@ export default function PropertyDetailScreen() {
             // home screen's "Recently Viewed" stays fresh. Non-critical: the
             // snapshot is passed to avoid a second fetch.
             trackPropertyView(data.id, data);
+            // Load similar properties, price history, and seller response info in parallel.
+            const [similar, history] = await Promise.all([
+              getSimilarProperties(data),
+              getPriceHistory(data.id),
+            ]);
+            if (!ignore) {
+              setSimilarProperties(similar);
+              setPriceHistory(history);
+            }
+
           } else {
             // The listing no longer exists — drop it from local history so
             // "Recently Viewed" doesn't point at a dead property.
@@ -252,6 +275,9 @@ export default function PropertyDetailScreen() {
                 variant="info"
               />
               <StatusBadge status={property.status} />
+              {property.verified ? (
+                <VerificationBadge verified={true} label="Verified Listing" />
+              ) : null}
             </View>
           </View>
 
@@ -298,6 +324,13 @@ export default function PropertyDetailScreen() {
                   : 'This property is no longer available'}
               </Text>
             </View>
+          )}
+
+          {/* Price History Chart */}
+          {priceHistory.length >= 2 && (
+            <Section title="Price History" colors={colors} fontSize={fontSize} spacing={spacing}>
+              <PriceHistoryChart entries={priceHistory} listingType={property.listingType} />
+            </Section>
           )}
 
           {/* Views & Time */}
@@ -417,7 +450,38 @@ export default function PropertyDetailScreen() {
               </View>
               <MaterialCommunityIcons name="chevron-right" size={20} color={colors.gray400} />
             </TouchableOpacity>
+            {sellerHasResponseBadge ? (
+              <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: spacing.sm }}>
+                Usually responds in ~{Math.round(property.avgResponseMinutes! / 60)}h
+              </Text>
+            ) : null}
+            {property.verified ? (
+              <View style={{ marginTop: spacing.sm, alignItems: 'flex-start' }}>
+                <VerificationBadge verified={true} label="Verified Listing" />
+              </View>
+            ) : null}
           </Section>
+
+          {/* Similar Properties */}
+          {similarProperties.length > 0 && (
+            <Section title="Similar Listings" colors={colors} fontSize={fontSize} spacing={spacing}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: 4, gap: spacing.md }}
+              >
+                {similarProperties.slice(0, 6).map((similar) => (
+                  <PropertyCard
+                    key={similar.id}
+                    property={similar}
+                    onPress={() => navigation.navigate('PropertyDetail', { propertyId: similar.id })}
+                    variant="grid"
+                    style={{ width: responsive.isDesktop ? 220 : 160 }}
+                  />
+                ))}
+              </ScrollView>
+            </Section>
+          )}
 
           {/* Bottom Spacer */}
           <View style={{ height: 100 }} />

@@ -33,6 +33,7 @@ export const ADMIN_REPORTS_COLLECTION = 'admin_reports';
 export const ADMIN_ANNOUNCEMENTS_COLLECTION = 'admin_announcements';
 export const ADMIN_AUDIT_COLLECTION = 'admin_auditLog';
 
+export const PRICE_HISTORY_SUBCOLLECTION = 'priceHistory';
 export const REVIEWS_COLLECTION = 'reviews';
 export const TOURS_COLLECTION = 'tours';
 export const TOUR_AVAILABILITY_COLLECTION = 'tourAvailability';

@@ -14,6 +14,7 @@ import {
   deleteField,
   serverTimestamp,
   getCountFromServer,
+  writeBatch,
   Timestamp,
   DocumentSnapshot,
 } from 'firebase/firestore';
@@ -26,8 +27,13 @@ import {
   USERS_COLLECTION,
   PROPERTIES_COLLECTION,
 } from '../utils/constants';
-import { User, Report, ReportStatus, Announcement } from '../types';
+import { User, Report, ReportStatus, Announcement, Property } from '../types';
 import { sanitize } from '../utils/security/sanitize';
+import { firestoreCircuitBreaker } from '../utils/network/circuitBreaker';
+import { withRetry } from '../utils/network/retry';
+import { withTimeout, DEFAULT_TIMEOUT_MS } from '../utils/network/timeout';
+import { trackMetric } from '../utils/monitoring/metrics';
+import { toProperty } from './propertyService';
 
 /**
  * Admin suite — moderation tools gated by the admin_roles collection
@@ -85,6 +91,46 @@ export async function getUsers(
       u.email?.toLowerCase().includes(needle) ||
       u.uid.toLowerCase().includes(needle)
   );
+}
+
+export async function setVerified(uid: string, verified: boolean): Promise<void> {
+  // SECURITY: This is intentionally only reachable by admins (firestore.rules
+  // restricts property.verified writes to admins). It writes a flag on the
+  // property documents owned by this user, not on the user doc.
+  const userProps = await getUserProperties(uid);
+  if (userProps.length === 0) return;
+
+  const batch = writeBatch(db);
+  for (const property of userProps) {
+    batch.update(doc(db, PROPERTIES_COLLECTION, property.id), { verified });
+  }
+  await batch.commit();
+}
+
+export async function getUserProperties(userId: string): Promise<Property[]> {
+  const result = await trackMetric('properties.byUser', () =>
+    firestoreCircuitBreaker.execute(() =>
+      withRetry(() =>
+        withTimeout(
+          (async () => {
+            const q = query(
+              collection(db, PROPERTIES_COLLECTION),
+              where('userId', '==', userId),
+              orderBy('createdAt', 'desc')
+            );
+            const querySnapshot = await getDocs(q);
+            const properties: Property[] = [];
+            querySnapshot.forEach((doc) => {
+              properties.push(toProperty(doc));
+            });
+            return properties;
+          })(),
+          DEFAULT_TIMEOUT_MS
+        )
+      )
+    )
+  );
+  return result;
 }
 
 /** Suspend a user with a reason and optional duration in days (null = permanent). */
