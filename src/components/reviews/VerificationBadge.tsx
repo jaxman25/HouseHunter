@@ -5,9 +5,10 @@ import { useTheme } from '../../context/ThemeContext';
 
 interface VerificationBadgeProps {
   verified: boolean;
+  label?: string;
 }
 
-export default function VerificationBadge({ verified }: VerificationBadgeProps) {
+export default function VerificationBadge({ verified, label }: VerificationBadgeProps) {
   const { colors, fontSize } = useTheme();
 
   if (!verified) return null;
@@ -16,7 +17,7 @@ export default function VerificationBadge({ verified }: VerificationBadgeProps) 
     <View style={[styles.container, { backgroundColor: colors.success + '15' }]}>
       <MaterialCommunityIcons name="check-decagram" size={14} color={colors.success} />
       <Text style={[styles.text, { color: colors.success, fontSize: fontSize.xs }]}>
-        Verified Purchase
+        {label || 'Verified Purchase'}
       </Text>
     </View>
   );

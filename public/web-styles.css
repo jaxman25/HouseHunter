@@ -1,0 +1,131 @@
+/* House Hunter — web-only global stylesheet.
+ * =====================================================================
+ * Loaded by public/index.html. Expo copies public/ verbatim into the
+ * web build root, so this file is served at /web-styles.css.
+ *
+ * This is the ONLY global stylesheet in the project — all app styling
+ * belongs in src/ via StyleSheet / src/config/theme.ts. Keep it to
+ * document-root concerns that React Native Web cannot express:
+ *
+ *   1. The react-native-web root reset.
+ *   2. Design tokens mirrored from src/config/theme.ts (for the rules
+ *      below and for native browser UI we don't render ourselves).
+ *   3. Browser autofill normalisation.
+ *
+ * ⚠️ CACHE BUSTING — index.html links this as /web-styles.css?v=2.
+ * public/sw.js caches same-origin assets stale-while-revalidate keyed on
+ * the full request URL, so an unversioned URL would be served one load
+ * behind after a deploy. BUMP THE ?v= QUERY IN index.html WHENEVER YOU
+ * CHANGE THIS FILE.
+ */
+
+/* ---------------------------------------------------------------------
+ * 1. react-native-web root element reset
+ * https://necolas.github.io/react-native-web/docs/setup/#root-element
+ *
+ * Must apply before first paint, hence the render-blocking <link> in
+ * <head> rather than a deferred script.
+ * ------------------------------------------------------------------ */
+html,
+body {
+  /* Make the body full-height */
+  height: 100%;
+}
+
+body {
+  /* Disable body scrolling; the app scrolls inside <ScrollView> */
+  overflow: hidden;
+}
+
+#root {
+  /* Make the root element full-height */
+  display: flex;
+  height: 100%;
+  flex: 1;
+}
+
+/* ---------------------------------------------------------------------
+ * 2. Design tokens
+ *
+ * These mirror src/config/theme.ts. A stylesheet cannot import a TS
+ * module, so the values are duplicated here — KEEP THEM IN SYNC when
+ * the theme changes.
+ *
+ * Colour pairing: LIGHT_COLORS first, then the dark overrides, which
+ * match DARK_COLORS. Prefixed with --hh- to make clear they are
+ * project-owned and cannot collide with anything the bundler injects.
+ * ------------------------------------------------------------------ */
+:root {
+  --hh-field-fill: #f9fafb; /* colors.gray100 — the input fill */
+  --hh-field-text: #1a1d26; /* colors.text                     */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hh-field-fill: #1f2937; /* colors.gray100 (dark) */
+    --hh-field-text: #f9fafb; /* colors.text (dark)    */
+  }
+}
+
+/* ---------------------------------------------------------------------
+ * 3. Autofill normalisation
+ *
+ * Chrome/Edge paint autofilled fields with their own yellow/amber fill
+ * (`:-webkit-autofill`, also `:-internal-autofill-selected`) that
+ * ignores the app's background, so a browser-saved credential looks
+ * like a validation warning on every TextInput. Repaint it with the
+ * app's own field fill so an autofilled input is indistinguishable
+ * from a normal one.
+ *
+ * The fill comes from the wrapper in components/common/Input.tsx
+ * (backgroundColor: colors.gray100), which is why the inset shadow
+ * uses --hh-field-fill rather than white.
+ *
+ * -webkit-box-shadow: the browser's fill cannot be overridden with
+ * `background-color`, so a large inset shadow is painted over it.
+ * transition: delays the browser's own background transition so the
+ * yellow never visibly paints — belt-and-braces with the shadow.
+ *
+ * textarea is included because react-native-web renders a multiline
+ * TextInput (ChatInput, tour notes, review form) as <textarea>.
+ * ------------------------------------------------------------------ */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 30px var(--hh-field-fill) inset !important;
+  -webkit-text-fill-color: var(--hh-field-text) !important;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+/* ---------------------------------------------------------------------
+ * FOCUS RINGS ARE DELIBERATELY NOT STYLED HERE — do not "fix" that.
+ *
+ * An earlier revision drew:
+ *
+ *     input:focus-visible, textarea:focus-visible {
+ *       outline: 2px solid <brand> !important;
+ *     }
+ *
+ * react-native-web renders a TextInput as an <input> *inside* the
+ * component's own bordered wrapper element, so a ring on the <input>
+ * paints a second, smaller rectangle inside the field instead of one
+ * ring around it — visibly wrong on every focused Input.
+ *
+ * Focus indication is owned by the component layer instead:
+ *
+ *   - components/common/Input.tsx tints its wrapper border to
+ *     colors.primary while focused (`focused ? colors.primary : ...`).
+ *     This is the app-wide cue: every form screen uses this component.
+ *   - Bare TextInputs (the search bar, chat input, review form, admin
+ *     and modal fields) keep the browser's native :focus-visible ring.
+ *     react-native-web does not suppress it — verified against the
+ *     installed copy, whose only `outline` references are a StyleSheet
+ *     prop whitelist entry and a Modal focus trap.
+ *
+ * ⚠️ Never add a blanket `input { outline: none }` rule. It would strip
+ * the keyboard focus indicator from every bare TextInput, breaking
+ * WCAG 2.4.7 and the WCAG-AA claim in FEATURES.md §16. If a branded
+ * ring is ever wanted for those fields, add an onFocus/border-tint to a
+ * shared component the way Input.tsx does — not a global outline.
+ * ------------------------------------------------------------------ */

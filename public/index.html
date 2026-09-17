@@ -9,6 +9,20 @@
     <link rel="manifest" href="/manifest.json" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <title>%WEB_TITLE%</title>
+    <!--
+      The single global web stylesheet: the react-native-web root reset plus
+      web-only concerns (design tokens, autofill normalisation, focus
+      visibility). Lives in public/ so Expo copies it verbatim to the build
+      root; see public/web-styles.css for the documentation.
+
+      Kept as a render-blocking <link> (not a deferred script) so the reset
+      and tokens apply before first paint.
+
+      ⚠️ Bump ?v= whenever web-styles.css changes: public/sw.js caches
+      same-origin assets stale-while-revalidate keyed on the full URL, so an
+      unversioned URL would be served one load behind after a deploy.
+    -->
+    <link rel="stylesheet" href="/web-styles.css?v=2" />
     <script>
       // Register the service worker for offline support (see /sw.js).
       if ('serviceWorker' in navigator) {
@@ -24,24 +38,6 @@
         });
       }
     </script>
-    <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
-    <style id="expo-reset">
-      /* These styles make the body full-height */
-      html,
-      body {
-        height: 100%;
-      }
-      /* These styles disable body scrolling if you are using <ScrollView> */
-      body {
-        overflow: hidden;
-      }
-      /* These styles make the root element full-height */
-      #root {
-        display: flex;
-        height: 100%;
-        flex: 1;
-      }
-    </style>
   </head>
 
   <body>

@@ -8,6 +8,7 @@ import { Property } from '../../types';
 import { formatBedrooms, formatBathrooms, formatArea } from '../../utils/helpers';
 import PriceDisplay from '../common/PriceDisplay';
 import StatusBadge from '../common/StatusBadge';
+import VerificationBadge from '../reviews/VerificationBadge';
 import { shareProperty } from '../../utils/share';
 
 /** Statuses where the listing is no longer available to new buyers. */
@@ -75,6 +76,7 @@ export default function PropertyCard({
                 </Text>
               </View>
               <StatusBadge status={property.status} size="sm" />
+              <VerificationBadge verified={property.verified ?? false} label="Verified Listing" />
             </View>
           </View>
           {/* Share */}
@@ -181,6 +183,7 @@ export default function PropertyCard({
             </Text>
           </View>
           <StatusBadge status={property.status} size="sm" style={{ marginTop: 3 }} />
+          <VerificationBadge verified={property.verified ?? false} label="Verified Listing" />
         </View>
         <TouchableOpacity
           onPress={(e) => {
@@ -286,6 +289,7 @@ export default function PropertyCard({
             </Text>
           </View>
           <StatusBadge status={property.status} size="sm" style={{ marginTop: 3 }} />
+          <VerificationBadge verified={property.verified ?? false} label="Verified Listing" />
         </View>
         {/* Share */}
         <TouchableOpacity
