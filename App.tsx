@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { StatusBar, LogBox, Appearance } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider } from './src/context/AuthContext';
-import { ThemeProvider } from './src/context/ThemeContext';
+import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { CurrencyProvider } from './src/context/CurrencyContext';
 import { LanguageProvider } from './src/context/LanguageContext';
 import AppNavigator from './src/navigation/AppNavigator';
@@ -14,7 +14,6 @@ import ToastHost from './src/components/common/ToastHost';
 import WebFrame from './src/components/common/WebFrame';
 import { initSentry } from './src/utils/monitoring/sentry';
 import { validateEnv } from './src/utils/env';
-import { useTheme } from './src/context/ThemeContext';
 
 LogBox.ignoreLogs([
   'Non-serializable values were found in the navigation state',
@@ -31,11 +30,8 @@ function AppContent() {
         backgroundColor={colors.background}
       />
       <AppNavigator />
-      {/* Web-only cookie/local-storage consent banner. */}
       <CookieConsentBanner />
-      {/* Config-driven in-app notice banner (config/app_notice doc). */}
       <NoticeBanner />
-      {/* Transient feedback (e.g. "link copied" on web share). */}
       <ToastHost />
     </>
   );

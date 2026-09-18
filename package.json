@@ -52,6 +52,7 @@
     "@types/uuid": "^9.0.8",
     "eslint": "^9.39.5",
     "eslint-config-expo": "^57.0.2",
+    "sharp": "^0.35.4",
     "typescript": "~6.0.3"
   },
   "private": true
