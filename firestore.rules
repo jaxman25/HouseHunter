@@ -88,11 +88,16 @@ service cloud.firestore {
     }
 
     // ─── Rate limiting ─────────────────────────────────────────
-    // Per-user write budget: max WRITE_LIMIT writes per wall-clock minute.
-    // Every rate-limited write MUST be accompanied, in the same batch, by a
-    // write to counters/{uid} shaped { minute: <epochMinute>, writes: <int> }.
-    // The client bumps it with merge + increment(1). See
-    // src/services/propertyService.ts (withWriteCount) for the client side.
+    // Per-user write budget: max 100 writes per wall-clock minute.
+    // SCOPE: applied ONLY to property create/update/delete, where the client
+    // includes the counters/{uid} bump in the same batch (see
+    // src/services/propertyService.ts, withWriteCount). View bumps and
+    // message sends intentionally do NOT use this budget: their batches
+    // never carry a counter write, so requiring one denies them outright.
+    // Firestore rules alone cannot make this budget tamper-proof
+    // (counters/{uid} must remain client-writable for the merge-bump
+    // pattern): authoritative enforcement is server-side — App Check,
+    // Cloud Functions budgets, and analyzeSecurityLogs anomaly alerts.
     function writeBudgetRef() {
       return /databases/$(database)/documents/counters/$(request.auth.uid);
     }
@@ -126,7 +131,17 @@ service cloud.firestore {
     // COUNTERS COLLECTION (rate limiting bookkeeping)
     // ═══════════════════════════════════════════════════════════
     match /counters/{userId} {
-      allow read, write: if isOwner(userId);
+      // Write-budget bookkeeping for withinWriteLimit(). Shape-locked to
+      // { minute: number, writes: number } so the budget doc can't be
+      // repurposed as arbitrary storage. `minute` remains client-supplied
+      // until server-time binding lands (planned follow-up commit); until
+      // then the budget is cooperative — see the rate-limiting header note.
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) &&
+        request.resource.data.keys().hasOnly(['minute', 'writes']) &&
+        request.resource.data.minute is number &&
+        request.resource.data.writes is number;
+      allow delete: if false;
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -226,10 +241,11 @@ service cloud.firestore {
           versionBumpedExactlyOnce() &&
           withinWriteLimit())
         ||
-        // Passive view counting: only a clean +1 increment, with rate limiting.
+        // Passive view counting: only a clean +1 increment. Rate limiting is
+        // enforced server-side (App Check + securityMonitor) — view batches
+        // never carry the counters write that withinWriteLimit() requires.
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views'])
-          && viewBumpIsValid()
-          && withinWriteLimit())
+          && viewBumpIsValid())
         ||
         // Seller response-time tracking: property owners may update the
         // response-time stats without bumping the version or write counter.
@@ -304,16 +320,17 @@ service cloud.firestore {
         allow read: if isAuthenticated() &&
           isParticipant(get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants);
 
-        // SECURITY (LOW 15): Rate-limit message creation using the same
-        // write budget as properties. Participants can create messages
-        // (must be the sender), subject to the per-user write limit.
+        // SECURITY (LOW 15): Participants can create messages (must be the
+        // sender). Message-send batches intentionally omit the counters
+        // write (requiring it would deny every send — the property-path
+        // budget never applied to messaging), so abuse here is mitigated
+        // server-side (App Check + securityMonitor), not via withinWriteLimit().
         allow create: if isAuthenticated() && !isSuspended() &&
           isParticipant(get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants) &&
           request.resource.data.senderId == request.auth.uid &&
           request.resource.data.keys().hasAll([
             'conversationId', 'senderId', 'text', 'read', 'createdAt'
-          ]) &&
-          withinWriteLimit();
+          ]);
 
         // Participants can update messages (for read receipts)
         allow update: if isAuthenticated() &&
