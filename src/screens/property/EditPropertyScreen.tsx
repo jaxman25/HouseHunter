@@ -22,6 +22,8 @@ import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import LoadingOverlay from '../../components/common/LoadingOverlay';
 import { updateProperty, uploadPropertyImage, deletePropertyImage } from '../../services/propertyService';
+import { uploadPropertyVideo, deleteVideo } from '../../services/storageService';
+import { validateVideoAsset, VIDEO_CONFIG } from '../../utils/security/videoValidation';
 import { PROPERTY_FEATURES } from '../../config/theme';
 import { MAX_IMAGES_PER_PROPERTY } from '../../utils/constants';
 
@@ -54,6 +56,11 @@ export default function EditPropertyScreen() {
   const [yearBuilt, setYearBuilt] = useState(String(prop.yearBuilt));
   const [features, setFeatures] = useState<string[]>(prop.features || []);
   const [images, setImages] = useState<string[]>(prop.images || []);
+  // Video walkthrough: an http(s) URL is an existing Storage upload; anything
+  // else is a local picked file awaiting upload.
+  const [videoUrl, setVideoUrl] = useState<string | undefined>(prop.videoUrl);
+  const [pendingVideoUri, setPendingVideoUri] = useState<string | undefined>(undefined);
+  const [videoDuration, setVideoDuration] = useState<number | undefined>(prop.videoDurationSeconds);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const clearError = (key: string) =>
@@ -140,6 +147,42 @@ export default function EditPropertyScreen() {
     setImages((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // ─── Video walkthrough ───
+  const pickVideo = async () => {
+    if (Platform.OS !== 'web') {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['videos'],
+      quality: 1,
+    });
+    if (result.canceled || result.assets.length === 0) return;
+    const asset = result.assets[0];
+    const check = validateVideoAsset({
+      duration: asset.duration,
+      fileSize: asset.fileSize,
+      mimeType: asset.mimeType,
+    });
+    if (!check.valid) {
+      Alert.alert('Video Not Allowed', check.error ?? 'This video cannot be used');
+      return;
+    }
+    // Replacing a video discards the previous local pick (the old Storage
+    // object is only deleted once the new one is saved).
+    setPendingVideoUri(asset.uri);
+    setVideoDuration(asset.duration ? Math.round(asset.duration) : undefined);
+    setVideoUrl(undefined);
+  };
+
+  const removeVideo = async () => {
+    const existing = videoUrl;
+    setPendingVideoUri(undefined);
+    setVideoUrl(undefined);
+    setVideoDuration(undefined);
+    if (existing) await deleteVideo(existing);
+  };
+
   const handleSave = async () => {
     if (!validate()) return;
     setLoading(true);
@@ -180,6 +223,17 @@ export default function EditPropertyScreen() {
       }
       if (status === 'pending' && prop.status !== 'pending') {
         updateData.pendingDate = new Date().toISOString();
+      }
+
+      // Upload a newly-picked video BEFORE the doc update (owner-only write
+      // in storage.rules requires the doc to exist — it does, in edit flow).
+      let nextVideoUrl = videoUrl;
+      if (pendingVideoUri) {
+        nextVideoUrl = await uploadPropertyVideo(pendingVideoUri, prop.id);
+      }
+      if (nextVideoUrl) {
+        updateData.videoUrl = nextVideoUrl;
+        if (videoDuration) updateData.videoDurationSeconds = videoDuration;
       }
 
       await updateProperty(prop.id, updateData);
@@ -313,6 +367,42 @@ export default function EditPropertyScreen() {
           ))}
         </View>
 
+        {/* Video walkthrough */}
+        <Text style={[styles.label, { color: colors.text, fontSize: fontSize.sm }]}>Video Walkthrough</Text>
+        {videoUrl || pendingVideoUri ? (
+          <View style={[styles.videoCard, { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.lg }]}>
+            <MaterialCommunityIcons name="play-circle-outline" size={28} color={colors.primary} />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={{ color: colors.text, fontSize: fontSize.sm, fontWeight: '600' }}>
+                {pendingVideoUri ? 'New video ready to upload' : 'Walkthrough attached'}
+              </Text>
+              {videoDuration ? (
+                <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}>
+                  {videoDuration}s · max {VIDEO_CONFIG.maxDurationSeconds}s
+                </Text>
+              ) : null}
+            </View>
+            <TouchableOpacity
+              onPress={removeVideo}
+              style={[styles.removeVideoBtn, { backgroundColor: colors.error }]}
+              accessibilityRole="button"
+              accessibilityLabel="Remove video walkthrough"
+            >
+              <MaterialCommunityIcons name="delete-outline" size={16} color={colors.white} />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={[styles.addPhotoBtn, { borderColor: colors.border, borderRadius: radius.lg }]}
+            onPress={pickVideo}
+          >
+            <MaterialCommunityIcons name="movie-open-plus-outline" size={28} color={colors.primary} />
+            <Text style={{ color: colors.primary, fontSize: fontSize.sm, fontWeight: '600', marginTop: 4 }}>
+              Add Video (≤{VIDEO_CONFIG.maxDurationSeconds}s, ≤50MB)
+            </Text>
+          </TouchableOpacity>
+        )}
+
         {/* Images */}
         <Text style={[styles.label, { color: colors.text, fontSize: fontSize.sm }]}>Photos ({images.length})</Text>
         <TouchableOpacity
@@ -356,6 +446,8 @@ const styles = StyleSheet.create({
   featureGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
   featureChip: { paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1 },
   addPhotoBtn: { alignItems: 'center', paddingVertical: 20, borderWidth: 2, borderStyle: 'dashed', marginBottom: 12 },
+  videoCard: { flexDirection: 'row', alignItems: 'center', padding: 12, borderWidth: 1, marginBottom: 12 },
+  removeVideoBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   imageGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   imageItem: { width: '30%', aspectRatio: 1, position: 'relative' },
   image: { width: '100%', height: '100%', backgroundColor: '#E5E7EB' },

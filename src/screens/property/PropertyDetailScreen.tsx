@@ -29,6 +29,7 @@ import PriceHistoryChart from '../../components/property/PriceHistoryChart';
 import MortgageCalculatorModal from '../../components/property/MortgageCalculatorModal';
 import TourRequestModal from '../../components/tours/TourRequestModal';
 import NeighborhoodInsightsSection from '../../components/neighborhood/NeighborhoodInsightsSection';
+import VideoWalkthrough from '../../components/property/VideoWalkthrough';
 import PropertyCard from '../../components/property/PropertyCard';
 import { shareProperty } from '../../utils/share';
 import { getProperty, getSimilarProperties, getPriceHistory } from '../../services/propertyService';
@@ -419,6 +420,13 @@ export default function PropertyDetailScreen() {
               </Text>
             </View>
           </View>
+
+          {/* Video Walkthrough */}
+          {property.videoUrl && (
+            <Section title="Video Walkthrough" colors={colors} fontSize={fontSize} spacing={spacing}>
+              <VideoWalkthrough uri={property.videoUrl} />
+            </Section>
+          )}
 
           {/* Key Features */}
           <View

@@ -94,6 +94,10 @@ export interface Property {
   avgResponseMinutes?: number;
   /** Number of conversations the seller has participated in (for badge gating). */
   conversationCount?: number;
+  /** Optional video walkthrough: exactly one, Storage URL under properties/{id}/videos/. */
+  videoUrl?: string;
+  /** Duration of the walkthrough in seconds (client-measured at pick time). */
+  videoDurationSeconds?: number;
   createdAt: string;
   updatedAt: string;
 }

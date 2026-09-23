@@ -22,7 +22,9 @@ import { RootStackParamList, PropertyType, ListingType } from '../../types';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import LoadingOverlay from '../../components/common/LoadingOverlay';
-import { createProperty, uploadPropertyImage } from '../../services/propertyService';
+import { createProperty, updateProperty, uploadPropertyImage } from '../../services/propertyService';
+import { uploadPropertyVideo } from '../../services/storageService';
+import { validateVideoAsset, VIDEO_CONFIG } from '../../utils/security/videoValidation';
 import { PROPERTY_FEATURES, PROPERTY_TYPES } from '../../config/theme';
 import { generateId } from '../../utils/helpers';
 import { MAX_IMAGES_PER_PROPERTY } from '../../utils/constants';
@@ -55,10 +57,39 @@ export default function AddPropertyScreen() {
   const [yearBuilt, setYearBuilt] = useState('');
   const [features, setFeatures] = useState<string[]>([]);
   const [images, setImages] = useState<string[]>([]);
+  // Optional video walkthrough (picked in the media step, uploaded after the
+  // property doc exists — storage.rules requires the owner doc for videos).
+  const [videoAsset, setVideoAsset] = useState<{ uri: string; duration?: number } | null>(null);
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const pickVideo = async () => {
+    if (Platform.OS !== 'web') {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please allow photo access in settings');
+        return;
+      }
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['videos'],
+      quality: 1,
+    });
+    if (result.canceled || result.assets.length === 0) return;
+    const asset = result.assets[0];
+    const check = validateVideoAsset({
+      duration: asset.duration,
+      fileSize: asset.fileSize,
+      mimeType: asset.mimeType,
+    });
+    if (!check.valid) {
+      Alert.alert('Video Not Allowed', check.error ?? 'This video cannot be used');
+      return;
+    }
+    setVideoAsset({ uri: asset.uri, duration: asset.duration ? Math.round(asset.duration) : undefined });
+  };
 
   const pickImage = async () => {
     if (images.length >= MAX_IMAGES_PER_PROPERTY) {
@@ -217,6 +248,22 @@ export default function AddPropertyScreen() {
         },
         propertyId
       );
+
+      // Optional walkthrough: upload after the doc exists (videos are
+      // owner-doc-gated in storage.rules), then patch the doc.
+      if (videoAsset) {
+        try {
+          const videoUrl = await uploadPropertyVideo(videoAsset.uri, propertyId);
+          await updateProperty(propertyId, {
+            videoUrl,
+            ...(videoAsset.duration ? { videoDurationSeconds: videoAsset.duration } : {}),
+          });
+        } catch (videoError) {
+          // Non-fatal: the listing exists; the seller can retry from edit.
+          console.error('Video upload failed:', videoError);
+          Alert.alert('Video Not Added', 'The listing was created, but the video could not be uploaded. You can add it from Edit Listing.');
+        }
+      }
 
       Alert.alert('Success', 'Your property has been listed successfully', [
         { text: 'OK', onPress: () => navigation.goBack() },
@@ -522,6 +569,52 @@ export default function AddPropertyScreen() {
               </Text>
             </TouchableOpacity>
 
+            {/* Optional video walkthrough (one per listing) */}
+            {videoAsset ? (
+              <View style={[styles.videoCard, { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.lg }]}>
+                <MaterialCommunityIcons name="play-circle-outline" size={28} color={colors.primary} />
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text style={{ color: colors.text, fontSize: fontSize.sm, fontWeight: '600' }}>
+                    Video ready to upload
+                  </Text>
+                  {videoAsset.duration ? (
+                    <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}>
+                      {videoAsset.duration}s · max {VIDEO_CONFIG.maxDurationSeconds}s
+                    </Text>
+                  ) : null}
+                </View>
+                <TouchableOpacity
+                  onPress={() => setVideoAsset(null)}
+                  style={[styles.removeVideoBtn, { backgroundColor: colors.error }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Remove selected video"
+                >
+                  <MaterialCommunityIcons name="close" size={16} color={colors.white} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[
+                  styles.addPhotoBtn,
+                  {
+                    borderColor: colors.border,
+                    borderStyle: 'dashed',
+                    borderRadius: radius.lg,
+                    marginTop: 12,
+                  },
+                ]}
+                onPress={pickVideo}
+              >
+                <MaterialCommunityIcons name="movie-open-plus-outline" size={28} color={colors.primary} />
+                <Text style={{ color: colors.primary, fontSize: fontSize.md, fontWeight: '600', marginTop: 8 }}>
+                  Add Video (Optional)
+                </Text>
+                <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 4 }}>
+                  Up to {VIDEO_CONFIG.maxDurationSeconds}s · 50MB
+                </Text>
+              </TouchableOpacity>
+            )}
+
             {images.length > 0 && (
               <View style={styles.imageGrid}>
                 {images.map((uri, index) => (
@@ -740,6 +833,20 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
     borderWidth: 2,
     marginBottom: 16,
+  },
+  videoCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  removeVideoBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   imageGrid: {
     flexDirection: 'row',

@@ -12,20 +12,44 @@ service firebase.storage {
       allow write: if isAuthenticated() && request.auth.uid == userId;
     }
 
-    // ─── Property images ─────────────────────────────────────────────────
+    // ─── Property images & videos ─────────────────────────────────────────
     // The AddProperty flow uploads images BEFORE the property document
     // exists (client generates the id first), so writes are allowed while
     // the doc is missing; once the property exists, only its owner may
     // write. This blocks overwriting an existing listing's photos.
+    function isPropertyOwner(propertyId) {
+      return firestore.exists(/databases/(default)/documents/properties/$(propertyId))
+        && firestore.get(/databases/(default)/documents/properties/$(propertyId)).data.userId == request.auth.uid;
+    }
     function isPropertyImageOwner(propertyId) {
       // Written while the doc is missing (AddProperty uploads first), then
       // owner-only once the property doc exists with the same id.
       return !firestore.exists(/databases/(default)/documents/properties/$(propertyId))
-        || firestore.get(/databases/(default)/documents/properties/$(propertyId)).data.userId == request.auth.uid;
+        || isPropertyOwner(propertyId);
     }
     match /properties/{propertyId}/{fileName} {
       allow read: if isAuthenticated();
       allow write: if isAuthenticated() && isPropertyImageOwner(propertyId);
+    }
+
+    // ─── Property video walkthroughs ──────────────────────────────────────
+    // One short video per listing (≤50MB, mp4/webm/mov). Strictly
+    // owner-only: the property doc must already exist and belong to the
+    // caller (videos are only ever uploaded from the edit flow, never
+    // pre-doc like images). MIME type + size are validated here so a
+    // crafted client can't store arbitrary binary blobs.
+    function isVideoMimeType() {
+      return request.resourceMetadata.contentType.matches('video/(mp4|webm|quicktime)');
+    }
+    function isVideoSizeValid() {
+      return request.resource.size <= 50 * 1024 * 1024;
+    }
+    match /properties/{propertyId}/videos/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated()
+        && isPropertyOwner(propertyId)
+        && isVideoMimeType()
+        && isVideoSizeValid();
     }
 
     // ─── Chat images: participants only ──────────────────────────────────

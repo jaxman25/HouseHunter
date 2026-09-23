@@ -77,6 +77,9 @@ service cloud.firestore {
         'areaUnit', 'yearBuilt', 'images', 'features', 'amenities',
         'views', 'inquiries', 'version', 'soldDate', 'pendingDate',
         'contactEnabled', 'archived', 'archivedAt', 'archiveReason',
+        // Video walkthrough (owner-managed, one per listing, Size/URL
+        // validated client-side before upload — see VIDEO_CONFIG).
+        'videoUrl', 'videoDurationSeconds',
         // SECURITY: `verified`, avgResponseMinutes and conversationCount are
         // deliberately absent — `verified` is admin-only (moderation branch of
         // allow update) and the response-time stats are written only by the

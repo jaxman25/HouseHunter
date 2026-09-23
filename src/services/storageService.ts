@@ -5,7 +5,11 @@ import { withRetry } from '../utils/network/retry';
 import { withTimeout, UPLOAD_TIMEOUT_MS } from '../utils/network/timeout';
 import { trackMetric } from '../utils/monitoring/metrics';
 import { generateSafeFilename, IMAGE_CONFIG, PROFILE_IMAGE_CONFIG } from '../utils/security/fileValidation';
+import { VIDEO_CONFIG } from '../utils/security/videoValidation';
 import { sanitizeFilename } from '../utils/security/sanitize';
+
+/** Videos are large — a 10-minute budget (vs 30s for images). */
+const VIDEO_UPLOAD_TIMEOUT_MS = 10 * 60 * 1000;
 
 /**
  * Validate a file URI before upload.
@@ -99,5 +103,66 @@ export async function deleteImage(url: string): Promise<void> {
 export async function deleteImages(urls: string[]): Promise<void> {
   for (const url of urls) {
     await deleteImage(url);
+  }
+}
+
+// ─── Video walkthroughs ───────────────────────────────────────────────────
+// One short video per listing (≤50MB, ≤90s — limits also enforced by
+// storage.rules; see src/utils/security/videoValidation.ts).
+
+/**
+ * Upload a property video walkthrough to properties/{id}/videos/.
+ * Enforces the same size/type limits as storage.rules before sending.
+ */
+export async function uploadPropertyVideo(
+  uri: string,
+  propertyId: string
+): Promise<string> {
+  validateUploadUri(uri);
+  const safeId = propertyId.replace(/\.\./g, '');
+  const filename = `properties/${safeId}/videos/video_${Date.now()}.mp4`;
+
+  const url = await storageCircuitBreaker.execute(() =>
+    withRetry(() =>
+      withTimeout(
+        trackMetric('storage.uploadVideo', async () => {
+          const response = await fetch(uri);
+          const blob = await response.blob();
+
+          if (blob.size > VIDEO_CONFIG.maxFileSize) {
+            throw new Error(
+              `Video too large: ${(blob.size / 1024 / 1024).toFixed(1)}MB (max: 50MB)`
+            );
+          }
+          const contentType = blob.type?.split(';')[0]?.trim().toLowerCase();
+          if (
+            contentType &&
+            !(VIDEO_CONFIG.allowedTypes as readonly string[]).includes(contentType)
+          ) {
+            throw new Error(`Video format "${contentType}" is not supported`);
+          }
+
+          const storageRef = ref(storage, filename);
+          await uploadBytes(storageRef, blob, {
+            contentType: contentType || 'video/mp4',
+          });
+          return getDownloadURL(storageRef);
+        }),
+        VIDEO_UPLOAD_TIMEOUT_MS
+      )
+    )
+  );
+  return url;
+}
+
+/** Delete a property video (fire-and-forget friendly: warns, never throws). */
+export async function deleteVideo(url: string): Promise<void> {
+  try {
+    const videoRef = ref(storage, url);
+    await storageCircuitBreaker.execute(() =>
+      withRetry(() => withTimeout(deleteObject(videoRef), UPLOAD_TIMEOUT_MS))
+    );
+  } catch (error) {
+    console.warn('Failed to delete video:', error);
   }
 }
