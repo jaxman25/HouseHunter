@@ -1,39 +1,56 @@
 # FREEBUFF SESSION HANDOFF — HOUSE HUNTER SECURITY HARDENING
 
+## Project Stack (VERIFIED)
+- Frontend: React Native + Expo SDK 57, React 19, TypeScript
+- Backend: Firebase Cloud Functions (Node.js) in functions/
+- Database: Firestore
+- Storage: Firebase Storage
+- Auth: Firebase Auth (assumed — verify)
+- Error tracking: Sentry
+- Maps: react-native-maps + expo-location
+- Build: EAS
+- CI: .github/ workflows
+
 ## Session Context
-- Phase reached: Phase 12 (controlled editing) — SESSION EXPIRED
-- Branch: main
+- Previous session: EXPIRED mid-Phase-12
+- Result: Freebuff reported editing files but NOTHING was written to disk
+- Verified with git: codebase is in pre-hardening state
+- New branch: security-hardening
 - Backup branch: backup-pre-hardening
-- Repo path: C:\Users\jane\Desktop\HouseHunter
 
-## Actual Codebase State (verified with git)
-- On branch: main
-- Last commit: [paste from git log -1 --oneline]
-- Modified files: NONE
-- Untracked files: assets/loader.png (unrelated to security work)
-- Branch security-hardening: DOES NOT EXIST
-- Phase 12 edits applied: NONE
+## Critical Rule Learned From Previous Session
+VERIFY EVERY EDIT ON DISK BEFORE PROCEEDING.
+After each claimed edit, run `git diff <file>` to confirm changes persisted.
 
-## Conclusion
-Freebuff did not write any changes to disk during Phase 12.
-The codebase is in its pre-hardening state.
-
-## Plan from Phases 1-11
-[PASTE the consolidated edit plan from Phase 11 here]
-[If you don't have it, say: "Plan was in expired session. Must regenerate."]
-
-## What to Do Next
-1. Decide: regenerate the plan (Phases 1-11) OR resume from Phase 12 with a fresh plan.
-2. If regenerating: send Session Resume Prompt with this handoff.
-3. If resuming: confirm the plan is captured here first.
+## Security Phases for THIS Stack
+1. Firestore security rules (firestore.rules) — HIGHEST PRIORITY
+2. Storage security rules (storage.rules) — HIGHEST PRIORITY
+3. Firebase Auth configuration
+4. Cloud Functions security (functions/)
+5. API key & secret exposure (app.config.js, .env, firebase.json)
+6. Client-side data validation (src/)
+7. Client-side auth logic (src/)
+8. Cloud Functions input validation (functions/)
+9. Dependency audit (package.json)
+10. CORS & domain restrictions (cors.json)
+11. Consolidated edit plan
+12. Controlled editing (one file at a time)
+13. Verification
 
 ## Critical Constraints
 - Do not edit anything without "PERMISSION GRANTED TO EDIT"
+- Verify every edit on disk before proceeding
 - One file at a time, report after each, wait for "CONTINUE"
-- Do not break dynamic statistics
-- Do not fabricate clients/users/revenue
-- Do not add new frameworks
+- Do not break existing functionality
+- Do not add new frameworks or dependencies without permission
+- Firestore rules must be tested before deploy (use emulator)
 
 ## Rollback Plan
-- Snapshot branch: backup-pre-hardening
-- Nothing to roll back — no edits were applied
+- Snapshot: backup-pre-hardening branch
+- Firebase rules can be reverted in console
+- functions/ can be redeployed from git
+
+## Immediate Priorities (Why)
+- Firestore rules misconfiguration = full database read/write by anyone on the internet
+- Storage rules misconfiguration = anyone can upload/delete files, rack up bills
+- .env exposure = full Firebase admin compromise

@@ -61,6 +61,10 @@ service cloud.firestore {
       // through the deal lifecycle via updates (propertyEditFieldsAreValid).
       request.resource.data.status == 'active' &&
       request.resource.data.archived == false &&
+      // SECURITY: listings can only be created UNVERIFIED — `verified` is an
+      // admin-only flag (moderation branch of allow update below) and is
+      // pinned here so a crafted create payload can't self-grant the badge.
+      request.resource.data.verified == false &&
       request.resource.data.contactEnabled is bool &&
       request.resource.data.images is list;
     }
@@ -73,8 +77,11 @@ service cloud.firestore {
         'areaUnit', 'yearBuilt', 'images', 'features', 'amenities',
         'views', 'inquiries', 'version', 'soldDate', 'pendingDate',
         'contactEnabled', 'archived', 'archivedAt', 'archiveReason',
-        'expirationDate', 'updatedAt', 'verified',
-        'avgResponseMinutes', 'conversationCount'
+        // SECURITY: `verified`, avgResponseMinutes and conversationCount are
+        // deliberately absent — `verified` is admin-only (moderation branch of
+        // allow update) and the response-time stats are written only by the
+        // sellerResponseTracking Cloud Function (Admin SDK, bypasses rules).
+        'expirationDate', 'updatedAt'
       ]);
     }
 
@@ -247,15 +254,8 @@ service cloud.firestore {
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views'])
           && viewBumpIsValid())
         ||
-        // Seller response-time tracking: property owners may update the
-        // response-time stats without bumping the version or write counter.
-        (isPropertyOwner(propertyId) &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'avgResponseMinutes', 'conversationCount'
-          ]))
-        ||
-        // Moderation: admins may hide listings without going through the
-        // owner's optimistic-lock/rate-limit path.
+        // Moderation: admins may hide listings and toggle `verified` without
+        // going through the owner's optimistic-lock/rate-limit path.
         (isAdmin() &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'status', 'archived', 'archivedAt', 'archiveReason', 'updatedAt', 'verified'

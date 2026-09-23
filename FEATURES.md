@@ -40,7 +40,7 @@ Storage, Hosting, Cloud Functions) and **Google Maps**.
 | Listing verification badges — admin-only toggle; shield icon on PropertyCard + PropertyDetailScreen | `src/components/reviews/VerificationBadge.tsx`, `src/screens/admin/UsersManagementScreen.tsx`, `src/services/adminService.ts`, `firestore.rules` |
 | Price history & price-drop alerts — `priceHistory` subcollection records each price change; line chart on detail screen; Cloud Function notifies favorited users on drops | `src/components/property/PriceHistoryChart.tsx`, `src/services/propertyService.ts`, `functions/src/priceDropNotifications.ts`, `firestore.rules` |
 | Similar properties on detail screen — same city + propertyType + price ±20%, 4–6 results | `src/services/propertyService.ts` (`getSimilarProperties`), `firestore.indexes.json` |
-| Seller response-time badge — rolling avg first-reply time shown as "Usually responds in ~Xh"; tracked via Cloud Function on seller's first message per conversation | `src/services/chatService.ts`, `functions/src/sellerResponseTracking.ts`, `src/screens/property/PropertyDetailScreen.tsx` |
+| Seller response-time badge — rolling avg first-reply time shown as "Usually responds in ~Xh"; tracked server-side via Cloud Function on the seller's first message per conversation (stats fields are Cloud-Function-only; client writes denied by firestore.rules) | `functions/src/sellerResponseTracking.ts`, `src/screens/property/PropertyDetailScreen.tsx` |
 | Optimistic concurrency control | Firestore rules enforce a `version` bump on every owner edit |
 | Write rate limiting | Firestore rules budget writes per user/minute via `counters/{uid}`; client increments in the same batch (`src/services/propertyService.ts`) |
 

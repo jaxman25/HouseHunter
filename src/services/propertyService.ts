@@ -146,6 +146,12 @@ export async function createProperty(
       ...sanitizedProperty,
       views: 0,
       inquiries: 0,
+      // Rule-required fields with safe defaults, set AFTER the spread so a
+      // caller can't override them (propertyDataIsValid() requires all three
+      // on create; firestore.rules pins archived/verified to false).
+      archived: false,
+      contactEnabled: true,
+      verified: false,
       version: 1,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),

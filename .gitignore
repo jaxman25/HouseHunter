@@ -39,5 +39,11 @@ npm-debug.*
 yarn-debug.*
 yarn-error.*
 
+# Firebase emulator logs (regenerated on every local run — never commit)
+firestore-debug.log
+firebase-debug.log
+firebase-debug.pid
+ui-debug.log
+
 # Implementations
 implementations/
