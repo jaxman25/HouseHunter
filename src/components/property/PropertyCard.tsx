@@ -10,6 +10,8 @@ import PriceDisplay from '../common/PriceDisplay';
 import StatusBadge from '../common/StatusBadge';
 import VerificationBadge from '../reviews/VerificationBadge';
 import { shareProperty } from '../../utils/share';
+import { useCompare } from '../../hooks/useCompare';
+import { COMPARE_MAX } from '../../services/compareService';
 
 /** Statuses where the listing is no longer available to new buyers. */
 const UNAVAILABLE_STATUSES: Property['status'][] = ['sold', 'rented', 'inactive'];
@@ -32,8 +34,14 @@ export default function PropertyCard({
   variant = 'vertical',
   style,
 }: PropertyCardProps) {
+  const { add: addToCompare, isComparing } = useCompare();
   const { colors, radius, fontSize, spacing, shadow } = useTheme();
   const isUnavailable = UNAVAILABLE_STATUSES.includes(property.status);
+  const comparing = isComparing(property.id);
+
+  const handleCompareToggle = () => {
+    if (!comparing) void addToCompare(property);
+  };
 
   /* ────────── Grid Card ────────── */
   if (variant === 'grid') {
@@ -106,6 +114,20 @@ export default function PropertyCard({
               />
             </TouchableOpacity>
           )}
+          {/* Compare toggle (max ${COMPARE_MAX}) */}
+          <TouchableOpacity
+            onPress={handleCompareToggle}
+            disabled={comparing}
+            style={[styles.compareButton, { backgroundColor: 'rgba(255,255,255,0.92)' }]}
+            accessibilityRole="button"
+            accessibilityLabel={`${comparing ? 'In comparison' : 'Add'} ${property.title} ${comparing ? '' : 'to comparison'}`}
+          >
+            <MaterialCommunityIcons
+              name={comparing ? 'check-circle' : 'scale-balance'}
+              size={15}
+              color={comparing ? colors.success : colors.gray500}
+            />
+          </TouchableOpacity>
         </View>
         <View style={styles.gridContent}>
           <PriceDisplay
@@ -302,22 +324,35 @@ export default function PropertyCard({
           accessibilityLabel={`Share ${property.title}`}
         >
           <MaterialCommunityIcons name="share-variant" size={13} color={colors.white} />
-        </TouchableOpacity>
-        {/* Favorite */}
-        {onFavorite && (
+        </TouchableOpacity>          {/* Favorite */}
+          {onFavorite && (
+            <TouchableOpacity
+              onPress={onFavorite}
+              style={[styles.heartButton, { backgroundColor: colors.surface }]}
+              accessibilityRole="button"
+              accessibilityLabel={`${isFavorite ? 'Remove' : 'Add'} ${property.title} ${isFavorite ? 'from' : 'to'} favorites`}
+            >
+              <MaterialCommunityIcons
+                name={isFavorite ? 'heart' : 'heart-outline'}
+                size={18}
+                color={isFavorite ? colors.error : colors.gray500}
+              />
+            </TouchableOpacity>
+          )}
+          {/* Compare toggle (max ${COMPARE_MAX}) */}
           <TouchableOpacity
-            onPress={onFavorite}
-            style={[styles.heartButton, { backgroundColor: colors.surface }]}
+            onPress={handleCompareToggle}
+            disabled={comparing}
+            style={[styles.compareButton, { backgroundColor: colors.surface }]}
             accessibilityRole="button"
-            accessibilityLabel={`${isFavorite ? 'Remove' : 'Add'} ${property.title} ${isFavorite ? 'from' : 'to'} favorites`}
+            accessibilityLabel={`${comparing ? 'In comparison' : 'Add'} ${property.title} ${comparing ? '' : 'to comparison'}`}
           >
             <MaterialCommunityIcons
-              name={isFavorite ? 'heart' : 'heart-outline'}
+              name={comparing ? 'check-circle' : 'scale-balance'}
               size={18}
-              color={isFavorite ? colors.error : colors.gray500}
+              color={comparing ? colors.success : colors.gray500}
             />
           </TouchableOpacity>
-        )}
       </View>
       <View style={[styles.verticalContent, { padding: spacing.md }]}>
         <PriceDisplay
@@ -496,6 +531,17 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     right: 8,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxShadow: '0px 1px 4px rgba(0,0,0,0.15)',
+  },
+  compareButton: {
+    position: 'absolute',
+    top: 8,
+    right: 42,
     width: 30,
     height: 30,
     borderRadius: 15,

@@ -13,8 +13,10 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
-import { RootStackParamList, Property } from '../../types';
+import { RootStackParamList, Property, SavedSearch } from '../../types';
 import { getProperties } from '../../services/propertyService';
+import { filtersToPropertyFilter } from '../../services/savedSearchService';
+import MapSavedSearchOverlay from '../../components/map/MapSavedSearchOverlay';
 import { formatPrice } from '../../utils/helpers';
 import { formatCurrencyCompact } from '../../utils/formatters';
 import { useResponsive } from '../../hooks/useResponsive';
@@ -32,22 +34,33 @@ export default function MapScreen() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [selected, setSelected] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
+  // Saved-search overlay: when set, only listings matching that search's
+  // filters are listed (reuses the ExploreScreen filter plumbing).
+  const [savedSearch, setSavedSearch] = useState<SavedSearch | null>(null);
 
   useEffect(() => {
+    let ignore = false;
     (async () => {
       try {
-        const result = await getProperties({ sortBy: 'newest' }, 50);
-        setProperties(result.properties);
-        if (result.properties.length > 0) {
-          setSelected(result.properties[0]);
+        const filter = savedSearch ? filtersToPropertyFilter(savedSearch.filters) : { sortBy: 'newest' as const };
+        const result = await getProperties(filter, 50);
+        if (!ignore) {
+          setProperties(result.properties);
+          // Keep the preview valid when the filter changes.
+          setSelected((prev) =>
+            prev && result.properties.some((p) => p.id === prev.id) ? prev : result.properties[0] ?? null
+          );
         }
       } catch (error) {
         console.error('Error loading properties:', error);
       } finally {
-        setLoading(false);
+        if (!ignore) setLoading(false);
       }
     })();
-  }, []);
+    return () => {
+      ignore = true;
+    };
+  }, [savedSearch]);
 
   const focus = selected ?? (properties.length > 0 ? properties[0] : null);
 
@@ -84,6 +97,15 @@ export default function MapScreen() {
         <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>
           {loading ? 'Loading…' : `${properties.length} properties`}
         </Text>
+      </View>
+
+      {/* Saved-search overlay: chips + "Show only [name] results" toggle */}
+      <View style={{ position: 'absolute', left: 0, right: 0, top: 56, zIndex: 5 }} pointerEvents="box-none">
+        <MapSavedSearchOverlay
+          activeSearchId={savedSearch?.id ?? null}
+          onSelect={(search) => setSavedSearch(search)}
+          onClear={() => setSavedSearch(null)}
+        />
       </View>
 
       {/* Body */}

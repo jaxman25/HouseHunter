@@ -95,6 +95,12 @@ export default function ProfileScreen() {
       onPress: () => navigation.navigate('Conversations'),
     },
     {
+      icon: 'calendar-check',
+      label: 'Viewings & Tours',
+      subtitle: 'Requests you made and received',
+      onPress: () => navigation.navigate('Tours'),
+    },
+    {
       icon: 'bookmark-multiple',
       label: 'Saved Searches',
       subtitle: 'Re-run filters and get notified of new matches',
@@ -105,6 +111,12 @@ export default function ProfileScreen() {
       label: 'Recently Viewed',
       subtitle: 'Properties you have visited',
       onPress: () => navigation.navigate('RecentlyViewed'),
+    },
+    {
+      icon: 'scale-balance',
+      label: 'Compare Properties',
+      subtitle: 'Side-by-side comparison of your picks',
+      onPress: () => navigation.navigate('Compare'),
     },
     ...(isAdmin
       ? [

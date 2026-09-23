@@ -6,12 +6,14 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
+  TextInput,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { PropertyFilter, PropertyType } from '../../types';
 import Button from '../common/Button';
 import { PROPERTY_TYPES, SORT_OPTIONS } from '../../config/theme';
+import { maxAffordablePrice } from '../../utils/mortgage';
 
 interface FilterModalProps {
   visible: boolean;
@@ -22,6 +24,13 @@ interface FilterModalProps {
   onSaveSearch?: () => void;
 }
 
+// Assumptions for converting a monthly budget into a max price. Deliberately
+// fixed (kept in sync with MortgageCalculatorModal's defaults) so the filter
+// stays a simple, explainable affordance.
+const MORTGAGE_RATE_PERCENT = 6.5;
+const MORTGAGE_TERM_YEARS = 30;
+const MORTGAGE_DOWN_PERCENT = 20;
+
 export default function FilterModal({
   visible,
   onClose,
@@ -29,9 +38,34 @@ export default function FilterModal({
   currentFilter,
   onSaveSearch,
 }: FilterModalProps) {
-  const { colors, fontSize } = useTheme();
+  const { colors, fontSize, radius } = useTheme();
 
   const [filter, setFilter] = useState<PropertyFilter>(currentFilter);
+
+  // ── Affordability: "Max monthly payment" → maxPrice ──
+  // The input is free text; the derived maxPrice rides on the filter state.
+  // A preset price-range chip overrides it (see the price chip handler).
+  const [maxPaymentInput, setMaxPaymentInput] = useState(
+    currentFilter.maxPayment !== undefined ? String(currentFilter.maxPayment) : ''
+  );
+
+  const maxPaymentHint = (() => {
+    const v = parseFloat(maxPaymentInput);
+    if (!(v > 0)) return '';
+    const price = maxAffordablePrice(v, MORTGAGE_RATE_PERCENT, MORTGAGE_TERM_YEARS, MORTGAGE_DOWN_PERCENT);
+    return `≈ ${Math.round(price).toLocaleString('en-US')} max price`;
+  })();
+
+  const handleMaxPaymentChange = (text: string) => {
+    setMaxPaymentInput(text);
+    const v = parseFloat(text);
+    setFilter((prev) => ({
+      ...prev,
+      maxPayment: v > 0 ? v : undefined,
+      // A new budget supersedes any preset price-range chip.
+      maxPrice: v > 0 ? Math.round(maxAffordablePrice(v, MORTGAGE_RATE_PERCENT, MORTGAGE_TERM_YEARS, MORTGAGE_DOWN_PERCENT)) : prev.maxPrice,
+    }));
+  };
 
   const priceRanges = filter.listingType === 'rent'
     ? [
@@ -219,6 +253,51 @@ export default function FilterModal({
             </Text>
           </Section>
 
+          {/* Affordability (mortgage budget) */}
+          {filter.listingType !== 'rent' && (
+            <Section title="Max Monthly Payment" colors={colors} fontSize={fontSize}>
+              <TextInput
+                value={maxPaymentInput}
+                onChangeText={handleMaxPaymentChange}
+                keyboardType="number-pad"
+                placeholder="e.g. 2000"
+                style={[
+                  styles.maxPaymentInput,
+                  {
+                    color: colors.text,
+                    backgroundColor: colors.gray100,
+                    borderColor: colors.border,
+                    borderRadius: radius.md,
+                    fontSize: fontSize.md,
+                  },
+                ]}
+                placeholderTextColor={colors.gray400}
+                accessibilityLabel="Maximum monthly mortgage payment"
+              />
+              {maxPaymentHint !== '' && (
+                <Text
+                  style={{
+                    color: colors.textSecondary,
+                    fontSize: fontSize.xs,
+                    marginTop: 8,
+                  }}
+                >
+                  {maxPaymentHint}
+                </Text>
+              )}
+              <Text
+                style={{
+                  color: colors.textLight,
+                  fontSize: fontSize.xs,
+                  marginTop: 4,
+                }}
+              >
+                Converted to a max price at {MORTGAGE_RATE_PERCENT}% / {MORTGAGE_TERM_YEARS}yr with
+                {' '}{MORTGAGE_DOWN_PERCENT}% down. Works together with the price range above.
+              </Text>
+            </Section>
+          )}
+
           {/* Sort By */}
           <Section title="Sort By" colors={colors} fontSize={fontSize}>
             <View style={styles.chipGrid}>
@@ -335,6 +414,11 @@ function Chip({
 }
 
 const styles = StyleSheet.create({
+  maxPaymentInput: {
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
   container: {
     flex: 1,
   },

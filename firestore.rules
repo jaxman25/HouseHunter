@@ -551,14 +551,36 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════════════════════
-    // NEIGHBORHOOD DATA COLLECTION (server-managed cache)
+    // NEIGHBORHOOD DATA COLLECTION
     // ═══════════════════════════════════════════════════════════
+    // Two kinds of docs live here:
+    //  - Rich neighborhood profiles keyed city_state_zip: written only by
+    //    Cloud Functions/Admin (weekly scheduled job) — admin-write.
+    //  - Overpass insights cache keyed "lat_lng" (3-decimal grid): written by
+    //    any authenticated user on first visit (validated shape below) so
+    //    repeat views skip the external API. Reads stay authenticated.
     match /neighborhood_data/{docId} {
       // Anyone authenticated can read neighborhood data
       allow read: if isAuthenticated();
 
-      // Only admins and Cloud Functions can write neighborhood data
-      allow write: if isAdmin();
+      // Insights-cache writes: doc id must be the lat/lng key, shape-locked,
+      // bounded scores, and doc id fields must match the payload grid cell.
+      allow create, update: if isAdmin() || (
+        isAuthenticated() &&
+        docId.matches('^-?[0-9]+\.[0-9]{3}_-?[0-9]+\.[0-9]{3}$') &&
+        request.resource.data.keys().hasOnly(
+          ['walkScore', 'transitScore', 'schools', 'fetchedAt']
+        ) &&
+        request.resource.data.walkScore is number &&
+        request.resource.data.walkScore >= 0 &&
+        request.resource.data.walkScore <= 100 &&
+        request.resource.data.transitScore is number &&
+        request.resource.data.transitScore >= 0 &&
+        request.resource.data.transitScore <= 100 &&
+        request.resource.data.schools is list &&
+        request.resource.data.schools.size() <= 5 &&
+        request.resource.data.fetchedAt == request.time
+      );
     }
 
     // ═══════════════════════════════════════════════════════════

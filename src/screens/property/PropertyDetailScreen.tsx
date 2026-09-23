@@ -26,9 +26,13 @@ import VerificationBadge from '../../components/reviews/VerificationBadge';
 import ContactSellerModal from '../../components/contact/ContactSellerModal';
 import ReportListingModal from '../../components/moderation/ReportListingModal';
 import PriceHistoryChart from '../../components/property/PriceHistoryChart';
+import MortgageCalculatorModal from '../../components/property/MortgageCalculatorModal';
+import TourRequestModal from '../../components/tours/TourRequestModal';
+import NeighborhoodInsightsSection from '../../components/neighborhood/NeighborhoodInsightsSection';
 import PropertyCard from '../../components/property/PropertyCard';
 import { shareProperty } from '../../utils/share';
 import { getProperty, getSimilarProperties, getPriceHistory } from '../../services/propertyService';
+import { getUserProfile } from '../../services/authService';
 import { getOrCreateConversation, sendMessage } from '../../services/chatService';
 import {
   formatPrice,
@@ -69,6 +73,8 @@ export default function PropertyDetailScreen() {
   const [contacting, setContacting] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showMortgageModal, setShowMortgageModal] = useState(false);
+  const [showTourModal, setShowTourModal] = useState(false);
   const [priceHistory, setPriceHistory] = useState<PriceHistoryEntry[]>([]);
 
   // Only Active listings accept new inquiries; Pending/Sold/Rented/Inactive
@@ -83,6 +89,27 @@ export default function PropertyDetailScreen() {
     property.avgResponseMinutes != null &&
     property.conversationCount != null &&
     property.conversationCount >= 3;
+
+  // "View Agent" affordance: only when the listing owner is an agent role.
+  // The seller card becomes tappable and routes to the public agent profile.
+  const [sellerIsAgent, setSellerIsAgent] = useState(false);
+  useEffect(() => {
+    let ignore = false;
+    if (!property) {
+      setSellerIsAgent(false);
+      return;
+    }
+    getUserProfile(property.userId)
+      .then((profile) => {
+        if (!ignore) setSellerIsAgent(profile?.role === 'agent');
+      })
+      .catch(() => {
+        if (!ignore) setSellerIsAgent(false);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [property?.userId]);
 
   useEffect(() => {
     let ignore = false;
@@ -333,6 +360,50 @@ export default function PropertyDetailScreen() {
             </Section>
           )}
 
+          {/* Mortgage calculator entry (sale listings only) */}
+          {property.listingType === 'sale' && (
+            <TouchableOpacity
+              onPress={() => setShowMortgageModal(true)}
+              style={[
+                styles.mortgageBtn,
+                {
+                  backgroundColor: colors.primaryLight,
+                  borderRadius: radius.md,
+                },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Open mortgage calculator"
+            >
+              <MaterialCommunityIcons name="calculator-variant-outline" size={18} color={colors.primary} />
+              <Text style={{ color: colors.primary, fontSize: fontSize.sm, fontWeight: '600', marginLeft: 6 }}>
+                Estimate my monthly payment
+              </Text>
+              <MaterialCommunityIcons name="chevron-right" size={16} color={colors.primary} />
+            </TouchableOpacity>
+          )}
+
+          {/* Request Viewing (active listings, not your own) */}
+          {isAvailable && property.userId !== user?.uid && (
+            <TouchableOpacity
+              onPress={() => setShowTourModal(true)}
+              style={[
+                styles.mortgageBtn,
+                {
+                  backgroundColor: colors.secondary ? colors.secondary + '15' : colors.primaryLight,
+                  borderRadius: radius.md,
+                },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Request a property viewing"
+            >
+              <MaterialCommunityIcons name="calendar-clock" size={18} color={colors.primary} />
+              <Text style={{ color: colors.primary, fontSize: fontSize.sm, fontWeight: '600', marginLeft: 6 }}>
+                Request Viewing
+              </Text>
+              <MaterialCommunityIcons name="chevron-right" size={16} color={colors.primary} />
+            </TouchableOpacity>
+          )}
+
           {/* Views & Time */}
           <View style={styles.metaRow}>
             <View style={styles.metaItem}>
@@ -423,6 +494,16 @@ export default function PropertyDetailScreen() {
             </Section>
           )}
 
+          {/* Neighborhood Insights (walk/transit/schools; hidden on API failure) */}
+          {property.latitude && property.longitude && (
+            <Section title="Neighborhood Insights" colors={colors} fontSize={fontSize} spacing={spacing}>
+              <NeighborhoodInsightsSection
+                latitude={property.latitude}
+                longitude={property.longitude}
+              />
+            </Section>
+          )}
+
           {/* Seller Info */}
           <Section title="Listed by" colors={colors} fontSize={fontSize} spacing={spacing}>
             <TouchableOpacity
@@ -436,19 +517,42 @@ export default function PropertyDetailScreen() {
                 },
               ]}
               activeOpacity={0.7}
+              onPress={
+                sellerIsAgent
+                  ? () => navigation.navigate('AgentProfile', { agentId: property.userId })
+                  : undefined
+              }
+              disabled={!sellerIsAgent}
+              accessibilityLabel={
+                sellerIsAgent
+                  ? `View agent profile for ${property.userName}`
+                  : `Listed by ${property.userName}`
+              }
             >
               <Avatar uri={property.userPhoto} name={property.userName} size={50} />
               <View style={styles.sellerInfo}>
-                <Text style={[styles.sellerName, { color: colors.text, fontSize: fontSize.lg }]}>
-                  {property.userName}
-                </Text>
+                <View style={styles.sellerNameRow}>
+                  <Text style={[styles.sellerName, { color: colors.text, fontSize: fontSize.lg }]}>
+                    {property.userName}
+                  </Text>
+                  {sellerIsAgent ? (
+                    <MaterialCommunityIcons name="badge-account-outline" size={16} color={colors.primary} />
+                  ) : null}
+                </View>
                 {property.userPhone ? (
                   <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>
                     {property.userPhone}
                   </Text>
                 ) : null}
+                {sellerIsAgent ? (
+                  <Text style={{ color: colors.primary, fontSize: fontSize.xs, fontWeight: '600', marginTop: 2 }}>
+                    View Agent Profile
+                  </Text>
+                ) : null}
               </View>
-              <MaterialCommunityIcons name="chevron-right" size={20} color={colors.gray400} />
+              {sellerIsAgent ? (
+                <MaterialCommunityIcons name="chevron-right" size={20} color={colors.gray400} />
+              ) : null}
             </TouchableOpacity>
             {sellerHasResponseBadge ? (
               <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: spacing.sm }}>
@@ -534,6 +638,20 @@ export default function PropertyDetailScreen() {
           </View>
         </View>
       </View>
+
+      <MortgageCalculatorModal
+        visible={showMortgageModal}
+        onClose={() => setShowMortgageModal(false)}
+        property={property}
+      />
+
+      <TourRequestModal
+        visible={showTourModal}
+        onClose={() => setShowTourModal(false)}
+        propertyId={property.id}
+        propertyTitle={property.title}
+        sellerId={property.userId}
+      />
 
       <ContactSellerModal
         visible={showContactModal}
@@ -666,6 +784,14 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     flex: 1,
   },
+  mortgageBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginTop: 12,
+  },
   metaRow: {
     flexDirection: 'row',
     marginTop: 12,
@@ -722,6 +848,11 @@ const styles = StyleSheet.create({
   sellerInfo: {
     flex: 1,
     marginLeft: 12,
+  },
+  sellerNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   sellerName: {
     fontWeight: '600',

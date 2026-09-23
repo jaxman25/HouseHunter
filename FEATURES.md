@@ -61,6 +61,7 @@ Storage, Hosting, Cloud Functions) and **Google Maps**.
 |---|---|---|
 | Interactive map with property price markers | `src/screens/main/MapScreen.tsx` | Native: `react-native-maps` (Google provider) |
 | Web-compatible map | `MapScreen.web.tsx`, `src/components/common/PropertyMap.web.tsx` | Google Maps embed, `referrerPolicy="no-referrer"` |
+| Saved-search map overlay — chips for each saved search plus a "Show only [name] results" toggle; markers re-query via `filtersToPropertyFilter` | `src/components/map/MapSavedSearchOverlay.tsx`, `MapScreen.tsx`, `MapScreen.web.tsx` | Reuses the exact FilterModal filter shape through `savedSearchService` |
 | Tap marker → property preview card → detail page | |
 | Auto fit-to-bounds for visible listings | |
 
@@ -73,7 +74,17 @@ Storage, Hosting, Cloud Functions) and **Google Maps**.
 | Home screen horizontal section (empty state, See All, focus refresh) | `src/components/home/RecentlyViewedSection.tsx` |
 | Full grid screen: pull-to-refresh, Clear All with confirmation | `src/screens/main/RecentlyViewedScreen.tsx` |
 | Tracked on detail-page load; deleted properties auto-removed from history | `src/screens/property/PropertyDetailScreen.tsx` |
-| Works offline and on web (AsyncStorage localStorage backend); zero Firebase writes | |
+| Works offline and on web (AsyncStorage localStorage backend); zero Firebase writes |
+
+## 5b. Viewings & Tour Scheduling
+
+| Feature | Where | Notes |
+|---|---|---|
+| "Request Viewing" on the detail screen (active listings only, not your own) — date/time picker modal respecting seller availability windows | `PropertyDetailScreen.tsx`, `src/components/tours/TourRequestModal.tsx`, `src/services/tourService.ts` | Firestore `tours` collection: `{ propertyId, buyerId, sellerId, datetime, status: pending\|confirmed\|completed\|canceled\|no_show }` |
+| Seller sees requests in Tours screen ("My Tours" vs "Viewing Requests" role tabs) and can approve/decline | `src/screens/property/ToursScreen.tsx`, `TourDetailsScreen.tsx` | Reachable from Profile → "Viewings & Tours" |
+| Seller notification on new request; approval/decline notifies the buyer | `functions/src/tours.ts` (`tourRequestNotifications`, `tourNotifications`) | Server-created via Admin SDK |
+| Reminder 1 hour before (Cloud Function, every 30 min) | `functions/src/tours.ts` (`tourReminders`) | Single `reminderSent` flag |
+| Device calendar event via expo-calendar (permission-gated; .ics download on web) | `src/components/tours/AddToCalendarButton.tsx` | |
 
 ## 6. Favorites
 
@@ -82,6 +93,14 @@ Storage, Hosting, Cloud Functions) and **Google Maps**.
 | One-tap heart on any property card (dynamic add/remove label) | `src/components/property/PropertyCard.tsx` |
 | Dedicated **Saved** tab | `src/screens/main/FavoritesScreen.tsx` |
 | Persisted to the user's Firestore profile (`favorites` array) | `src/services/propertyService.ts` |
+
+## 6b. Mortgage Calculator & Affordability
+
+| Feature | Where | Notes |
+|---|---|---|
+| Mortgage calculator modal — price prefilled, down payment %, rate, term; outputs monthly payment, total interest, total cost | `src/components/property/MortgageCalculatorModal.tsx`, `src/utils/mortgage.ts` | Pure client-side amortization; unit-tested in `src/utils/__tests__/mortgage.test.js` (24 tests) |
+| "Estimate my monthly payment" entry on the detail screen (sale listings) | `PropertyDetailScreen.tsx` | |
+| "Max monthly payment" affordability filter in FilterModal — converts budget to a max price (6.5% / 30yr / 20% down assumptions) | `FilterModal.tsx`, `src/types/index.ts` (`maxPayment`) | Rides the existing `maxPrice` query plumbing; persisted with saved searches (`SavedSearchFilters.maxPayment`) and shown in search summaries |
 
 ## 7. Real-Time Chat & Messaging
 
@@ -116,7 +135,16 @@ Storage, Hosting, Cloud Functions) and **Google Maps**.
 | Saved-search CRUD (Firestore `users/{uid}/savedSearches`, 50 max, owner-only rules) | `src/services/savedSearchService.ts`, `src/hooks/useSavedSearches.ts`, `firestore.rules` |
 | Saved Searches screen — run / edit / delete / toggle notifications, match counts, pull-to-refresh | `src/screens/main/SavedSearchesScreen.tsx`, `SavedSearchCard.tsx` |
 | One-tap "Run" applies the saved filters to Explore | `ExploreScreen.tsx` (route param) |
+| One-tap "Run" applies the saved filters to the Map | `MapScreen.tsx`, `MapScreen.web.tsx`, `MapSavedSearchOverlay.tsx` | "Show only [name] results" toggle; affordability `maxPayment` rides along |
 | Quick-search chips (top 3 active searches) on Home | `src/components/search/SavedSearchChips.tsx`, `HomeScreen.tsx` |
+
+## 9b. Property Comparison
+
+| Feature | Where | Notes |
+|---|---|---|
+| "Add to compare" toggle on property cards (grid + vertical variants) | `src/components/property/PropertyCard.tsx`, `src/hooks/useCompare.ts` | Max 4, enforced with a toast |
+| Local compare tray (AsyncStorage snapshots, no Firestore) | `src/services/compareService.ts` | Same non-critical pattern as `recentlyViewedService.ts` |
+| Compare screen — side-by-side table: price, type, beds, baths, area, year built, days on market, status, features; ★ best-value highlights | `src/screens/main/CompareScreen.tsx` | Reachable from Profile → "Compare Properties" |
 | Scheduled match notifications (daily at 03:00 UTC, weekly cadence) | `functions/src/savedSearchNotifications.ts`, `functions/src/savedSearchFilters.ts` |
 | Per-search frequency is user-editable (instant / daily / weekly / off) in NotificationPreferencesScreen | `src/screens/settings/NotificationPreferencesScreen.tsx` |
 | Notification tap → Saved Search (routes `new_listing` taps to Saved Searches with card highlight + auto-scroll) | `src/navigation/AppNavigator.tsx`, `src/screens/main/SavedSearchesScreen.tsx`, `src/utils/deepLinking.ts` |
@@ -166,7 +194,16 @@ Storage, Hosting, Cloud Functions) and **Google Maps**.
 | Share button on every property card and the detail header | `PropertyCard.tsx`, `PropertyDetailScreen.tsx` |
 | Deep links: `househunter://property/{id}` (native) and `{origin}/property/{id}` (web) open the property | `src/utils/deepLinking.ts`, `src/navigation/AppNavigator.tsx`, `app.json` (scheme) |
 | Deep links: `househunter://saved-search/{id}` (native) and `{origin}/saved-search/{id}` (web) open Saved Searches with card highlight | `src/utils/deepLinking.ts` |
+| Deep links: `househunter://agent/{uid}` (native) and `{origin}/agent/{uid}` (web) open the public agent profile | `src/utils/deepLinking.ts` |
 | Deep-link handling on cold start and warm links; malformed ids fall back to the "Property not found" screen or Saved Searches list with toast | |
+
+## 13b. Neighborhood Insights
+
+| Feature | Where | Notes |
+|---|---|---|
+| Walk score, transit score, nearby schools on the detail screen | `src/components/neighborhood/NeighborhoodInsightsSection.tsx`, `src/services/neighborhoodService.ts` (`getNeighborhoodInsights`) | Free keyless OpenStreetMap Overpass API; scores are transparent density heuristics |
+| Results cached in Firestore (`neighborhood_data/{lat}_{lng}`, 3-decimal ≈110m grid, 7-day freshness) to avoid repeat API calls | `src/services/neighborhoodService.ts`, `firestore.rules` | Shape-locked authenticated writes; rich `city_state_zip` profiles stay admin-only |
+| Loading skeleton; section hides itself if the API fails (stale cache preferred over nothing) | `NeighborhoodInsightsSection.tsx` | |
 
 ## 14. Notifications
 
@@ -187,6 +224,13 @@ Storage, Hosting, Cloud Functions) and **Google Maps**.
 | Settings hub | `src/screens/settings/SettingsScreen.tsx` |
 | Edit profile, change password, delete account | see §1 |
 | Privacy Policy & Terms of Service screens | `src/screens/legal/LegalScreens.tsx` (reachable from Register & Settings) |
+
+## 15b. Public Agent Profiles
+
+| Feature | Where | Notes |
+|---|---|---|
+| Agent profile screen — photo, bio, role badge, active listings grid, "Responds in ~Xh" (gated on ≥3 conversations), rating, verified-listing count | `src/screens/main/AgentProfileScreen.tsx` | Deep-linkable via `agent/{uid}` |
+| "View Agent Profile" link on the detail screen when the listing owner is an agent | `PropertyDetailScreen.tsx` | Owner role resolved via `getUserProfile` |
 
 ## 16. Legal, Privacy & Compliance
 
@@ -232,7 +276,7 @@ Storage, Hosting, Cloud Functions) and **Google Maps**.
 | Service | What the app uses |
 |---|---|
 | **Auth** | Email/password + Google (native idToken / web popup) |
-| **Firestore** | Collections: `users` (+ `savedSearches`, `inquiryCounters` subcollections), `properties`, `conversations`/`messages`, `notifications`, `counters` (rate limiting), `config` (public notices), `healthcheck`, `admin_roles`/`admin_reports`/`admin_announcements`/`admin_auditLog` (admin suite) |
+| **Firestore** | Collections: `users` (+ `savedSearches`, `inquiryCounters` subcollections), `properties`, `conversations`/`messages`, `notifications`, `counters` (rate limiting), `config` (public notices), `healthcheck`, `tours`/`tourAvailability`, `reviews`, `neighborhood_data` (profiles + Overpass insights cache), `admin_roles`/`admin_reports`/`admin_announcements`/`admin_auditLog` (admin suite) |
 | **Security rules** | `firestore.rules` — ownership checks, field allowlists, rate limiting, optimistic locking, per-message deletion; `storage.rules` for media |
 | **Storage** | Property images, chat images, profile photos |
 | **Cloud Functions v2** | `functions/src/index.ts` — security-alert emails, breach broadcasts, `sendAccountDeletionConfirmation` + `sendSellerInquiry` callables; `functions/src/archive.ts` — daily auto-archive job; all email via Resend (`functions/src/email.ts`) |

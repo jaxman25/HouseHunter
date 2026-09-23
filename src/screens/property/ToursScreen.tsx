@@ -13,6 +13,7 @@ import { updateTourStatus } from '../../services/tourService';
 import { Alert } from 'react-native';
 
 type Tab = 'upcoming' | 'past';
+type Role = 'buyer' | 'seller';
 
 export default function ToursScreen() {
   const { colors, fontSize, spacing } = useTheme();
@@ -20,15 +21,18 @@ export default function ToursScreen() {
   const { user } = useAuthContext();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<Tab>('upcoming');
+  // Buying = tours I requested; Selling = viewing requests on my listings
+  // (sellers approve/decline from here).
+  const [role, setRole] = useState<Role>('buyer');
 
-  const { upcomingTours, pastTours, loading } = useUserTours(user?.uid || '', 'buyer');
+  const { upcomingTours, pastTours, loading } = useUserTours(user?.uid || '', role);
 
   const handleConfirm = async (tourId: string) => {
     try {
       await updateTourStatus(tourId, 'confirmed');
-      Alert.alert('Confirmed', 'Tour has been confirmed');
+      Alert.alert('Confirmed', 'Viewing has been approved');
     } catch {
-      Alert.alert('Error', 'Failed to confirm tour');
+      Alert.alert('Error', 'Failed to confirm viewing');
     }
   };
 
@@ -72,8 +76,40 @@ export default function ToursScreen() {
         <View style={{ width: 36 }} />
       </View>
 
-      {/* Tab Selector */}
+      {/* Role selector: my tours vs viewing requests on my listings */}
       <View style={styles.tabRow}>
+        {([
+          { key: 'buyer' as Role, label: 'My Tours' },
+          { key: 'seller' as Role, label: 'Viewing Requests' },
+        ]).map((r) => {
+          const selected = role === r.key;
+          return (
+            <TouchableOpacity
+              key={r.key}
+              onPress={() => setRole(r.key)}
+              style={[
+                styles.tab,
+                {
+                  backgroundColor: selected ? colors.text : colors.gray100,
+                  borderRadius: 8,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  { color: selected ? colors.white : colors.textSecondary, fontSize: fontSize.sm },
+                ]}
+              >
+                {r.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* Tab Selector */}
+      <View style={[styles.tabRow, { paddingTop: 8 }]}>
         {(['upcoming', 'past'] as Tab[]).map((tab) => {
           const selected = activeTab === tab;
           return (

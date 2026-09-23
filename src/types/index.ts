@@ -103,6 +103,8 @@ export interface PropertyFilter {
   propertyType?: PropertyType[];
   minPrice?: number;
   maxPrice?: number;
+  /** Monthly mortgage budget (affordability filter). Applied client-side to maxPrice at filter time; persisted with saved searches. */
+  maxPayment?: number;
   minBedrooms?: number;
   maxBedrooms?: number;
   minBathrooms?: number;
@@ -212,6 +214,8 @@ export type NotificationFrequency = 'instant' | 'daily' | 'weekly' | 'off';
 export interface SavedSearchFilters {
   minPrice?: number;
   maxPrice?: number;
+  /** Monthly mortgage budget — see PropertyFilter.maxPayment. */
+  maxPayment?: number;
   minBedrooms?: number;
   maxBedrooms?: number;
   minBathrooms?: number;
@@ -304,6 +308,8 @@ export type RootStackParamList = {
   Chat: { conversationId: string; recipientId: string; recipientName: string };
   Conversations: undefined;
   RecentlyViewed: undefined;
+  Compare: undefined;
+  AgentProfile: { agentId: string };
   AdminLogin: undefined;
   AdminDashboard: undefined;
   AdminUsers: undefined;

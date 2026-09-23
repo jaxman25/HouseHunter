@@ -21,7 +21,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { autoArchiveProperties } from './archive';
 import { updateRatings } from './reviews';
-import { tourReminders, tourNotifications } from './tours';
+import { tourReminders, tourNotifications, tourRequestNotifications } from './tours';
 import { updateNeighborhoodData } from './neighborhood';
 import { exportUserData } from './exportData';
 import { runSavedSearches } from './savedSearchNotifications';
@@ -38,6 +38,7 @@ export {
   updateRatings,
   tourReminders,
   tourNotifications,
+  tourRequestNotifications,
   updateNeighborhoodData,
   exportUserData,
   runSavedSearches,

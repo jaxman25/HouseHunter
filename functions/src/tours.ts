@@ -16,13 +16,13 @@ const db = getFirestore();
 
 /**
  * Scheduled function: runs every 30 minutes to check for tours needing reminders.
- * Sends reminders 24 hours and 1 hour before the tour datetime.
+ * Sends a reminder 1 hour before the tour datetime (the 24h "tomorrow"
+ * reminder was folded into the same reminderSent flag; the 1h window is the
+ * last one checked so it wins when both would fire).
  */
 export const tourReminders = onSchedule('every 30 minutes', async () => {
   const now = new Date();
-  const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
   const in1h = new Date(now.getTime() + 60 * 60 * 1000);
-  const in25h = new Date(now.getTime() + 25 * 60 * 60 * 1000);
 
   // Find confirmed/pending tours
   const toursSnap = await db
@@ -38,14 +38,16 @@ export const tourReminders = onSchedule('every 30 minutes', async () => {
     const reminderSent = tour.reminderSent || false;
     const msUntilTour = tourTime.getTime() - now.getTime();
 
-    // 24h reminder
-    if (msUntilTour > 0 && msUntilTour <= 24 * 60 * 60 * 1000 && !reminderSent) {
+    // 1h reminder: fires in the 30-minute run window before the tour minus
+    // one hour. Uses the single reminderSent flag so a tour is reminded once.
+    if (msUntilTour > 0 && tourTime <= in1h && !reminderSent) {
       try {
+        const timeStr = tourTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
         // Notify buyer
         await db.collection('notifications').add({
           userId: tour.buyerId,
-          title: 'Tour Reminder',
-          body: `Your tour of ${tour.propertyTitle} is tomorrow at ${tourTime.toLocaleTimeString()}`,
+          title: 'Viewing Reminder',
+          body: `Your viewing of ${tour.propertyTitle} starts at ${timeStr} — see you there!`,
           type: 'system',
           data: { tourId: tourDoc.id, propertyId: tour.propertyId },
           read: false,
@@ -55,8 +57,8 @@ export const tourReminders = onSchedule('every 30 minutes', async () => {
         // Notify seller
         await db.collection('notifications').add({
           userId: tour.sellerId,
-          title: 'Tour Reminder',
-          body: `You have a tour of ${tour.propertyTitle} tomorrow at ${tourTime.toLocaleTimeString()}`,
+          title: 'Viewing Reminder',
+          body: `A viewing of ${tour.propertyTitle} starts at ${timeStr}`,
           type: 'system',
           data: { tourId: tourDoc.id, propertyId: tour.propertyId },
           read: false,
@@ -70,6 +72,35 @@ export const tourReminders = onSchedule('every 30 minutes', async () => {
     }
   }
 });
+
+/**
+ * Trigger: when a tour is created, notify the seller of the new request.
+ */
+export const tourRequestNotifications = onDocumentCreated(
+  'tours/{tourId}',
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    const tour = snap.data();
+    if (!tour || tour.status !== 'pending') return;
+
+    try {
+      await db.collection('notifications').add({
+        userId: tour.sellerId,
+        title: 'New Viewing Request',
+        body: `${tour.buyerName ?? 'A buyer'} requested a viewing of ${tour.propertyTitle} on ${new Date(
+          tour.datetime?.toDate?.() ?? tour.datetime
+        ).toLocaleString()}`,
+        type: 'inquiry',
+        data: { tourId: event.params.tourId, propertyId: tour.propertyId },
+        read: false,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    } catch (error) {
+      console.error(`[tourRequestNotifications] Failed for tour ${event.params.tourId}:`, error);
+    }
+  }
+);
 
 /**
  * Trigger: when a tour status changes, notify both parties.
@@ -95,10 +126,10 @@ export const tourNotifications = onDocumentUpdated(
 
     switch (after.status) {
       case 'confirmed':
-        buyerTitle = 'Tour Confirmed';
-        buyerBody = `Your tour of ${after.propertyTitle} has been confirmed for ${timeStr}`;
-        sellerTitle = 'Tour Confirmed';
-        sellerBody = `You confirmed the tour of ${after.propertyTitle} for ${timeStr}`;
+        buyerTitle = 'Viewing Approved';
+        buyerBody = `Your viewing request for ${after.propertyTitle} was approved for ${timeStr}`;
+        sellerTitle = 'Viewing Approved';
+        sellerBody = `You approved the viewing of ${after.propertyTitle} for ${timeStr}`;
         break;
       case 'canceled':
         const canceledBy = after.canceledBy;

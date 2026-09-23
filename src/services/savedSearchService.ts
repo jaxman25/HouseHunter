@@ -172,6 +172,7 @@ export function filtersToPropertyFilter(
   }
   if (filters.minPrice !== undefined) result.minPrice = filters.minPrice;
   if (filters.maxPrice !== undefined) result.maxPrice = filters.maxPrice;
+  if (filters.maxPayment !== undefined) result.maxPayment = filters.maxPayment;
   if (filters.minBedrooms !== undefined) result.minBedrooms = filters.minBedrooms;
   if (filters.maxBedrooms !== undefined) result.maxBedrooms = filters.maxBedrooms;
   if (filters.minBathrooms !== undefined) result.minBathrooms = filters.minBathrooms;
@@ -197,6 +198,7 @@ export function propertyFilterToSavedSearchFilters(
   }
   if (filter.minPrice !== undefined) out.minPrice = filter.minPrice;
   if (filter.maxPrice !== undefined) out.maxPrice = filter.maxPrice;
+  if (filter.maxPayment !== undefined) out.maxPayment = filter.maxPayment;
   if (filter.minBedrooms !== undefined) out.minBedrooms = filter.minBedrooms;
   if (filter.maxBedrooms !== undefined) out.maxBedrooms = filter.maxBedrooms;
   if (filter.minBathrooms !== undefined) out.minBathrooms = filter.minBathrooms;
@@ -226,6 +228,7 @@ export function summarizeFilters(filters: SavedSearchFilters): string {
   }
   if (filters.city) parts.push(filters.city);
   if (filters.state) parts.push(filters.state);
+  if (filters.maxPayment !== undefined) parts.push(`≤ $${fmt(filters.maxPayment)}/mo`);
   if (filters.features && filters.features.length > 0) {
     parts.push(`${filters.features.length} amenit${filters.features.length === 1 ? 'y' : 'ies'}`);
   }

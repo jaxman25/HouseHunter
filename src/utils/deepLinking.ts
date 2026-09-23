@@ -10,18 +10,21 @@ import { RootStackParamList } from '../types';
  *   https://<host>/property/{propertyId}
  *   househunter://saved-search/{savedSearchId}
  *   https://<host>/saved-search/{savedSearchId}
+ *   househunter://agent/{uid}
+ *   https://<host>/agent/{uid}
  *
  * Parsing validates the shape only — the destination screen guards against
  * non-existent ids (PropertyDetail shows "Property not found",
- * SavedSearches shows a toast), so malformed or dead links fail gracefully
- * instead of crashing navigation.
+ * SavedSearches shows a toast, AgentProfile shows "Agent not found"), so
+ * malformed or dead links fail gracefully instead of crashing navigation.
  */
 
 type NavigationRef = NavigationContainerRef<RootStackParamList> | null;
 
 type DeepLinkRoute =
   | { name: 'PropertyDetail'; params: { propertyId: string } }
-  | { name: 'SavedSearches'; params: { savedSearchId: string } };
+  | { name: 'SavedSearches'; params: { savedSearchId: string } }
+  | { name: 'AgentProfile'; params: { agentId: string } };
 
 export function parseDeepLink(url: string): DeepLinkRoute | null {
   // Try saved-search/{id} first (more specific path).
@@ -30,6 +33,14 @@ export function parseDeepLink(url: string): DeepLinkRoute | null {
     const savedSearchId = decodeURIComponent(savedMatch[1]);
     if (!savedSearchId) return null;
     return { name: 'SavedSearches', params: { savedSearchId } };
+  }
+
+  // agent/{uid} — public agent profile.
+  const agentMatch = url.match(/\/agent\/([^/?#]+)/);
+  if (agentMatch) {
+    const agentId = decodeURIComponent(agentMatch[1]);
+    if (!agentId) return null;
+    return { name: 'AgentProfile', params: { agentId } };
   }
 
   // Fall back to property/{id}.

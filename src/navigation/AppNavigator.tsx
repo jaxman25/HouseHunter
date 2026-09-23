@@ -22,6 +22,8 @@ import SearchScreen from '../screens/search/SearchScreen';
 import ChatScreen from '../screens/chat/ChatScreen';
 import ConversationsScreen from '../screens/chat/ConversationsScreen';
 import RecentlyViewedScreen from '../screens/main/RecentlyViewedScreen';
+import CompareScreen from '../screens/main/CompareScreen';
+import AgentProfileScreen from '../screens/main/AgentProfileScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import EditProfileScreen from '../screens/settings/EditProfileScreen';
 import ChangePasswordScreen from '../screens/settings/ChangePasswordScreen';
@@ -96,6 +98,8 @@ function MainStack() {
       <Stack.Screen name="Chat" component={withErrorBoundary(ChatScreen)} />
       <Stack.Screen name="Conversations" component={withErrorBoundary(ConversationsScreen)} />
       <Stack.Screen name="RecentlyViewed" component={withErrorBoundary(RecentlyViewedScreen)} />
+      <Stack.Screen name="Compare" component={withErrorBoundary(CompareScreen)} />
+      <Stack.Screen name="AgentProfile" component={withErrorBoundary(AgentProfileScreen)} />
       <Stack.Screen name="SavedSearches" component={withErrorBoundary(SavedSearchesScreen)} />
       <Stack.Screen name="AdminLogin" component={withErrorBoundary(AdminLoginScreen)} />
       <Stack.Screen name="AdminDashboard" component={withErrorBoundary(AdminDashboardScreen)} />
