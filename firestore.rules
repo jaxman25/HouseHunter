@@ -509,6 +509,50 @@ service cloud.firestore {
     }
 
     // ═════════════════════════════════════════════════════════
+    // DEALS COLLECTION (agent commission tracking)
+    // ═════════════════════════════════════════════════════════
+    // Agent-owned deal records against their own listings. Strictly
+    // owner-scoped; no client deletes (mark status: lost instead).
+    match /deals/{dealId} {
+      // Only the owning agent can read their deals.
+      allow read: if isAuthenticated() && resource.data.agentId == request.auth.uid;
+
+      allow create: if isAuthenticated() && !isSuspended() &&
+        request.resource.data.agentId == request.auth.uid &&
+        request.resource.data.propertyId is string &&
+        request.resource.data.propertyId.size() >= 1 &&
+        request.resource.data.salePrice is number &&
+        request.resource.data.salePrice >= 0 &&
+        request.resource.data.salePrice <= 1000000000 &&
+        request.resource.data.commissionRate is number &&
+        request.resource.data.commissionRate >= 0 &&
+        request.resource.data.commissionRate <= 100 &&
+        request.resource.data.closedAt is string &&
+        request.resource.data.status in ['pipeline', 'closed', 'lost'] &&
+        request.resource.data.keys().hasOnly([
+          'agentId', 'propertyId', 'buyerId', 'buyerName', 'salePrice',
+          'commissionRate', 'closedAt', 'status', 'notes',
+          'createdAt', 'updatedAt'
+        ]);
+
+      // Owner can update metrics/status; agentId and propertyId are immutable
+      // and the numeric bounds are re-checked on every write.
+      allow update: if isAuthenticated() &&
+        resource.data.agentId == request.auth.uid &&
+        request.resource.data.agentId == resource.data.agentId &&
+        request.resource.data.propertyId == resource.data.propertyId &&
+        request.resource.data.salePrice is number &&
+        request.resource.data.salePrice >= 0 &&
+        request.resource.data.salePrice <= 1000000000 &&
+        request.resource.data.commissionRate is number &&
+        request.resource.data.commissionRate >= 0 &&
+        request.resource.data.commissionRate <= 100 &&
+        request.resource.data.status in ['pipeline', 'closed', 'lost'];
+
+      allow delete: if false;
+    }
+
+    // ═════════════════════════════════════════════════════════
     // USER REVIEWS COLLECTION (peer reputation)
     // ═════════════════════════════════════════════════════════
     // One user rating another after a real interaction (completed viewing or

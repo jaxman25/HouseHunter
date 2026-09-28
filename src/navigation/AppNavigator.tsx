@@ -52,6 +52,7 @@ import NotificationPreferencesScreen from '../screens/settings/NotificationPrefe
 import SellerPerformanceScreen from '../screens/property/SellerPerformanceScreen';
 import WriteUserReviewScreen from '../screens/property/WriteUserReviewScreen';
 import UserReviewsScreen from '../screens/property/UserReviewsScreen';
+import AgentDashboardScreen from '../screens/property/AgentDashboardScreen';
 import TermsGate from '../screens/legal/TermsGate';
 import EmailVerificationGate from '../screens/auth/EmailVerificationGate';
 import { useSessionTimeout } from '../utils/auth/useSessionTimeout';
@@ -133,6 +134,7 @@ function MainStack() {
       <Stack.Screen name="SellerPerformance" component={withErrorBoundary(SellerPerformanceScreen)} />
       <Stack.Screen name="WriteUserReview" component={withErrorBoundary(WriteUserReviewScreen)} />
       <Stack.Screen name="UserReviews" component={withErrorBoundary(UserReviewsScreen)} />
+      <Stack.Screen name="AgentDashboard" component={withErrorBoundary(AgentDashboardScreen)} />
     </Stack.Navigator>
   );
 }

@@ -116,6 +116,16 @@ export default function ProfileScreen() {
           } as MenuItem,
         ]
       : []),
+    ...(user?.role === 'agent'
+      ? [
+          {
+            icon: 'cash-multiple',
+            label: 'Deals & Commission',
+            subtitle: 'YTD commission, pipeline, and closed deals',
+            onPress: () => navigation.navigate('AgentDashboard'),
+          } as MenuItem,
+        ]
+      : []),
     {
       icon: 'history',
       label: 'Recently Viewed',

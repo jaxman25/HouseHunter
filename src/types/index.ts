@@ -347,6 +347,7 @@ export type RootStackParamList = {
   SellerPerformance: undefined;
   WriteUserReview: { revieweeId: string; revieweeName?: string; tourId?: string; propertyId?: string };
   UserReviews: { userId: string; userName?: string };
+  AgentDashboard: undefined;
 };
 
 // ─── Theme Types ──────────────────────────────────────────
@@ -432,6 +433,34 @@ export interface Review {
   };
   isFlagged: boolean;
   isRemoved: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Agent Deals / Commission Tracking ────────────────────
+/** Lifecycle of a logged deal. `lost` keeps history without deleting. */
+export type DealStatus = 'pipeline' | 'closed' | 'lost';
+
+/**
+ * A deal an agent closed (or is pursuing) against one of their listings.
+ * Commission math: salePrice * (commissionRate / 100).
+ */
+export interface Deal {
+  id: string;
+  /** The agent who owns this deal record. */
+  agentId: string;
+  propertyId: string;
+  /** Buyer identity is captured loosely (name + optional uid) for privacy. */
+  buyerId?: string;
+  buyerName?: string;
+  /** Final price (or expected price while in pipeline). */
+  salePrice: number;
+  /** Commission percentage (0–100). */
+  commissionRate: number;
+  /** ISO date the deal closed (or is expected to close). */
+  closedAt: string;
+  status: DealStatus;
+  notes?: string;
   createdAt: string;
   updatedAt: string;
 }

@@ -427,6 +427,14 @@
         { "fieldPath": "reviewerId", "order": "ASCENDING" },
         { "fieldPath": "revieweeId", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "deals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "agentId", "order": "ASCENDING" },
+        { "fieldPath": "closedAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
