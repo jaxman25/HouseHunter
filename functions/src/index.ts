@@ -33,6 +33,7 @@ import { notifyOnPriceDrop } from './priceDropNotifications';
 import { trackSellerResponseTime } from './sellerResponseTracking';
 import { trackPriceHistory } from './priceHistoryTracking';
 import { improveListing } from './aiAssistant';
+import { parseSearchQuery } from './nlSearch';
 import { deleteCloudinaryAsset } from './cloudinaryAssets';
 
 export {
@@ -55,6 +56,7 @@ export {
   trackSellerResponseTime,
   trackPriceHistory,
   improveListing,
+  parseSearchQuery,
   deleteCloudinaryAsset,
 };
 import {

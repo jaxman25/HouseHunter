@@ -19,11 +19,9 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { getFirestore } from 'firebase-admin/firestore';
 import { requireString, requireNumber, requireEnum } from './validation';
+import { enforceDailyAiLimit } from './aiBudget';
 
 const db = getFirestore();
-
-/** Per-user daily budget for AI assistant calls. */
-const DAILY_AI_LIMIT = 20;
 
 const PROPERTY_TYPES = [
   'house', 'apartment', 'condo', 'townhouse', 'bedsitter', 'maisonette', 'land', 'commercial',
@@ -61,32 +59,6 @@ async function comparablePriceStats(
     prices.length % 2 === 1 ? prices[mid] : Math.round((prices[mid - 1] + prices[mid]) / 2);
 
   return { median, count: prices.length, min: prices[0], max: prices[prices.length - 1] };
-}
-
-/** Enforce the daily AI budget with a transactional counter (no fast writes). */
-async function enforceDailyLimit(uid: string): Promise<void> {
-  const dateKey = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const counterRef = db.doc(`users/${uid}/inquiryCounters/${dateKey}_ai`);
-  let limitReached = false;
-  try {
-    await db.runTransaction(async (tx) => {
-      const snap = await tx.get(counterRef);
-      const count = snap.exists ? ((snap.data()?.count as number) ?? 0) : 0;
-      if (count >= DAILY_AI_LIMIT) {
-        limitReached = true;
-        return;
-      }
-      tx.set(counterRef, { count: count + 1 }, { merge: true });
-    });
-  } catch (error) {
-    throw new HttpsError('unavailable', 'Could not check AI usage limits. Please try again.');
-  }
-  if (limitReached) {
-    throw new HttpsError(
-      'resource-exhausted',
-      `Daily AI assistant limit reached (${DAILY_AI_LIMIT}). Please try again tomorrow.`
-    );
-  }
 }
 
 /** Call OpenAI and parse the strict-JSON response. */
@@ -193,7 +165,7 @@ export const improveListing = onCall(async (request) => {
   const price = requireNumber(data.price, 'price', { min: 1, max: 1_000_000_000 });
 
   // Budget before model spend.
-  await enforceDailyLimit(uid);
+  await enforceDailyAiLimit(uid);
 
   // Anchor the price suggestion on comparable listings.
   let priceContext = 'No comparable listings found — base the range on the given price.';

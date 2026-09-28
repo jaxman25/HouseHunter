@@ -47,3 +47,41 @@ export async function improveListing(input: ImproveListingInput): Promise<Listin
   const result = await callable(input);
   return result.data;
 }
+
+// ─── AI Natural Language Search ───────────────────────────────────────────
+
+/** Mirrors ParsedSearchFilter in functions/src/nlSearch.ts. */
+export interface ParsedSearchFilters {
+  listingType?: 'sale' | 'rent';
+  propertyType?: string[];
+  minPrice?: number;
+  maxPrice?: number;
+  minBedrooms?: number;
+  minBathrooms?: number;
+  city?: string;
+  features?: string[];
+  sortBy?: string;
+}
+
+/** Result of the parseSearchQuery callable. */
+export interface AiSearchParse {
+  ok: boolean;
+  filters?: ParsedSearchFilters;
+  query?: string;
+  reason?: string;
+}
+
+/**
+ * Parse a natural-language search query into structured filters.
+ * Returns `{ ok: false }` when the query can't be parsed — the caller should
+ * fall back to plain full-text search. Throws only for transport-level
+ * failures (offline, function not deployed).
+ */
+export async function parseSearchQuery(query: string): Promise<AiSearchParse> {
+  const callable = httpsCallable<{ query: string }, AiSearchParse>(
+    getFunctionsInstance(),
+    'parseSearchQuery'
+  );
+  const result = await callable({ query });
+  return result.data;
+}

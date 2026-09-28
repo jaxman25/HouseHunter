@@ -53,6 +53,7 @@ Hosting, Cloud Functions), **Cloudinary** (image/video uploads), and **Google Ma
 | Filters: price range, bedrooms, bathrooms, property type, city, features, listing type | `src/components/property/FilterModal.tsx` |
 | Sort: newest, oldest, price asc/desc, popularity | |
 | Full-text search across title, address, city, state, description | `src/screens/search/SearchScreen.tsx` |
+| AI natural-language search — sparkle button parses a sentence ("3-bed near a park under $400k") into the FilterModal filter shape; "Interpreted as: [chips]" confirmation row with per-chip removal; parse/transport failures fall back to full-text search; shared 20 calls/user/day AI budget | `SearchScreen.tsx`, `src/services/aiAssistantService.ts` (`parseSearchQuery`), `src/services/aiSearchMapping.ts`, `functions/src/nlSearch.ts`, `functions/src/aiBudget.ts` | Server-side OpenAI JSON-mode parse re-validated against server allowlists (types, features, price bounds); unit-tested mapping in `src/services/__tests__/aiSearchMapping.test.js` |
 | Server-side pagination ("Load more") | `src/services/propertyService.ts` |
 | Loading skeletons | `PropertyCardSkeleton.tsx`, `PropertyDetailSkeleton.tsx`, `src/components/common/Skeleton.tsx` |
 
