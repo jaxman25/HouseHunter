@@ -1,7 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
 import {
   initializeAppCheck,
   ReCaptchaV3Provider,
@@ -14,7 +13,8 @@ const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
   projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  // storageBucket removed: Firebase Storage was replaced by Cloudinary
+  // unsigned uploads (see src/services/storageService.ts).
   messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
   measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID,
@@ -24,7 +24,8 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);
-const storage = getStorage(app);// ─── App Check ────────────────────────────────────────────────────────────
+
+// ─── App Check ────────────────────────────────────────────────────────────
 // SECURITY: App Check protects Firestore and Storage from unauthenticated
 // client abuse (script kiddies, cost attacks, data exfiltration).
 //
@@ -104,5 +105,5 @@ if (Platform.OS === 'web') {
 /** Whether App Check tokens are being minted on this platform. */
 export { appCheckActive };
 
-export { app, auth, db, storage };
+export { app, auth, db };
 export default app;

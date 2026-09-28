@@ -16,22 +16,15 @@ import {
   DocumentData,
 } from 'firebase/firestore';
 import * as Crypto from 'expo-crypto';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { auth, db, storage } from '../config/firebase';
+import { auth, db } from '../config/firebase';
+import { CLOUDINARY_CLOUD_NAME, uploadImage } from './storageService';
 import { Conversation, Message } from '../types';
 import { CHAT_COLLECTION, MESSAGES_COLLECTION } from '../utils/constants';
-import {
-  firestoreCircuitBreaker,
-  storageCircuitBreaker,
-} from '../utils/network/circuitBreaker';
+import { firestoreCircuitBreaker } from '../utils/network/circuitBreaker';
 import { withRetry } from '../utils/network/retry';
-import {
-  withTimeout,
-  DEFAULT_TIMEOUT_MS,
-  UPLOAD_TIMEOUT_MS,
-} from '../utils/network/timeout';
+import { withTimeout, DEFAULT_TIMEOUT_MS } from '../utils/network/timeout';
 import { trackMetric } from '../utils/monitoring/metrics';
-import { sanitizeRichText, sanitize, sanitizeFilename } from '../utils/security/sanitize';
+import { sanitizeRichText, sanitize } from '../utils/security/sanitize';
 
 /**
  * Deterministic conversation ID for a (buyer, seller, property) triple.
@@ -190,9 +183,14 @@ export async function sendMessage(
   }
 
   // SECURITY: Validate image URL if provided.
+  // Accepts https-only URLs from our two storage origins:
+  //  - Cloudinary (current): https://res.cloudinary.com/<cloud>/...
+  //  - Firebase Storage (legacy images sent before the migration)
   let sanitizedImage: string | undefined;
   if (image) {
-    if (!image.startsWith('https://firebasestorage.googleapis.com/')) {
+    const cloudinaryPrefix = `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/`;
+    const legacyFirebasePrefix = 'https://firebasestorage.googleapis.com/';
+    if (!image.startsWith(cloudinaryPrefix) && !image.startsWith(legacyFirebasePrefix)) {
       throw new Error('Invalid image URL');
     }
     sanitizedImage = image;
@@ -250,22 +248,12 @@ export async function uploadChatImage(
   uri: string,
   conversationId: string
 ): Promise<string> {
-  const url = await storageCircuitBreaker.execute(() =>
-    withRetry(() =>
-      withTimeout(
-        trackMetric('chat.uploadImage', async () => {
-          const response = await fetch(uri);
-          const blob = await response.blob();
-          const filename = `chat/${conversationId}/image_${Date.now()}`;
-          const storageRef = ref(storage, filename);
-          await uploadBytes(storageRef, blob);
-          return getDownloadURL(storageRef);
-        }),
-        UPLOAD_TIMEOUT_MS
-      )
-    )
-  );
-  return url;
+  // Delegates to the shared Cloudinary uploader (replaces direct
+  // firebase/storage usage). The conversationId no longer forms the storage
+  // path — Cloudinary's unsigned preset controls the folder — but it stays
+  // in the signature for API compatibility and for the legacy-style path arg.
+  const filename = `chat/${conversationId}/image_${Date.now()}`;
+  return trackMetric('chat.uploadImage', () => uploadImage(uri, filename));
 }
 
 export function subscribeToMessages(

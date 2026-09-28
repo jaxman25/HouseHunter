@@ -139,12 +139,11 @@ Press `w` for web, `a` for Android, `i` for iOS, or scan the QR code with **Expo
 |---|---|
 | **Authentication** | Enable the **Email/Password** provider (Google optional) |
 | **Firestore Database** | Create a database — *test mode* is fine for development |
-| **Storage** | Get started — *test mode* is fine for development |
 
 ### 3. Register a web app & grab the config
 
 1. **Project settings**  → **Your apps** → **Web** (`</>`)
-2. Copy the `firebaseConfig` values (apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId, measurementId)
+2. Copy the `firebaseConfig` values (apiKey, authDomain, projectId, messagingSenderId, appId, measurementId)
 
 ### 4. Create your `.env` file
 
@@ -161,7 +160,7 @@ Fill in every `EXPO_PUBLIC_*` value. The required ones:
 | `EXPO_PUBLIC_FIREBASE_API_KEY` | Firebase → Project settings → Your apps |
 | `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN` | Firebase → Project settings |
 | `EXPO_PUBLIC_FIREBASE_PROJECT_ID` | Firebase → Project settings |
-| `EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET` | Firebase → Project settings |
+| `EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME` / `EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET` | Cloudinary console (media uploads — see step 8) |
 | `EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Firebase → Project settings |
 | `EXPO_PUBLIC_FIREBASE_APP_ID` | Firebase → Project settings |
 | `EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID` | Firebase → Project settings |
@@ -184,23 +183,35 @@ npx firebase-tools deploy --only firestore:indexes
 
 ### 6. Deploy security rules
 
-The repo ships rules for **both** Firestore (`firestore.rules`) and Storage
-(`storage.rules` — owner/participant-scoped writes with a deny-all default).
-Deploy them:
+The repo ships rules for **Firestore** (`firestore.rules` — ownership checks,
+rate limiting, optimistic locking). Deploy them:
 
 ```bash
-npx firebase-tools deploy --only firestore:rules,storage:rules
+npx firebase-tools deploy --only firestore:rules
 ```
 
 >  **Production:** review and tighten these rules so users can only read/write
 their own data.
 
-### 7. Storage CORS (only needed for web uploads)
+### 7. Media uploads (Cloudinary)
 
-If you upload property/chat images from the **web** build, your Storage bucket needs CORS rules. A ready-made config is in `cors.json` — deploy it with the `gsutil` CLI:
+Property/chat images and video walkthroughs upload **directly from the client
+to Cloudinary** using unsigned upload presets — no Firebase Storage involved.
+
+1. Create a Cloudinary account and note your cloud name (`qrbmp96d`)
+2. Settings → Upload → Upload presets → create two **unsigned** presets:
+   - `househunter_unsigned` — resource type **image**, ≤5MB, jpeg/png/webp
+   - `househunter_unsigned_video` — resource type **video**, ≤50MB, mp4/mov/webm
+3. Set `EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME` and
+   `EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET` in `.env`
+
+Deleting media (replaced photos, deleted listings, account erasure) goes
+through the signed `deleteCloudinaryAsset` Cloud Function, which holds the
+API secret server-side — configure it with:
 
 ```bash
-gsutil cors set cors.json gs://YOUR-PROJECT.firebasestorage.app
+firebase functions:secrets:set CLOUDINARY_API_KEY
+firebase functions:secrets:set CLOUDINARY_API_SECRET
 ```
 
 ---

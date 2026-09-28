@@ -35,7 +35,7 @@ All 25 client-side `process.env` references use the `EXPO_PUBLIC_*` prefix, whic
 | `EXPO_PUBLIC_FIREBASE_API_KEY` | Firebase init | App Check + Rules |
 | `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN` | Auth domain | N/A (public) |
 | `EXPO_PUBLIC_FIREBASE_PROJECT_ID` | Project ID | N/A (public) |
-| `EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET` | Storage | Rules |
+| `EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET` | Media uploads | Unsigned preset (server-side secret handles deletes) |
 | `EXPO_PUBLIC_FIREBASE_APP_ID` | App ID | N/A (public) |
 | `EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID` | Analytics | N/A (public) |
 | `EXPO_PUBLIC_GOOGLE_MAPS_IOS_API_KEY` | Maps (iOS) | API restrictions |

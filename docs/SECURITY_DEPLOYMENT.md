@@ -48,7 +48,7 @@ These are **public by design** — Firebase API keys are restricted by:
 | `EXPO_PUBLIC_FIREBASE_API_KEY` | Firebase Auth/FS init | App Check + Rules |
 | `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN` | Auth domain | N/A (public) |
 | `EXPO_PUBLIC_FIREBASE_PROJECT_ID` | Project identifier | N/A (public) |
-| `EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET` | Storage bucket | Rules |
+| `EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET` | Media uploads | Unsigned preset limits; deletes via signed Cloud Function |
 | `EXPO_PUBLIC_FIREBASE_APP_ID` | App identifier | N/A (public) |
 | `EXPO_PUBLIC_RECAPTCHA_SITE_KEY` | App Check | Rate limiting |
 

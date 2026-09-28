@@ -18,20 +18,13 @@ import {
   QueryConstraint,
   Timestamp,
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { auth, db, storage } from '../config/firebase';
+import { auth, db } from '../config/firebase';
+import { uploadImage, deleteImage } from './storageService';
 import { Property, PropertyFilter, PriceHistoryEntry } from '../types';
 import { PROPERTIES_COLLECTION, ITEMS_PER_PAGE, PRICE_HISTORY_SUBCOLLECTION } from '../utils/constants';
-import {
-  firestoreCircuitBreaker,
-  storageCircuitBreaker,
-} from '../utils/network/circuitBreaker';
+import { firestoreCircuitBreaker } from '../utils/network/circuitBreaker';
 import { withRetry } from '../utils/network/retry';
-import {
-  withTimeout,
-  DEFAULT_TIMEOUT_MS,
-  UPLOAD_TIMEOUT_MS,
-} from '../utils/network/timeout';
+import { withTimeout, DEFAULT_TIMEOUT_MS } from '../utils/network/timeout';
 import {
   getCachedOrFetch,
   buildCacheKey,
@@ -242,12 +235,10 @@ export async function deleteProperty(id: string): Promise<void> {
 
     const images = propDoc.data().images || [];
     for (const imageUrl of images) {
-      try {
-        const imageRef = ref(storage, imageUrl);
-        await deleteObject(imageRef);
-      } catch {
-        // Image might not be in storage (external URLs)
-      }
+      // Unsigned uploads can't delete assets — delegate to the shared
+      // service (logged no-op until a signed delete proxy exists). It never
+      // throws, preserving the old "image might not exist" tolerance.
+      await deleteImage(imageUrl);
     }
 
     // Rebuild the batch per retry attempt (a committed batch can't be reused).
@@ -541,31 +532,19 @@ export async function uploadPropertyImage(
   propertyId: string,
   index: number
 ): Promise<string> {
-  const url = await storageCircuitBreaker.execute(() =>
-    withRetry(() =>
-      withTimeout(
-        trackMetric('properties.uploadImage', async () => {
-          const response = await fetch(uri);
-          const blob = await response.blob();
-          const filename = `properties/${propertyId}/image_${index}_${Date.now()}`;
-          const storageRef = ref(storage, filename);
-          await uploadBytes(storageRef, blob);
-          return getDownloadURL(storageRef);
-        }),
-        UPLOAD_TIMEOUT_MS
-      )
-    )
-  );
-  return url;
+  // Delegates to the shared Cloudinary uploader (replaces direct
+  // firebase/storage usage). The propertyId/index no longer form the storage
+  // path — Cloudinary's unsigned preset controls the folder — but they stay
+  // in the signature for API compatibility and for the legacy-style path arg.
+  const filename = `properties/${propertyId}/image_${index}_${Date.now()}`;
+  return trackMetric('properties.uploadImage', () => uploadImage(uri, filename));
 }
 
 export async function deletePropertyImage(imageUrl: string): Promise<void> {
-  try {
-    const imageRef = ref(storage, imageUrl);
-    await withTimeout(deleteObject(imageRef), UPLOAD_TIMEOUT_MS);
-  } catch {
-    // Image might not be in storage
-  }
+  // Unsigned Cloudinary uploads cannot delete assets (destroy needs a signed
+  // call with the API secret) — delegate to the shared service, which is a
+  // logged no-op until a delete-proxy Cloud Function exists. Never throws.
+  await deleteImage(imageUrl);
 }
 
 /**
