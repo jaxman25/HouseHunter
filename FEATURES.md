@@ -3,7 +3,7 @@
 A complete inventory of everything this codebase entails. Built with **React
 Native (Expo SDK 57) + TypeScript** on one codebase targeting **iOS, Android,
 and Web** (React Native Web), backed by **Firebase** (Auth, Firestore,
-Storage, Hosting, Cloud Functions) and **Google Maps**.
+Hosting, Cloud Functions), **Cloudinary** (image/video uploads), and **Google Maps**.
 
 > This file is a living map of the product. When a feature is added, removed,
 > or renamed, update it in the same change. The README keeps the shorter
@@ -21,16 +21,16 @@ Storage, Hosting, Cloud Functions) and **Google Maps**.
 | Change password (re-authentication required) | `src/screens/settings/ChangePasswordScreen.tsx` | |
 | Account deletion (full data erasure) | `src/screens/settings/DeleteAccountScreen.tsx`, `src/services/accountService.ts` | Wipes user doc, listings, chats/messages, favorites, notifications; sends a confirmation email via a Cloud Functions callable (`sendAccountDeletionConfirmation`) |
 | User roles | `src/types`, registration flow | Buyer / Seller / Agent (agent badge) |
-| Profile management | `src/screens/settings/EditProfileScreen.tsx` | Name, phone, bio, photo (uploaded to Storage) |
+| Profile management | `src/screens/settings/EditProfileScreen.tsx` | Name, phone, bio, photo (uploaded to Cloudinary) |
 | Post-login Terms consent gate | `src/screens/legal/TermsGate.tsx` | Accounts without a recorded `termsAcceptedVersion` must accept the current Terms before entering the app; failure surfaces inline on web |
-| Auth reliability | `src/utils/network/circuitBreaker.ts` | Auth/storage/Firestore calls wrapped in circuit breakers that trip only on transient failures |
+| Auth reliability | `src/utils/network/circuitBreaker.ts` | Auth/Cloudinary/Firestore calls wrapped in circuit breakers that trip only on transient failures |
 
 ## 2. Property Listings
 
 | Feature | Where |
 |---|---|
 | Create / edit / delete listings (Seller & Agent roles) | `AddPropertyScreen.tsx`, `EditPropertyScreen.tsx`, `MyListingsScreen.tsx`, `src/services/propertyService.ts` |
-| Up to 10 images per property, picker + resize | `expo-image-picker`, `expo-image-manipulator`, `src/services/storageService.ts` |
+| Up to 10 images per property, picker + resize, uploaded to Cloudinary (unsigned direct upload) | `expo-image-picker`, `expo-image-manipulator`, `src/services/storageService.ts` |
 | 6 property types: House, Apartment, Condo, Townhouse, Land, Commercial | `src/utils/constants.ts` |
 | Listing types: Buy / Rent | |
 | 20 amenities/features (parking, pool, gym, pet-friendly, AC, …) | |
@@ -43,6 +43,7 @@ Storage, Hosting, Cloud Functions) and **Google Maps**.
 | Seller response-time badge — rolling avg first-reply time shown as "Usually responds in ~Xh"; tracked server-side via Cloud Function on the seller's first message per conversation (stats fields are Cloud-Function-only; client writes denied by firestore.rules) | `functions/src/sellerResponseTracking.ts`, `src/screens/property/PropertyDetailScreen.tsx` |
 | Optimistic concurrency control | Firestore rules enforce a `version` bump on every owner edit |
 | Write rate limiting | Firestore rules budget writes per user/minute via `counters/{uid}`; client increments in the same batch (`src/services/propertyService.ts`) |
+| AI Listing Assistant (seller side) — "Improve with AI" in Add/Edit Listing; suggestions modal with per-item accept/reject for title, description rewrite, and price (midpoint of the suggested range); "worth adding" field chips; 20 calls/user/day budget | `src/components/property/AiListingSuggestionsModal.tsx`, `AddPropertyScreen.tsx`, `EditPropertyScreen.tsx`, `src/services/aiAssistantService.ts`, `functions/src/aiAssistant.ts` | Server-side OpenAI call with price suggestions anchored on comparable listings; budget enforced with a transactional counter (`users/{uid}/inquiryCounters/{date}_ai`) |
 
 ## 3. Explore & Search
 
@@ -108,7 +109,7 @@ Storage, Hosting, Cloud Functions) and **Google Maps**.
 |---|---|
 | Conversations per property between buyers, sellers, agents | `src/screens/chat/ConversationsScreen.tsx`, `ConversationItem.tsx` |
 | Live messaging via Firestore `onSnapshot` | `src/screens/chat/ChatScreen.tsx`, `src/services/chatService.ts` |
-| Image sharing in chat | `ChatInput.tsx`, Storage upload |
+| Image sharing in chat | `ChatInput.tsx`, Cloudinary upload |
 | Unread counts & read receipts | `src/services/chatService.ts` |
 | Data erasure: users can delete their own messages | Firestore rules |
 | Back navigation on both Messages and Chat screens | header back buttons |
@@ -260,7 +261,7 @@ Storage, Hosting, Cloud Functions) and **Google Maps**.
 
 | Feature | Where |
 |---|---|
-| Circuit breakers per service (auth, Firestore, Storage, Functions) | `src/utils/network/circuitBreaker.ts` |
+| Circuit breakers per service (auth, Firestore, Cloudinary, Functions) | `src/utils/network/circuitBreaker.ts` |
 | Retries with exponential backoff + timeouts on all writes/uploads | `src/utils/network/retry.ts`, `timeout.ts` |
 | Network health check with caching | `src/utils/network/healthCheck.ts` |
 | Cache layer with invalidation on mutations | `src/utils/cache/cacheService.ts`, `cacheInvalidation.ts` |
@@ -277,8 +278,8 @@ Storage, Hosting, Cloud Functions) and **Google Maps**.
 |---|---|
 | **Auth** | Email/password + Google (native idToken / web popup) |
 | **Firestore** | Collections: `users` (+ `savedSearches`, `inquiryCounters` subcollections), `properties`, `conversations`/`messages`, `notifications`, `counters` (rate limiting), `config` (public notices), `healthcheck`, `tours`/`tourAvailability`, `reviews`, `neighborhood_data` (profiles + Overpass insights cache), `admin_roles`/`admin_reports`/`admin_announcements`/`admin_auditLog` (admin suite) |
-| **Security rules** | `firestore.rules` — ownership checks, field allowlists, rate limiting, optimistic locking, per-message deletion; `storage.rules` for media |
-| **Storage** | Property images, chat images, profile photos |
+| **Security rules** | `firestore.rules` — ownership checks, field allowlists, rate limiting, optimistic locking, per-message deletion (`storage.rules` removed with Firebase Storage) |
+| **Storage** *(removed)* | Media migrated to **Cloudinary** unsigned direct uploads — property images, chat images, profile photos (`src/services/storageService.ts`; Firebase Storage bucket, rules, and SDK usage removed) |
 | **Cloud Functions v2** | `functions/src/index.ts` — security-alert emails, breach broadcasts, `sendAccountDeletionConfirmation` + `sendSellerInquiry` callables; `functions/src/archive.ts` — daily auto-archive job; all email via Resend (`functions/src/email.ts`) |
 | **Hosting** | Web export deployed via CI (`.github/workflows/deploy.yml`) |
 | **Indexes** | `firestore.indexes.json` |

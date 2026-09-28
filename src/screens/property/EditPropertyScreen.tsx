@@ -23,6 +23,7 @@ import Button from '../../components/common/Button';
 import LoadingOverlay from '../../components/common/LoadingOverlay';
 import { updateProperty, uploadPropertyImage, deletePropertyImage } from '../../services/propertyService';
 import { uploadPropertyVideo, deleteVideo } from '../../services/storageService';
+import AiListingSuggestionsModal from '../../components/property/AiListingSuggestionsModal';
 import { validateVideoAsset, VIDEO_CONFIG } from '../../utils/security/videoValidation';
 import { PROPERTY_FEATURES } from '../../config/theme';
 import { MAX_IMAGES_PER_PROPERTY } from '../../utils/constants';
@@ -62,6 +63,26 @@ export default function EditPropertyScreen() {
   const [pendingVideoUri, setPendingVideoUri] = useState<string | undefined>(undefined);
   const [videoDuration, setVideoDuration] = useState<number | undefined>(prop.videoDurationSeconds);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // AI Listing Assistant — pre-filled from the current form values.
+  const [aiModalVisible, setAiModalVisible] = useState(false);
+  const aiInput = {
+    title: title.trim(),
+    description: description.trim(),
+    type: propertyType,
+    city: city.trim(),
+    price: parseFloat(price) || 0,
+  };
+  const aiReady =
+    aiInput.title.length >= 3 &&
+    aiInput.description.length >= 20 &&
+    aiInput.price > 0;
+
+  const handleAiApply = (applied: { title?: string; description?: string; price?: number }) => {
+    if (applied.title !== undefined) setTitle(applied.title);
+    if (applied.description !== undefined) setDescription(applied.description);
+    if (applied.price !== undefined) setPrice(String(applied.price));
+  };
 
   const clearError = (key: string) =>
     setErrors((prev) => (prev[key] ? { ...prev, [key]: '' } : prev));
@@ -316,6 +337,32 @@ export default function EditPropertyScreen() {
           ))}
         </View>
 
+        {/* AI Listing Assistant */}
+        <TouchableOpacity
+          style={[
+            styles.aiBtn,
+            {
+              backgroundColor: colors.primaryLight,
+              borderRadius: radius.md,
+              opacity: aiReady ? 1 : 0.6,
+            },
+          ]}
+          onPress={() => setAiModalVisible(true)}
+          disabled={!aiReady}
+          accessibilityRole="button"
+          accessibilityLabel="Improve this listing with AI"
+        >
+          <MaterialCommunityIcons name="auto-fix" size={20} color={colors.primary} />
+          <Text style={{ color: colors.primary, fontSize: fontSize.sm, fontWeight: '600', marginLeft: 8 }}>
+            Improve with AI
+          </Text>
+          {!aiReady && (
+            <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginLeft: 8 }}>
+              (add title, description & price first)
+            </Text>
+          )}
+        </TouchableOpacity>
+
         <Input label="Title" value={title} onChangeText={(t) => { setTitle(t); clearError('title'); }} error={errors.title} />
         <Input label="Price ($)" value={price} onChangeText={(t) => { setPrice(t); clearError('price'); }} keyboardType="numeric" error={errors.price} />
         <Input label="Description" value={description} onChangeText={(t) => { setDescription(t); clearError('description'); }} multiline numberOfLines={4} style={{ minHeight: 100 }} error={errors.description} />
@@ -430,6 +477,14 @@ export default function EditPropertyScreen() {
       <View style={[styles.bottomBar, { backgroundColor: colors.surface, paddingBottom: insets.bottom + spacing.md, borderTopColor: colors.border }]}>
         <Button title="Save Changes" onPress={handleSave} loading={loading} />
       </View>
+
+      {/* AI Listing Assistant */}
+      <AiListingSuggestionsModal
+        visible={aiModalVisible}
+        onClose={() => setAiModalVisible(false)}
+        input={aiInput}
+        onApply={handleAiApply}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -442,6 +497,7 @@ const styles = StyleSheet.create({
   label: { fontWeight: '600', marginBottom: 8, marginTop: 8 },
   statusRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   statusBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderWidth: 1 },
+  aiBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, marginBottom: 16 },
   halfRow: { flexDirection: 'row' },
   featureGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
   featureChip: { paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1 },

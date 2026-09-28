@@ -24,6 +24,7 @@ import Button from '../../components/common/Button';
 import LoadingOverlay from '../../components/common/LoadingOverlay';
 import { createProperty, updateProperty, uploadPropertyImage } from '../../services/propertyService';
 import { uploadPropertyVideo } from '../../services/storageService';
+import AiListingSuggestionsModal from '../../components/property/AiListingSuggestionsModal';
 import { validateVideoAsset, VIDEO_CONFIG } from '../../utils/security/videoValidation';
 import { PROPERTY_FEATURES, PROPERTY_TYPES } from '../../config/theme';
 import { generateId } from '../../utils/helpers';
@@ -62,6 +63,20 @@ export default function AddPropertyScreen() {
   const [videoAsset, setVideoAsset] = useState<{ uri: string; duration?: number } | null>(null);
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
+
+  // AI Listing Assistant (step 1): pre-filled from the current form values.
+  const [aiModalVisible, setAiModalVisible] = useState(false);
+  const aiInput = {
+    title: title.trim(),
+    description: description.trim(),
+    type: propertyType,
+    city: city.trim() || 'Nairobi',
+    price: parseFloat(price) || 0,
+  };
+  const aiReady =
+    aiInput.title.length >= 3 &&
+    aiInput.description.length >= 20 &&
+    aiInput.price > 0;
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -117,6 +132,12 @@ export default function AddPropertyScreen() {
 
   const removeImage = (index: number) => {
     setImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAiApply = (applied: { title?: string; description?: string; price?: number }) => {
+    if (applied.title !== undefined) setTitle(applied.title);
+    if (applied.description !== undefined) setDescription(applied.description);
+    if (applied.price !== undefined) setPrice(String(applied.price));
   };
 
   const getCurrentLocation = async () => {
@@ -346,6 +367,33 @@ export default function AddPropertyScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+
+            {/* AI Listing Assistant */}
+            <TouchableOpacity
+              style={[
+                styles.aiBtn,
+                {
+                  backgroundColor: colors.primaryLight,
+                  borderRadius: radius.md,
+                  opacity: aiReady ? 1 : 0.6,
+                },
+              ]}
+              onPress={() => setAiModalVisible(true)}
+              disabled={!aiReady}
+              accessibilityRole="button"
+              accessibilityLabel="Improve this listing with AI"
+              accessibilityHint="Requires a title, a description, and a price"
+            >
+              <MaterialCommunityIcons name="auto-fix" size={20} color={colors.primary} />
+              <Text style={{ color: colors.primary, fontSize: fontSize.sm, fontWeight: '600', marginLeft: 8 }}>
+                Improve with AI
+              </Text>
+              {!aiReady && (
+                <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginLeft: 8 }}>
+                  (add title, description & price first)
+                </Text>
+              )}
+            </TouchableOpacity>
 
             <Input
               label="Title"
@@ -734,6 +782,14 @@ export default function AddPropertyScreen() {
           />
         )}
       </View>
+
+      {/* AI Listing Assistant */}
+      <AiListingSuggestionsModal
+        visible={aiModalVisible}
+        onClose={() => setAiModalVisible(false)}
+        input={aiInput}
+        onApply={handleAiApply}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -813,6 +869,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 14,
     marginTop: 8,
+  },
+  aiBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    marginBottom: 16,
   },
   featureGrid: {
     flexDirection: 'row',
