@@ -1,4 +1,4 @@
-# 🏗️ House Hunter — Feature Inventory
+# House Hunter — Feature Inventory
 
 A complete inventory of everything this codebase entails. Built with **React
 Native (Expo SDK 57) + TypeScript** on one codebase targeting **iOS, Android,
@@ -150,6 +150,7 @@ Hosting, Cloud Functions), **Cloudinary** (image/video uploads), and **Google Ma
 | Scheduled match notifications (daily at 03:00 UTC, weekly cadence) | `functions/src/savedSearchNotifications.ts`, `functions/src/savedSearchFilters.ts` |
 | Per-search frequency is user-editable (instant / daily / weekly / off) in NotificationPreferencesScreen | `src/screens/settings/NotificationPreferencesScreen.tsx` |
 | Notification tap → Saved Search (routes `new_listing` taps to Saved Searches with card highlight + auto-scroll) | `src/navigation/AppNavigator.tsx`, `src/screens/main/SavedSearchesScreen.tsx`, `src/utils/deepLinking.ts` |
+| Buyer/seller reputation — peer `userReviews` collection (reviewer, reviewee, rating 1–5, text); prompts after a completed viewing (both parties) or a chat crossing 5 messages; avg + count shown on profiles; Profile → "My Reputation" list | `src/services/userReviewService.ts`, `src/screens/property/WriteUserReviewScreen.tsx`, `UserReviewsScreen.tsx`, `src/screens/main/AgentProfileScreen.tsx`, `functions/src/reviewPrompts.ts` (`reviewPromptTourCompleted`, `reviewPromptChatDepth`), `firestore.rules` (`userReviews`), `firestore.indexes.json` | Rules: reviewer-only create with reviewer ≠ reviewee, rating bounds, server timestamps, no client updates, admin-only delete; notification taps route `user_review` to the review form; account deletion removes reviews the user wrote; data export includes them |
 
 ## 10. Contact Seller via Email
 

@@ -35,6 +35,10 @@ import { trackPriceHistory } from './priceHistoryTracking';
 import { improveListing } from './aiAssistant';
 import { parseSearchQuery } from './nlSearch';
 import { deleteCloudinaryAsset } from './cloudinaryAssets';
+import {
+  reviewPromptTourCompleted,
+  reviewPromptChatDepth,
+} from './reviewPrompts';
 
 export {
   autoArchiveProperties,
@@ -58,6 +62,8 @@ export {
   improveListing,
   parseSearchQuery,
   deleteCloudinaryAsset,
+  reviewPromptTourCompleted,
+  reviewPromptChatDepth,
 };
 import {
   SecurityAlertInput,

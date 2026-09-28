@@ -106,6 +106,16 @@ export default function ProfileScreen() {
       subtitle: 'Re-run filters and get notified of new matches',
       onPress: () => navigation.navigate('SavedSearches'),
     },
+    ...(user
+      ? [
+          {
+            icon: 'account-star-outline',
+            label: 'My Reputation',
+            subtitle: 'Ratings from buyers and sellers you dealt with',
+            onPress: () => navigation.navigate('UserReviews', { userId: user.uid, userName: user.displayName || undefined }),
+          } as MenuItem,
+        ]
+      : []),
     {
       icon: 'history',
       label: 'Recently Viewed',

@@ -20,6 +20,7 @@ import VerificationBadge from '../../components/reviews/VerificationBadge';
 import Skeleton from '../../components/common/Skeleton';
 import { getUserProfile } from '../../services/authService';
 import { getUserProperties } from '../../services/propertyService';
+import { getUserRating, UserRatingSummary } from '../../services/userReviewService';
 import { useResponsive } from '../../hooks/useResponsive';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -38,6 +39,7 @@ export default function AgentProfileScreen() {
 
   const [agent, setAgent] = useState<AgentUser | null>(null);
   const [listings, setListings] = useState<Property[]>([]);
+  const [rating, setRating] = useState<UserRatingSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -45,9 +47,10 @@ export default function AgentProfileScreen() {
     setLoading(true);
     setNotFound(false);
     try {
-      const [profile, properties] = await Promise.all([
+      const [profile, properties, peerRating] = await Promise.all([
         getUserProfile(agentId),
         getUserProperties(agentId).catch(() => [] as Property[]),
+        getUserRating(agentId).catch(() => null),
       ]);
       if (!profile) {
         setNotFound(true);
@@ -55,6 +58,7 @@ export default function AgentProfileScreen() {
         setAgent(profile as AgentUser);
         // Public profile shows the agent's active book only.
         setListings(properties.filter((p) => p.status === 'active' && !p.archived));
+        setRating(peerRating);
       }
     } catch (error) {
       console.warn('Failed to load agent profile:', error);
@@ -139,16 +143,26 @@ export default function AgentProfileScreen() {
           fontSize={fontSize}
         />
         <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-        <Stat
-          label="Rating"
-          value={
-            agent?.totalReviews && agent.totalReviews > 0
-              ? `★ ${(agent.averageRating ?? 0).toFixed(1)}`
-              : '—'
-          }
-          colors={colors}
-          fontSize={fontSize}
-        />
+        <TouchableOpacity
+          style={styles.statWrap}
+          onPress={() => navigation.navigate('UserReviews', { userId: agentId, userName: agent?.displayName })}
+          disabled={!rating?.totalReviews}
+          accessibilityRole="button"
+          accessibilityLabel="View peer reviews"
+        >
+          <Stat
+            label="Rating"
+            value={
+              rating?.totalReviews
+                ? `★ ${(rating.averageRating ?? 0).toFixed(1)}`
+                : agent?.totalReviews && agent.totalReviews > 0
+                  ? `★ ${(agent.averageRating ?? 0).toFixed(1)}`
+                  : '—'
+            }
+            colors={colors}
+            fontSize={fontSize}
+          />
+        </TouchableOpacity>
         <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
         <Stat
           label="Verified"
@@ -256,6 +270,7 @@ function Stat({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  statWrap: { alignItems: 'center' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

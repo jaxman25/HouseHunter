@@ -50,6 +50,8 @@ import LanguageSettingsScreen from '../screens/settings/LanguageSettingsScreen';
 import ThemeSettingsScreen from '../screens/settings/ThemeSettingsScreen';
 import NotificationPreferencesScreen from '../screens/settings/NotificationPreferencesScreen';
 import SellerPerformanceScreen from '../screens/property/SellerPerformanceScreen';
+import WriteUserReviewScreen from '../screens/property/WriteUserReviewScreen';
+import UserReviewsScreen from '../screens/property/UserReviewsScreen';
 import TermsGate from '../screens/legal/TermsGate';
 import EmailVerificationGate from '../screens/auth/EmailVerificationGate';
 import { useSessionTimeout } from '../utils/auth/useSessionTimeout';
@@ -129,6 +131,8 @@ function MainStack() {
       <Stack.Screen name="ThemeSettings" component={withErrorBoundary(ThemeSettingsScreen)} />
       <Stack.Screen name="NotificationPreferences" component={withErrorBoundary(NotificationPreferencesScreen)} />
       <Stack.Screen name="SellerPerformance" component={withErrorBoundary(SellerPerformanceScreen)} />
+      <Stack.Screen name="WriteUserReview" component={withErrorBoundary(WriteUserReviewScreen)} />
+      <Stack.Screen name="UserReviews" component={withErrorBoundary(UserReviewsScreen)} />
     </Stack.Navigator>
   );
 }
@@ -206,6 +210,21 @@ export default function AppNavigator() {
           // No conversation ID in push payload — navigate to Conversations list.
           nav.navigate('Conversations' as any, undefined as any);
           break;
+        case 'user_review': {
+          // Reputation prompt: open the peer review form for the other party.
+          const revieweeId = data.revieweeId;
+          if (revieweeId) {
+            nav.navigate('WriteUserReview' as any, {
+              revieweeId,
+              revieweeName: data.revieweeName,
+              tourId: data.tourId,
+              propertyId: data.propertyId,
+            } as any);
+          } else {
+            nav.navigate('MainTabs' as any, undefined as any);
+          }
+          break;
+        }
         case 'inquiry':
           // No property ID in generic inquiry push — navigate to Home.
           nav.navigate('MainTabs' as any, undefined as any);

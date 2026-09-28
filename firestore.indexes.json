@@ -411,6 +411,22 @@
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "price", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "userReviews",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "revieweeId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "userReviews",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "reviewerId", "order": "ASCENDING" },
+        { "fieldPath": "revieweeId", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

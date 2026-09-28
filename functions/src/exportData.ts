@@ -55,6 +55,14 @@ async function compileUserData(userId: string): Promise<Record<string, unknown>>
     .get();
   data.reviews = reviewsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
+  // Peer reputation reviews (written by the user; reviews about them are
+  // visible via the public reputation list).
+  const userReviewsSnap = await db
+    .collection('userReviews')
+    .where('reviewerId', '==', userId)
+    .get();
+  data.userReviews = userReviewsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
   // Tours (as buyer)
   const buyerToursSnap = await db
     .collection('tours')

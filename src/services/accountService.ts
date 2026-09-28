@@ -16,6 +16,7 @@ import {
 } from '../utils/constants';
 import { deleteImage } from './storageService';
 import { getUserProperties, deleteProperty } from './propertyService';
+import { USER_REVIEWS_COLLECTION } from './userReviewService';
 import { invalidateUserProfile, invalidateFavorites } from '../utils/cache/cacheInvalidation';
 import { captureError } from '../utils/monitoring/sentry';
 
@@ -45,7 +46,13 @@ export async function deleteAccountData(uid: string): Promise<void> {
       query(collection(db, USERS_COLLECTION), where('uid', '==', uid))
     );
     const photoURL = userSnap.docs[0]?.data().photoURL as string | undefined;
-    if (photoURL && photoURL.includes(`profiles/${uid}/`)) {
+    // Only touch assets that belong to this user's avatar: Cloudinary
+    // (current, filenames are `avatar_<uid>_<ts>`) or Firebase Storage
+    // (legacy `profiles/<uid>/` paths sent before the migration).
+    if (
+      photoURL &&
+      (photoURL.includes(`avatar_${uid}_`) || photoURL.includes(`profiles/${uid}/`))
+    ) {
       await deleteImage(photoURL);
     }
   } catch (error) {
@@ -123,6 +130,24 @@ export async function deleteAccountData(uid: string): Promise<void> {
   } catch (error) {
     failures.push('chat data');
     captureError(error, { tags: { category: 'account-deletion' }, extra: { step: 'chat' } });
+  }
+
+  // Peer reputation reviews they wrote (reviews about them stay — they are
+  // about interactions others had with the account, and admin moderation
+  // covers abuse; rules prevent client deletes anyway).
+  try {
+    const written = await getDocs(
+      query(collection(db, USER_REVIEWS_COLLECTION), where('reviewerId', '==', uid))
+    );
+    for (const snap of written.docs) {
+      await deleteDoc(snap.ref);
+    }
+  } catch (error) {
+    failures.push('peer reviews written');
+    captureError(error, {
+      tags: { category: 'account-deletion' },
+      extra: { step: 'userReviews-written' },
+    });
   }
 
   // User profile document last (listings still reference userName/userPhoto

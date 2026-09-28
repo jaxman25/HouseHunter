@@ -508,6 +508,39 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ═════════════════════════════════════════════════════════
+    // USER REVIEWS COLLECTION (peer reputation)
+    // ═════════════════════════════════════════════════════════
+    // One user rating another after a real interaction (completed viewing or
+    // 5+ message chat). Strictly reviewer-authored; admins may remove abuse.
+    match /userReviews/{reviewId} {
+      // Anyone authenticated can read a user's reputation.
+      allow read: if isAuthenticated();
+
+      // Only the reviewer can create; reviewer ≠ reviewee; rating 1–5;
+      // text bounded; timestamps must be server-set.
+      allow create: if isAuthenticated() && !isSuspended() &&
+        request.resource.data.reviewerId == request.auth.uid &&
+        request.resource.data.revieweeId is string &&
+        request.resource.data.revieweeId != request.auth.uid &&
+        request.resource.data.rating is number &&
+        request.resource.data.rating >= 1 && request.resource.data.rating <= 5 &&
+        request.resource.data.text is string &&
+        request.resource.data.text.size() <= 1000 &&
+        request.resource.data.keys().hasOnly([
+          'reviewerId', 'revieweeId', 'rating', 'text', 'createdAt',
+          'reviewerName', 'revieweeName', 'propertyId', 'tourId', 'conversationId'
+        ]) &&
+        request.resource.data.createdAt == request.time;
+
+      // No client updates (no edits, no vote brigading).
+      allow update: if false;
+
+      // Abusive reviews are removed by admins only. Authors cannot delete
+      // (prevents history scrubbing); a future report flow can hide instead.
+      allow delete: if isAdmin();
+    }
+
     // ═══════════════════════════════════════════════════════════
     // TOURS COLLECTION
     // ═══════════════════════════════════════════════════════════

@@ -345,6 +345,8 @@ export type RootStackParamList = {
   ThemeSettings: undefined;
   NotificationPreferences: undefined;
   SellerPerformance: undefined;
+  WriteUserReview: { revieweeId: string; revieweeName?: string; tourId?: string; propertyId?: string };
+  UserReviews: { userId: string; userName?: string };
 };
 
 // ─── Theme Types ──────────────────────────────────────────
@@ -432,6 +434,30 @@ export interface Review {
   isRemoved: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+// ─── User Reputation (peer reviews) ───────────────────────
+/**
+ * A peer reputation review: one user rating another after a real interaction
+ * (a completed viewing/tour or a chat with 5+ messages). Distinct from
+ * `Review` (property reviews) — this one is about the person.
+ */
+export interface UserReview {
+  id: string;
+  /** The authenticated author of the review. */
+  reviewerId: string;
+  /** The user being rated. */
+  revieweeId: string;
+  /** Interaction context: the tour that prompted the review, if any. */
+  propertyId?: string;
+  tourId?: string;
+  conversationId?: string;
+  /** Names denormalized for display without extra reads. */
+  reviewerName?: string;
+  revieweeName?: string;
+  rating: number; // 1-5
+  text: string;
+  createdAt: string;
 }
 
 export interface ReviewRatingBreakdown {
