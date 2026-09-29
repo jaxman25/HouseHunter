@@ -141,7 +141,7 @@ export default function TermsGate({ userId }: TermsGateProps) {
             style={[
               styles.errorBanner,
               {
-                backgroundColor: '#FEF2F2',
+                backgroundColor: colors.errorSurface,
                 borderRadius: radius.md,
                 marginTop: spacing.xl,
               },

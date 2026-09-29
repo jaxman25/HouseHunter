@@ -233,7 +233,7 @@ export default function TourRequestModal({
           </View>
         </ScrollView>
 
-        <View style={[styles.footer, { borderTopColor: colors.border }]}>
+        <View style={[styles.footer, { borderTopColor: colors.border, backgroundColor: colors.surface }]}>
           <TouchableOpacity
             onPress={handleSubmit}
             disabled={loading || !selectedDate || !selectedTime}
@@ -297,7 +297,6 @@ const styles = StyleSheet.create({
     right: 0,
     padding: 16,
     borderTopWidth: 1,
-    backgroundColor: 'white',
   },
   submitBtn: {
     paddingVertical: 14,

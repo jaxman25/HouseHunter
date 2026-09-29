@@ -17,17 +17,26 @@ import AdminLayout from '../../components/admin/AdminLayout';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import { getReports, resolveReport } from '../../services/adminService';
-import { Report, ReportStatus } from '../../types';
+import { Report, ReportStatus, ThemeColors } from '../../types';
 import { PROPERTIES_COLLECTION } from '../../utils/constants';
 import { getTimeAgo } from '../../utils/helpers';
 
 const STATUS_TABS: (ReportStatus | 'all')[] = ['all', 'pending', 'dismissed', 'resolved'];
 
-const REASON_COLOR: Record<string, string> = {
-  scam: '#FEE2E2',
-  inappropriate: '#FEF3C7',
-  duplicate: '#DBEAFE',
-  other: '#E5E7EB',
+/** Reason → surface tint + flag tint (theme-aware). */
+const REASON_TINT: Record<string, keyof ThemeColors> = {
+  scam: 'errorSurface',
+  inappropriate: 'warningSurface',
+  duplicate: 'primaryLight',
+  other: 'gray100',
+};
+
+/** Reason → semantic text/icon color. */
+const REASON_TINT_TEXT: Record<string, keyof ThemeColors> = {
+  scam: 'errorText',
+  inappropriate: 'warningText',
+  duplicate: 'primary',
+  other: 'gray500',
 };
 
 export default function ReportsManagementScreen() {
@@ -143,8 +152,16 @@ export default function ReportsManagementScreen() {
               ]}
               accessibilityRole="button"
             >
-              <View style={[styles.reasonIcon, { backgroundColor: REASON_COLOR[report.reason] ?? colors.gray100, borderRadius: radius.round }]}>
-                <MaterialCommunityIcons name="flag" size={16} color={colors.error} />
+              <View
+                style={[
+                  styles.reasonIcon,
+                  {
+                    backgroundColor: colors[REASON_TINT[report.reason] ?? 'gray100'],
+                    borderRadius: radius.round,
+                  },
+                ]}
+              >
+                <MaterialCommunityIcons name="flag" size={16} color={colors[REASON_TINT_TEXT[report.reason] ?? 'gray500']} />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>

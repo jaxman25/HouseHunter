@@ -36,6 +36,11 @@ export const LIGHT_COLORS: ThemeColors = {
   gray700: '#374151',
   gray800: '#1F2937',
   shadow: '#000000',
+  // Banner surfaces: light tints paired with dark text of the same hue.
+  warningSurface: '#FEF3C7',
+  warningText: '#92400E',
+  errorSurface: '#FEF2F2',
+  errorText: '#B91C1C',
 };
 
 // Dark mode: surfaces are darkened, text is lightened, but brand colors are
@@ -69,6 +74,11 @@ export const DARK_COLORS: ThemeColors = {
   gray700: '#E5E7EB',
   gray800: '#F3F4F6',
   shadow: '#000000',
+  // Dark-mode banner surfaces: deep tinted fills with light hue text.
+  warningSurface: '#3A2A08',
+  warningText: '#FBBF24',
+  errorSurface: '#3B1212',
+  errorText: '#FCA5A5',
 };
 
 /**

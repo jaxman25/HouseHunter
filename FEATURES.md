@@ -274,6 +274,8 @@ Hosting, Cloud Functions), **Cloudinary** (image/video uploads), and **Google Ma
 | Debounce/throttle helpers | `src/utils/performance/debounce.ts`, `throttle.ts` |
 | Build-time feature flags via `.env` | `src/utils/featureFlags.ts` |
 | Theme system (tokens, light/dark, spacing, radii, shadows) | `src/context/ThemeContext.tsx`, `src/config/theme.ts` |
+| Dark mode audit: every screen uses theme tokens (no hardcoded hexes); banner-surface tokens `warningSurface`/`warningText`/`errorSurface`/`errorText` for tinted banners; web phone-frame follows theme | `src/config/theme.ts`, `src/types/index.ts` (`ThemeColors`), screens/components sweep |
+| Centralized currency + area formatting — `formatCurrency`, `formatCurrencyCompact`, `formatCurrencySymbol`, `formatAreaFormatted`; default USD + sqft, switchable to metric (KSh + m²) via `EXPO_PUBLIC_UNIT_SYSTEM` | `src/utils/format.ts`, `.env.example` |
 
 ## 19. Backend (Firebase)
 

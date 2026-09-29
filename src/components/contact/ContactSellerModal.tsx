@@ -163,9 +163,9 @@ export default function ContactSellerModal({
             </Text>
 
             {!emailVerified && (
-              <View style={[styles.warning, { backgroundColor: '#FEF3C7', borderRadius: radius.md }]}>
-                <MaterialCommunityIcons name="email-alert-outline" size={18} color="#D97706" />
-                <Text style={{ color: '#92400E', fontSize: fontSize.xs, flex: 1, marginLeft: 8 }}>
+              <View style={[styles.warning, { backgroundColor: colors.warningSurface, borderRadius: radius.md }]}>
+                <MaterialCommunityIcons name="email-alert-outline" size={18} color={colors.warning} />
+                <Text style={{ color: colors.warningText, fontSize: fontSize.xs, flex: 1, marginLeft: 8 }}>
                   Verify your email address to contact sellers. Need help? {CONTACT_EMAIL}
                 </Text>
               </View>

@@ -247,7 +247,7 @@ export default function MyListingsScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => handleDelete(property)}
-              style={[styles.actionBtn, { backgroundColor: '#FEE2E2' }]}
+              style={[styles.actionBtn, { backgroundColor: colors.errorSurface }]}
             >
               <MaterialCommunityIcons name="delete-outline" size={16} color={colors.error} />
             </TouchableOpacity>
@@ -283,7 +283,7 @@ export default function MyListingsScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => handleDelete(property)}
-              style={[styles.actionBtn, { backgroundColor: '#FEE2E2' }]}
+              style={[styles.actionBtn, { backgroundColor: colors.errorSurface }]}
             >
               <MaterialCommunityIcons name="delete-outline" size={16} color={colors.error} />
             </TouchableOpacity>
@@ -323,7 +323,7 @@ export default function MyListingsScreen() {
                 setExpandedStatusId(null);
                 handleArchive(property);
               }}
-              style={[styles.statusMenuChip, { backgroundColor: '#FEE2E2', borderRadius: radius.round }]}
+              style={[styles.statusMenuChip, { backgroundColor: colors.errorSurface, borderRadius: radius.round }]}
               accessibilityRole="button"
             >
               <Text style={{ color: colors.error, fontSize: fontSize.xs, fontWeight: '600' }}>

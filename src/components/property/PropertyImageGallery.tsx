@@ -68,7 +68,7 @@ export default function PropertyImageGallery({
             <Image
               source={{ uri: item }}
               contentFit="cover"
-              style={{ width, height, backgroundColor: '#E5E7EB' }}
+              style={{ width, height, backgroundColor: colors.gray200 }}
             />
           )}
         />

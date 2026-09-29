@@ -162,7 +162,7 @@ export default function RegisterScreen({ navigation }: Props) {
         </Text>
 
         {generalError ? (
-          <View style={[styles.errorBanner, { backgroundColor: '#FEF2F2', borderRadius: radius.md }]}>
+          <View style={[styles.errorBanner, { backgroundColor: colors.errorSurface, borderRadius: radius.md }]}>
             <MaterialCommunityIcons name="alert-circle" size={20} color={colors.error} />
             <Text style={{ color: colors.error, fontSize: fontSize.sm, flex: 1 }}>
               {generalError}

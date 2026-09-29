@@ -356,7 +356,6 @@ const styles = StyleSheet.create({
   previewImageContent: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#E5E7EB',
   },
   previewContent: {
     flex: 1,

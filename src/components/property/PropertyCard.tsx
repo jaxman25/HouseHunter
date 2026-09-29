@@ -63,7 +63,7 @@ export default function PropertyCard({
             source={property.images?.[0] ? { uri: property.images[0] } : undefined}
             style={[
               styles.gridImage,
-              { borderRadius: radius.lg, opacity: isUnavailable ? 0.55 : 1 },
+              { backgroundColor: colors.gray200, borderRadius: radius.lg, opacity: isUnavailable ? 0.55 : 1 },
             ]}
             contentFit="cover"
           />
@@ -186,7 +186,7 @@ export default function PropertyCard({
           source={property.images?.[0] ? { uri: property.images[0] } : undefined}
           style={[
             styles.horizontalImage,
-            { borderRadius: radius.lg, opacity: isUnavailable ? 0.55 : 1 },
+            { backgroundColor: colors.gray200, borderRadius: radius.lg, opacity: isUnavailable ? 0.55 : 1 },
           ]}
           contentFit="cover"
         />
@@ -291,7 +291,7 @@ export default function PropertyCard({
           source={property.images?.[0] ? { uri: property.images[0] } : undefined}
           style={[
             styles.verticalImage,
-            { borderRadius: radius.lg, opacity: isUnavailable ? 0.55 : 1 },
+            { backgroundColor: colors.gray200, borderRadius: radius.lg, opacity: isUnavailable ? 0.55 : 1 },
           ]}
           contentFit="cover"
         />
@@ -447,7 +447,6 @@ const styles = StyleSheet.create({
   gridImage: {
     width: '100%',
     aspectRatio: 1.3,
-    backgroundColor: '#E5E7EB',
   },
   gridContent: {
     padding: 10,
@@ -485,7 +484,6 @@ const styles = StyleSheet.create({
   verticalImage: {
     width: '100%',
     height: 200,
-    backgroundColor: '#E5E7EB',
   },
   verticalContent: {},
   verticalOverlay: {
@@ -503,7 +501,6 @@ const styles = StyleSheet.create({
   horizontalImage: {
     width: 120,
     height: 120,
-    backgroundColor: '#E5E7EB',
   },
   horizontalContent: {
     flex: 1,

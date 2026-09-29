@@ -328,7 +328,7 @@ export default function PropertyDetailScreen() {
               style={[
                 styles.availabilityNote,
                 {
-                  backgroundColor: isPending ? '#FEF3C7' : '#FEE2E2',
+                  backgroundColor: isPending ? colors.warningSurface : colors.errorSurface,
                   borderRadius: radius.md,
                 },
               ]}

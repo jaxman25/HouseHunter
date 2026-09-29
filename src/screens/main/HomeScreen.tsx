@@ -142,6 +142,7 @@ export default function HomeScreen() {
               paddingTop: insets.top + spacing.md,
               paddingHorizontal: spacing.xl,
               backgroundColor: colors.surface,
+              borderBottomColor: colors.border,
             },
           ]}
         >
@@ -338,7 +339,7 @@ export default function HomeScreen() {
                           source={{ uri: item.images?.[0] }}
                           style={[
                             styles.featuredImagePlaceholder,
-                            { borderRadius: radius.lg },
+                            { backgroundColor: colors.gray200, borderRadius: radius.lg },
                           ]}
                           contentFit="cover"
                         />
@@ -536,7 +537,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingBottom: 14,
     borderBottomWidth: 0.5,
-    borderBottomColor: '#E5E7EB',
   },
   headerLeft: {
     flexDirection: 'row',
@@ -635,7 +635,6 @@ const styles = StyleSheet.create({
   featuredImagePlaceholder: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#E5E7EB',
   },
   featuredBaderWrap: {
     position: 'absolute',

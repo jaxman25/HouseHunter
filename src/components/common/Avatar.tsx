@@ -27,6 +27,7 @@ export default function Avatar({ uri, name, size = 44, style, online }: AvatarPr
               width: size,
               height: size,
               borderRadius: size / 2,
+              backgroundColor: colors.gray200,
             },
           ]}
         />
@@ -75,9 +76,7 @@ export default function Avatar({ uri, name, size = 44, style, online }: AvatarPr
 }
 
 const styles = StyleSheet.create({
-  image: {
-    backgroundColor: '#E5E7EB',
-  },
+  image: {},
   fallback: {
     alignItems: 'center',
     justifyContent: 'center',

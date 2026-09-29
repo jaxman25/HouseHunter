@@ -140,7 +140,7 @@ export default function EditProfileScreen() {
         <View style={styles.photoSection}>
           <TouchableOpacity onPress={pickImage} style={styles.photoContainer}>
             {photoURL ? (
-              <Image source={{ uri: photoURL }} style={[styles.photo, { borderRadius: 60 }]} />
+              <Image source={{ uri: photoURL }} style={[styles.photo, { backgroundColor: colors.gray200, borderRadius: 60 }]} />
             ) : (
               <Avatar uri={user?.photoURL} name={user?.displayName || 'U'} size={120} />
             )}
@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontWeight: '700' },
   photoSection: { alignItems: 'center', marginBottom: 24 },
   photoContainer: { position: 'relative' },
-  photo: { width: 120, height: 120, backgroundColor: '#E5E7EB' },
+  photo: { width: 120, height: 120 },
   cameraIcon: {
     position: 'absolute',
     bottom: 0,

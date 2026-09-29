@@ -14,6 +14,7 @@ import { PropertyFilter, PropertyType } from '../../types';
 import Button from '../common/Button';
 import { PROPERTY_TYPES, SORT_OPTIONS } from '../../config/theme';
 import { maxAffordablePrice } from '../../utils/mortgage';
+import { formatCurrencySymbol } from '../../utils/format';
 
 interface FilterModalProps {
   visible: boolean;
@@ -67,25 +68,28 @@ export default function FilterModal({
     }));
   };
 
+  // Price-chip labels use the configured currency symbol (utils/format)
+  // instead of hardcoded $.
+  const S = formatCurrencySymbol();
   const priceRanges = filter.listingType === 'rent'
     ? [
         { label: 'Any', min: 0, max: undefined },
-        { label: 'Under $500', min: 0, max: 500 },
-        { label: '$500-$1K', min: 500, max: 1000 },
-        { label: '$1K-$2K', min: 1000, max: 2000 },
-        { label: '$2K-$3K', min: 2000, max: 3000 },
-        { label: '$3K-$5K', min: 3000, max: 5000 },
-        { label: '$5K+', min: 5000, max: undefined },
+        { label: `Under ${S}500`, min: 0, max: 500 },
+        { label: `${S}500-${S}1K`, min: 500, max: 1000 },
+        { label: `${S}1K-${S}2K`, min: 1000, max: 2000 },
+        { label: `${S}2K-${S}3K`, min: 2000, max: 3000 },
+        { label: `${S}3K-${S}5K`, min: 3000, max: 5000 },
+        { label: `${S}5K+`, min: 5000, max: undefined },
       ]
     : [
         { label: 'Any', min: 0, max: undefined },
-        { label: 'Under $100K', min: 0, max: 100000 },
-        { label: '$100K-$250K', min: 100000, max: 250000 },
-        { label: '$250K-$500K', min: 250000, max: 500000 },
-        { label: '$500K-$750K', min: 500000, max: 750000 },
-        { label: '$750K-$1M', min: 750000, max: 1000000 },
-        { label: '$1M-$2M', min: 1000000, max: 2000000 },
-        { label: '$2M+', min: 2000000, max: undefined },
+        { label: `Under ${S}100K`, min: 0, max: 100000 },
+        { label: `${S}100K-${S}250K`, min: 100000, max: 250000 },
+        { label: `${S}250K-${S}500K`, min: 250000, max: 500000 },
+        { label: `${S}500K-${S}750K`, min: 500000, max: 750000 },
+        { label: `${S}750K-${S}1M`, min: 750000, max: 1000000 },
+        { label: `${S}1M-${S}2M`, min: 1000000, max: 2000000 },
+        { label: `${S}2M+`, min: 2000000, max: undefined },
       ];
 
   const bedroomOptions = [

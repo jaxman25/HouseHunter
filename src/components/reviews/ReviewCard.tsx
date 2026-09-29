@@ -138,7 +138,7 @@ export default function ReviewCard({ review, isSeller = false, onFlagged, onResp
 
       {/* Response Input */}
       {showResponseInput && (
-        <View style={styles.responseInputContainer}>
+        <View style={[styles.responseInputContainer, { borderTopColor: colors.border }]}>
           <TextInput
             value={responseText}
             onChangeText={setResponseText}
@@ -240,7 +240,6 @@ const styles = StyleSheet.create({
   responseInputContainer: {
     marginTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
     paddingTop: 12,
   },
   responseInput: {

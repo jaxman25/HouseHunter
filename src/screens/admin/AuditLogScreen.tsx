@@ -32,13 +32,13 @@ const ACTION_STYLES: Record<string, { color: string; icon: string }> = {
 };
 
 /** Default style for unknown actions. */
-const DEFAULT_STYLE = { color: '#6B7280', icon: 'code-braces-box' };
+const DEFAULT_ACTION_ICON = 'code-braces-box';
 
-function getActionStyle(action: string) {
+function getActionStyle(action: string, fallbackColor: string): { color: string; icon: string } {
   for (const [prefix, style] of Object.entries(ACTION_STYLES)) {
     if (action.startsWith(prefix)) return style;
   }
-  return DEFAULT_STYLE;
+  return { color: fallbackColor, icon: DEFAULT_ACTION_ICON };
 }
 
 /** Filter chips for common action categories. */
@@ -172,7 +172,7 @@ export default function AuditLogScreen() {
         ) : (
           <>
             {entries.map((entry) => {
-              const style = getActionStyle(entry.action);
+              const style = getActionStyle(entry.action, colors.gray500);
               return (
                 <View
                   key={entry.id}

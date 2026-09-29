@@ -178,7 +178,7 @@ export default function SellerPerformanceScreen() {
         {/* Thumbnail */}
         <Image
           source={thumb ? { uri: thumb } : undefined}
-          style={[styles.thumb, { borderRadius: radius.sm }]}
+          style={[styles.thumb, { backgroundColor: colors.gray200, borderRadius: radius.sm }]}
           contentFit="cover"
         />
 
@@ -439,7 +439,6 @@ const styles = StyleSheet.create({
   thumb: {
     width: 72,
     height: 72,
-    backgroundColor: '#E5E7EB',
   },
   listingContent: {
     flex: 1,

@@ -58,7 +58,7 @@ export default function MessageBubble({ message, isOwn }: MessageBubbleProps) {
               {
                 // Own-message timestamps are full white so they clear 4.5:1
                 // against the primary bubble color.
-                color: isOwn ? '#FFFFFF' : colors.textLight,
+                color: isOwn ? colors.white : colors.textLight,
                 fontSize: fontSize.xs,
               },
             ]}

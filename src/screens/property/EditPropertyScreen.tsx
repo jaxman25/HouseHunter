@@ -27,6 +27,7 @@ import AiListingSuggestionsModal from '../../components/property/AiListingSugges
 import { validateVideoAsset, VIDEO_CONFIG } from '../../utils/security/videoValidation';
 import { PROPERTY_FEATURES } from '../../config/theme';
 import { MAX_IMAGES_PER_PROPERTY } from '../../utils/constants';
+import { formatCurrencySymbol } from '../../utils/format';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type Route = RouteProp<RootStackParamList, 'EditProperty'>;
@@ -364,7 +365,7 @@ export default function EditPropertyScreen() {
         </TouchableOpacity>
 
         <Input label="Title" value={title} onChangeText={(t) => { setTitle(t); clearError('title'); }} error={errors.title} />
-        <Input label="Price ($)" value={price} onChangeText={(t) => { setPrice(t); clearError('price'); }} keyboardType="numeric" error={errors.price} />
+        <Input label={`Price (${formatCurrencySymbol()})`} value={price} onChangeText={(t) => { setPrice(t); clearError('price'); }} keyboardType="numeric" error={errors.price} />
         <Input label="Description" value={description} onChangeText={(t) => { setDescription(t); clearError('description'); }} multiline numberOfLines={4} style={{ minHeight: 100 }} error={errors.description} />
         <Input label="Address" value={address} onChangeText={(t) => { setAddress(t); clearError('address'); }} error={errors.address} />
         <Input label="City" value={city} onChangeText={(t) => { setCity(t); clearError('city'); }} error={errors.city} />
@@ -462,7 +463,7 @@ export default function EditPropertyScreen() {
         <View style={styles.imageGrid}>
           {images.map((uri, idx) => (
             <View key={idx} style={[styles.imageItem, { borderRadius: radius.md }]}>
-              <Image source={{ uri }} style={[styles.image, { borderRadius: radius.md }]} />
+              <Image source={{ uri }} style={[styles.image, { backgroundColor: colors.gray200, borderRadius: radius.md }]} />
               <TouchableOpacity
                 style={[styles.removeBtn, { backgroundColor: colors.error }]}
                 onPress={() => removeImage(idx)}
@@ -506,7 +507,7 @@ const styles = StyleSheet.create({
   removeVideoBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   imageGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   imageItem: { width: '30%', aspectRatio: 1, position: 'relative' },
-  image: { width: '100%', height: '100%', backgroundColor: '#E5E7EB' },
+  image: { width: '100%', height: '100%' },
   removeBtn: { position: 'absolute', top: 4, right: 4, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   bottomBar: { paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 0.5 },
 });

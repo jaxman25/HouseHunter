@@ -314,7 +314,6 @@ const styles = StyleSheet.create({
   cardImageContent: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#E5E7EB',
   },
   cardBody: {
     flex: 1,

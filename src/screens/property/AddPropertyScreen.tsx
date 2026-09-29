@@ -29,6 +29,7 @@ import { validateVideoAsset, VIDEO_CONFIG } from '../../utils/security/videoVali
 import { PROPERTY_FEATURES, PROPERTY_TYPES } from '../../config/theme';
 import { generateId } from '../../utils/helpers';
 import { MAX_IMAGES_PER_PROPERTY } from '../../utils/constants';
+import { formatCurrencySymbol } from '../../utils/format';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -79,6 +80,7 @@ export default function AddPropertyScreen() {
     aiInput.price > 0;
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const priceFieldLabel = `Price (${formatCurrencySymbol()})`;
 
   const pickVideo = async () => {
     if (Platform.OS !== 'web') {
@@ -404,7 +406,7 @@ export default function AddPropertyScreen() {
             />
 
             <Input
-              label="Price ($)"
+              label={priceFieldLabel}
               placeholder={listingType === 'rent' ? 'Monthly rent' : 'Asking price'}
               value={price}
               onChangeText={setPrice}
@@ -667,7 +669,7 @@ export default function AddPropertyScreen() {
               <View style={styles.imageGrid}>
                 {images.map((uri, index) => (
                   <View key={index} style={[styles.imageItem, { borderRadius: radius.md }]}>
-                    <Image source={{ uri }} style={[styles.previewImage, { borderRadius: radius.md }]} />
+                    <Image source={{ uri }} style={[styles.previewImage, { backgroundColor: colors.gray200, borderRadius: radius.md }]} />
                     {index === 0 && (
                       <View style={[styles.coverBadge, { backgroundColor: colors.primary, borderRadius: radius.sm }]}>
                         <Text style={{ color: colors.white, fontSize: 10, fontWeight: '700' }}>COVER</Text>
@@ -685,9 +687,9 @@ export default function AddPropertyScreen() {
             )}
 
             {images.length === 0 && (
-              <View style={[styles.imageWarning, { backgroundColor: '#FEF3C7', borderRadius: radius.md }]}>
+              <View style={[styles.imageWarning, { backgroundColor: colors.warningSurface, borderRadius: radius.md }]}>
                 <MaterialCommunityIcons name="information-outline" size={18} color="#D97706" />
-                <Text style={{ color: '#92400E', fontSize: fontSize.sm, flex: 1, marginLeft: 8 }}>
+                <Text style={{ color: colors.warningText, fontSize: fontSize.sm, flex: 1, marginLeft: 8 }}>
                   Properties with photos get 3x more views
                 </Text>
               </View>
@@ -924,7 +926,6 @@ const styles = StyleSheet.create({
   previewImage: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#E5E7EB',
   },
   coverBadge: {
     position: 'absolute',

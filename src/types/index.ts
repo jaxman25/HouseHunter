@@ -381,6 +381,14 @@ export interface ThemeColors {
   gray700: string;
   gray800: string;
   shadow: string;
+  /** Tinted surface for warning banners (light amber / dark amber). */
+  warningSurface: string;
+  /** Readable text on warningSurface (dark amber / light amber). */
+  warningText: string;
+  /** Tinted surface for error/danger banners (light red / dark red). */
+  errorSurface: string;
+  /** Readable text on errorSurface. */
+  errorText: string;
 }
 
 // ─── Language Types ──────────────────────────────────────

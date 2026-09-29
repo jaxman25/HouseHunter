@@ -1,5 +1,6 @@
 import React from 'react';
 import { Platform, View, StyleSheet } from 'react-native';
+import { useTheme } from '../../context/ThemeContext';
 
 /**
  * Web-only "phone frame" container.
@@ -14,11 +15,13 @@ import { Platform, View, StyleSheet } from 'react-native';
  * Mount it around the entire signed-in UI (navigator + overlays) in App.tsx.
  */
 export default function WebFrame({ children }: { children: React.ReactNode }) {
+  const { colors } = useTheme();
+
   if (Platform.OS !== 'web') return <>{children}</>;
 
   return (
     <View style={styles.backdrop}>
-      <View style={styles.frame}>{children}</View>
+      <View style={[styles.frame, { backgroundColor: colors.surface, borderColor: colors.border }]}>{children}</View>
     </View>
   );
 }
@@ -33,10 +36,8 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     maxWidth: 480,
-    backgroundColor: '#FFFFFF',
     borderLeftWidth: 1,
     borderRightWidth: 1,
-    borderColor: '#E0E0E0',
     boxShadow: '0 0 24px rgba(0,0,0,0.15)',
     overflow: 'hidden',
   },

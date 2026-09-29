@@ -145,7 +145,7 @@ export default function LoginScreen({ navigation }: Props) {
         {/* Form */}
         <View style={styles.form}>
           {generalError ? (
-            <View style={[styles.errorBanner, { backgroundColor: '#FEF2F2', borderRadius: radius.md }]}>
+            <View style={[styles.errorBanner, { backgroundColor: colors.errorSurface, borderRadius: radius.md }]}>
               <MaterialCommunityIcons name="alert-circle" size={20} color={colors.error} />
               <Text style={[styles.errorText, { color: colors.error, fontSize: fontSize.sm }]}>
                 {generalError}
