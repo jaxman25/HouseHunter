@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -25,15 +25,59 @@ import { getTimeAgo } from '../../utils/helpers';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
-/** Per-type icon + tint for the list rows. */
-const TYPE_META: Record<AppNotification['type'], { icon: string; tint: 'primary' | 'warning' | 'error' | 'info' | 'success' }> = {
-  message: { icon: 'message-outline', tint: 'primary' },
-  inquiry: { icon: 'email-outline', tint: 'info' },
-  price_drop: { icon: 'trending-down', tint: 'success' },
-  new_listing: { icon: 'home-plus-outline', tint: 'primary' },
-  favorite: { icon: 'heart-outline', tint: 'error' },
-  system: { icon: 'bell-outline', tint: 'warning' },
+/** Per-type icon + tint + label for rows and filter chips. */
+const TYPE_META: Record<
+  AppNotification['type'],
+  { icon: string; tint: 'primary' | 'warning' | 'error' | 'info' | 'success'; label: string }
+> = {
+  message: { icon: 'message-outline', tint: 'primary', label: 'Messages' },
+  inquiry: { icon: 'email-outline', tint: 'info', label: 'Inquiries' },
+  price_drop: { icon: 'trending-down', tint: 'success', label: 'Price drops' },
+  new_listing: { icon: 'home-plus-outline', tint: 'primary', label: 'New listings' },
+  favorite: { icon: 'heart-outline', tint: 'error', label: 'Favorites' },
+  system: { icon: 'bell-outline', tint: 'warning', label: 'System' },
 };
+
+/** Filter chip values — 'all' first, then the app's notification types. */
+type FilterKey = 'all' | AppNotification['type'];
+const FILTERS: { key: FilterKey; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'message', label: 'Messages' },
+  { key: 'inquiry', label: 'Inquiries' },
+  { key: 'price_drop', label: 'Price drops' },
+  { key: 'new_listing', label: 'New listings' },
+  { key: 'favorite', label: 'Favorites' },
+  { key: 'system', label: 'System' },
+];
+
+/**
+ * Bucket a notification into a date-group header. Only four buckets — older
+ * items collapse into "Earlier" so the list never grows unbounded headers.
+ * Timestamps may be ISO strings (client) or Firestore Timestamp objects
+ * (fresh server writes) — both are handled.
+ */
+function toDateGroup(createdAt: AppNotification['createdAt']): 'Today' | 'Yesterday' | 'This week' | 'Earlier' {
+  const ms =
+    typeof createdAt === 'string'
+      ? new Date(createdAt).getTime()
+      : typeof (createdAt as { toMillis?: () => number })?.toMillis === 'function'
+        ? (createdAt as { toMillis: () => number }).toMillis()
+        : NaN;
+
+  if (!Number.isFinite(ms)) return 'Earlier';
+  const d = new Date(ms);
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const dayMs = 24 * 60 * 60 * 1000;
+  const t = d.getTime();
+
+  if (t >= startOfToday.getTime()) return 'Today';
+  if (t >= startOfToday.getTime() - dayMs) return 'Yesterday';
+  if (t >= startOfToday.getTime() - 7 * dayMs) return 'This week';
+  return 'Earlier';
+}
+
+const GROUP_ORDER = ['Today', 'Yesterday', 'This week', 'Earlier'] as const;
 
 /**
  * In-app notification list (companion to push delivery).
@@ -43,6 +87,10 @@ const TYPE_META: Record<AppNotification['type'], { icon: string; tint: 'primary'
  * — with or without a push token. Rows tint unread; tapping marks read and
  * routes via the same data payload the push-tap router uses
  * (AppNavigator.handleNotificationTap semantics: data.type + ids).
+ *
+ * Organization: per-type filter chips (unread count per type on the chip) and
+ * date-grouped sections (Today / Yesterday / This week / Earlier) within the
+ * filtered list.
  */
 export default function NotificationsScreen() {
   const { colors, fontSize, spacing, radius, shadow } = useTheme();
@@ -52,6 +100,7 @@ export default function NotificationsScreen() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [filter, setFilter] = useState<FilterKey>('all');
 
   useFocusEffect(
     useCallback(() => {
@@ -71,11 +120,58 @@ export default function NotificationsScreen() {
     }, [user])
   );
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const unreadCount = useMemo(
+    () => notifications.filter((n) => !n.read).length,
+    [notifications]
+  );
+
+  /** Unread count per type — powers the chips so filters show value upfront. */
+  const unreadByType = useMemo(() => {
+    const map = {} as Record<AppNotification['type'], number>;
+    for (const n of notifications) {
+      if (!n.read) map[n.type] = (map[n.type] ?? 0) + 1;
+    }
+    return map;
+  }, [notifications]);
+
+  /**
+   * Filtered + date-grouped rows. The FlatList data is a mixed array of
+   * group headers and notification rows; `type` discriminates them.
+   */
+  const listData = useMemo(() => {
+    const filtered =
+      filter === 'all' ? notifications : notifications.filter((n) => n.type === filter);
+
+    const buckets = new Map<string, AppNotification[]>();
+    for (const n of filtered) {
+      const group = toDateGroup(n.createdAt);
+      const list = buckets.get(group) ?? [];
+      list.push(n);
+      buckets.set(group, list);
+    }
+
+    type Row =
+      | { kind: 'header'; key: string; label: string; count: number }
+      | { kind: 'item'; key: string; item: AppNotification };
+
+    const rows: Row[] = [];
+    for (const group of GROUP_ORDER) {
+      const items = buckets.get(group);
+      if (!items || items.length === 0) continue;
+      rows.push({ kind: 'header', key: `h-${group}`, label: group, count: items.length });
+      for (const item of items) {
+        rows.push({ kind: 'item', key: item.id, item });
+      }
+    }
+    return rows;
+  }, [notifications, filter]);
 
   const handleMarkAll = () => {
     if (unreadCount === 0) return;
-    void markAllNotificationsAsRead(notifications).catch(() =>
+    // Scope "mark all read" to the active filter so the user can triage one
+    // type at a time (e.g. clear all price drops without touching messages).
+    const targets = filter === 'all' ? notifications : notifications.filter((n) => n.type === filter);
+    void markAllNotificationsAsRead(targets).catch(() =>
       Alert.alert('Error', 'Could not mark notifications as read')
     );
   };
@@ -136,23 +232,39 @@ export default function NotificationsScreen() {
     navigation.navigate('MainTabs');
   };
 
-  const renderItem = ({ item }: { item: AppNotification }) => {
-    const meta = TYPE_META[item.type] ?? TYPE_META.system;
+  const renderItem = ({ item }: { item: (typeof listData)[number] }) => {
+    if (item.kind === 'header') {
+      return (
+        <View style={styles.groupHeader}>
+          <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, fontWeight: '700' }}>
+            {item.label}
+          </Text>
+          <View style={[styles.groupCountWrap, { backgroundColor: colors.gray100, borderRadius: radius.round }]}>
+            <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, fontWeight: '600' }}>
+              {item.count}
+            </Text>
+          </View>
+        </View>
+      );
+    }
+
+    const notification = item.item;
+    const meta = TYPE_META[notification.type] ?? TYPE_META.system;
     const tint = colors[meta.tint] ?? colors.primary;
     return (
       <TouchableOpacity
-        onPress={() => handlePress(item)}
+        onPress={() => handlePress(notification)}
         style={[
           styles.row,
           {
-            backgroundColor: item.read ? colors.surface : colors.primaryLight,
+            backgroundColor: notification.read ? colors.surface : colors.primaryLight,
             borderRadius: radius.lg,
             borderColor: colors.border,
           },
           shadow.sm,
         ]}
         accessibilityRole="button"
-        accessibilityLabel={`${item.title}. ${item.body}`}
+        accessibilityLabel={`${notification.title}. ${notification.body}`}
       >
         <View style={[styles.iconWrap, { backgroundColor: colors.surface, borderRadius: radius.round }]}>
           <MaterialCommunityIcons name={meta.icon as any} size={20} color={tint} />
@@ -163,20 +275,25 @@ export default function NotificationsScreen() {
               style={{
                 color: colors.text,
                 fontSize: fontSize.sm,
-                fontWeight: item.read ? '600' : '800',
+                fontWeight: notification.read ? '600' : '800',
                 flex: 1,
               }}
               numberOfLines={1}
             >
-              {item.title}
+              {notification.title}
             </Text>
-            {!item.read && <View style={[styles.unreadDot, { backgroundColor: colors.primary }]} />}
+            {!notification.read && (
+              <View style={[styles.unreadDot, { backgroundColor: colors.primary }]} />
+            )}
           </View>
-          <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }} numberOfLines={3}>
-            {item.body}
+          <Text
+            style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}
+            numberOfLines={3}
+          >
+            {notification.body}
           </Text>
           <Text style={{ color: colors.textLight, fontSize: fontSize.xs, marginTop: 4 }}>
-            {getTimeAgo(item.createdAt)}
+            {getTimeAgo(notification.createdAt)}
           </Text>
         </View>
       </TouchableOpacity>
@@ -225,9 +342,72 @@ export default function NotificationsScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Per-type filter chips (unread count per type on the chip) */}
+      <View style={[styles.filterBar, { borderBottomColor: colors.border }]}>
+        <FlatList
+          horizontal
+          data={FILTERS}
+          keyExtractor={(f) => f.key}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: spacing.xl, gap: spacing.sm }}
+          renderItem={({ item: f }) => {
+            const active = filter === f.key;
+            const typeUnread =
+              f.key !== 'all' ? unreadByType[f.key as AppNotification['type']] ?? 0 : 0;
+            return (
+              <TouchableOpacity
+                onPress={() => setFilter(f.key)}
+                style={[
+                  styles.filterChip,
+                  {
+                    backgroundColor: active ? colors.primary : colors.gray100,
+                    borderRadius: radius.round,
+                    borderColor: active ? colors.primary : colors.border,
+                  },
+                ]}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={`Filter notifications: ${f.label}`}
+              >
+                <Text
+                  style={{
+                    color: active ? colors.white : colors.text,
+                    fontSize: fontSize.xs,
+                    fontWeight: '600',
+                  }}
+                >
+                  {f.label}
+                </Text>
+                {typeUnread > 0 && (
+                  <View
+                    style={[
+                      styles.chipBadge,
+                      {
+                        backgroundColor: active ? colors.white : colors.primary,
+                        borderRadius: radius.round,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={{
+                        color: active ? colors.primary : colors.white,
+                        fontSize: 9,
+                        fontWeight: '800',
+                      }}
+                    >
+                      {typeUnread}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          }}
+        />
+      </View>
+
       <FlatList
-        data={notifications}
-        keyExtractor={(item) => item.id}
+        data={listData}
+        keyExtractor={(item) => item.key}
         renderItem={renderItem}
         contentContainerStyle={{ padding: spacing.xl, paddingBottom: 60, gap: spacing.md }}
         refreshControl={
@@ -241,8 +421,12 @@ export default function NotificationsScreen() {
           !loading ? (
             <EmptyState
               icon="bell-off-outline"
-              title="No notifications"
-              description="Tour updates, review prompts, and price alerts will appear here"
+              title={filter === 'all' ? 'No notifications' : `No ${TYPE_META[filter as AppNotification['type']]?.label.toLowerCase() ?? 'notifications'}`}
+              description={
+                filter === 'all'
+                  ? 'Tour updates, review prompts, and price alerts will appear here'
+                  : 'New items in this category will appear here'
+              }
             />
           ) : null
         }
@@ -264,6 +448,35 @@ const styles = StyleSheet.create({
   backBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { flex: 1, fontWeight: '700', textAlign: 'center' },
   markAllBtn: { paddingHorizontal: 10, paddingVertical: 5 },
+  filterBar: {
+    borderBottomWidth: 0.5,
+    paddingVertical: 10,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    gap: 6,
+  },
+  chipBadge: {
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  groupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  groupCountWrap: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
   row: {
     flexDirection: 'row',
     padding: 12,
