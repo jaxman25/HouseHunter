@@ -206,6 +206,26 @@ export async function deleteNotification(notificationId: string): Promise<void> 
   await deleteDoc(doc(db, NOTIFICATIONS_COLLECTION, notificationId));
 }
 
+/**
+ * Recreate a notification (undo for swipe-to-delete). Writes a NEW doc with
+ * the original fields and returns its id. Creation rules require the full
+ * field set and a recognized type — satisfied by construction here.
+ */
+export async function restoreNotification(
+  notification: AppNotification
+): Promise<string> {
+  const ref = await addDoc(collection(db, NOTIFICATIONS_COLLECTION), {
+    userId: notification.userId,
+    title: notification.title,
+    body: notification.body,
+    type: notification.type,
+    data: notification.data ?? {},
+    read: notification.read ?? false,
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
 export async function addNotificationListener(
   callback: (notification: any) => void
 ): Promise<() => void> {

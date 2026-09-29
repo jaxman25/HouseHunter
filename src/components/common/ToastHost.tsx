@@ -1,23 +1,37 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { setToastListener } from '../../utils/ui/toast';
 
 const TOAST_DURATION_MS = 2600;
+/** Actionable toasts linger longer so the action is actually tappable. */
+const ACTION_TOAST_DURATION_MS = 6000;
+
+interface ActiveToast {
+  message: string;
+  action?: { label: string; onPress: () => void };
+}
 
 /** Renders transient toasts emitted by utils/ui/toast.ts. Mount once in App. */
 export default function ToastHost() {
   const { colors, fontSize, radius } = useTheme();
   const insets = useSafeAreaInsets();
-  const [message, setMessage] = useState<string | null>(null);
+  const [toast, setToast] = useState<ActiveToast | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    setToastListener((msg) => {
-      setMessage(msg);
+    setToastListener((payload) => {
+      if (!payload) {
+        setToast(null);
+        return;
+      }
+      setToast(payload);
       if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => setMessage(null), TOAST_DURATION_MS);
+      const duration = payload.action
+        ? ACTION_TOAST_DURATION_MS
+        : TOAST_DURATION_MS;
+      timer.current = setTimeout(() => setToast(null), duration);
     });
     return () => {
       setToastListener(null);
@@ -25,11 +39,17 @@ export default function ToastHost() {
     };
   }, []);
 
-  if (!message) return null;
+  if (!toast) return null;
+
+  const handleAction = () => {
+    if (timer.current) clearTimeout(timer.current);
+    setToast(null);
+    toast.action?.onPress();
+  };
 
   return (
     <View
-      pointerEvents="none"
+      pointerEvents="box-none"
       style={[styles.host, { top: insets.top + 56 }]}
     >
       <View
@@ -39,8 +59,27 @@ export default function ToastHost() {
         ]}
       >
         <Text style={[styles.text, { color: colors.background, fontSize: fontSize.sm }]}>
-          {message}
+          {toast.message}
         </Text>
+        {toast.action && (
+          <TouchableOpacity
+            onPress={handleAction}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={toast.action.label}
+            style={styles.actionBtn}
+          >
+            <Text
+              style={{
+                color: colors.primary,
+                fontSize: fontSize.sm,
+                fontWeight: '800',
+              }}
+            >
+              {toast.action.label}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -55,6 +94,9 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
     paddingHorizontal: 16,
     paddingVertical: 10,
     maxWidth: '85%',
@@ -67,5 +109,7 @@ const styles = StyleSheet.create({
   text: {
     fontWeight: '600',
     textAlign: 'center',
+    flexShrink: 1,
   },
+  actionBtn: {},
 });

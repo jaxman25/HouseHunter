@@ -21,12 +21,17 @@ import {
   markNotificationAsRead,
   markAllNotificationsAsRead,
   deleteNotification,
+  restoreNotification,
 } from '../../services/notificationService';
 import {
   readNotificationFilter,
   writeNotificationFilter,
 } from '../../services/notificationPrefsService';
 import { useAuthContext } from '../../context/AuthContext';
+import { updateDoc, doc } from 'firebase/firestore';
+import { db } from '../../config/firebase';
+import { NOTIFICATIONS_COLLECTION } from '../../utils/constants';
+import { Swipeable, RectButton } from 'react-native-gesture-handler';
 import { getTimeAgo } from '../../utils/helpers';
 import { showToast } from '../../utils/ui/toast';
 
@@ -204,6 +209,34 @@ export default function NotificationsScreen() {
     );
   };
 
+  /** Toggle one row's read state (right-swipe action); optimistic update. */
+  const handleToggleRead = useCallback((notification: AppNotification) => {
+    const next = !notification.read;
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === notification.id ? { ...n, read: next } : n))
+    );
+    markNotificationAsRead(notification.id)
+      .then(() => {
+        if (!next) {
+          // markNotificationAsRead only writes `read: true`; for unread we
+          // must clear the flag explicitly.
+          return updateDoc(doc(db, NOTIFICATIONS_COLLECTION, notification.id), {
+            read: false,
+          });
+        }
+        return undefined;
+      })
+      .catch(() => {
+        // Revert on failure.
+        setNotifications((prev) =>
+          prev.map((n) =>
+            n.id === notification.id ? { ...n, read: notification.read } : n
+          )
+        );
+        showToast('Could not update notification');
+      });
+  }, []);
+
   const handlePress = (notification: AppNotification) => {
     if (!notification.read) {
       void markNotificationAsRead(notification.id).catch(() => {});
@@ -213,22 +246,24 @@ export default function NotificationsScreen() {
 
   /**
    * Swipe-to-dismiss: delete optimistically (the live subscription would
-   * otherwise re-add the row), then offer a short undo window that recreates
-   * the doc with the same fields if the user taps Undo.
+   * otherwise re-add the row), then offer a 6s undo window. Undo recreates
+   * the doc server-side with the original fields; the live subscription
+   * re-inserts it (new id, same content) when the write lands.
    */
-  const handleDismiss = useCallback(
-    (notification: AppNotification) => {
-      setNotifications((prev) => prev.filter((n) => n.id !== notification.id));
-      deleteNotification(notification.id).catch(() => {
-        showToast('Could not delete notification');
-      });
-      showToast('Notification deleted');
-      // Note: the live subscription will reconcile authoritative state on the
-      // next snapshot; a full undo would need the write-back below.
-      void notification; // fields kept for a future server-side restore
-    },
-    []
-  );
+  const handleDismiss = useCallback((notification: AppNotification) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== notification.id));
+    deleteNotification(notification.id).catch(() => {
+      showToast('Could not delete notification');
+    });
+    showToast('Notification deleted', {
+      label: 'Undo',
+      onPress: () => {
+        restoreNotification(notification).catch(() =>
+          showToast('Could not restore notification')
+        );
+      },
+    });
+  }, []);
 
   /**
    * Mirrors AppNavigator's push-tap routing so in-app taps behave the same.
@@ -279,6 +314,18 @@ export default function NotificationsScreen() {
     navigation.navigate('MainTabs');
   };
 
+  /** Revealed by the pull-to-mark-all strip (left actions of the Swipeable). */
+  const renderPullActions = () => (
+    <RectButton
+      style={[styles.pullActionFill, { backgroundColor: colors.success, borderRadius: radius.md }]}
+      onPress={handleMarkAll}
+      accessibilityRole="button"
+      accessibilityLabel="Mark all as read"
+    >
+      <MaterialCommunityIcons name="check-all" size={18} color={colors.white} />
+    </RectButton>
+  );
+
   const renderItem = ({ item }: { item: (typeof listData)[number] }) => {
     if (item.kind === 'header') {
       return (
@@ -299,7 +346,11 @@ export default function NotificationsScreen() {
     const meta = TYPE_META[notification.type] ?? TYPE_META.system;
     const tint = colors[meta.tint] ?? colors.primary;
     return (
-      <SwipeableNotificationRow onDismiss={() => handleDismiss(notification)}>
+      <SwipeableNotificationRow
+        onDismiss={() => handleDismiss(notification)}
+        onToggleRead={() => handleToggleRead(notification)}
+        isRead={notification.read}
+      >
         <TouchableOpacity
           onPress={() => handlePress(notification)}
           style={[
@@ -466,6 +517,53 @@ export default function NotificationsScreen() {
             tintColor={colors.primary}
           />
         }
+        ListHeaderComponent={
+          unreadCount > 0 ? (
+            // Pull-to-mark-all: drag the strip down past ~56px (or tap it) to
+            // mark everything in the current filter as read.
+            <View style={styles.pullWrap}>
+              <Swipeable
+                renderLeftActions={renderPullActions}
+                leftThreshold={56}
+                overshootLeft={false}
+                friction={3}
+                onSwipeableOpen={(direction) => {
+                  if (direction === 'left') handleMarkAll();
+                }}
+              >
+                <TouchableOpacity
+                  onPress={handleMarkAll}
+                  activeOpacity={0.7}
+                  style={[
+                    styles.pullStrip,
+                    {
+                      backgroundColor: colors.primaryLight,
+                      borderRadius: radius.md,
+                    },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Mark all ${filter === 'all' ? '' : TYPE_META[filter as AppNotification['type']]?.label.toLowerCase() + ' '}notifications as read`}
+                >
+                  <MaterialCommunityIcons
+                    name="check-all"
+                    size={16}
+                    color={colors.primary}
+                  />
+                  <Text
+                    style={{
+                      color: colors.primary,
+                      fontSize: fontSize.xs,
+                      fontWeight: '700',
+                      marginLeft: 6,
+                    }}
+                  >
+                    Pull down or tap to mark {unreadCount} as read
+                  </Text>
+                </TouchableOpacity>
+              </Swipeable>
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           !loading ? (
             <EmptyState
@@ -548,5 +646,21 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+  pullWrap: {
+    marginBottom: 4,
+  },
+  pullStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+  },
+  pullActionFill: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 0,
   },
 });
