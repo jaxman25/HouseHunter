@@ -572,6 +572,81 @@ export async function getPriceHistory(
 }
 
 /**
+ * Rough haversine distance (km) between two lat/lng points.
+ * Exported for unit testing.
+ */
+export function distanceKm(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+/**
+ * Most recent sold/rented listings within ~1km of the given property
+ * (same city as a cheap pre-filter). Client-side sort + distance filter so
+ * no composite index is required. Used by the detail screen's
+ * "Recently Sold Nearby" section.
+ * Exported for unit testing.
+ */
+export function filterRecentlySoldNearby(
+  candidates: Property[],
+  current: Property,
+  maxResults = 3,
+  radiusKm = 1
+): Property[] {
+  if (!current.latitude || !current.longitude) return [];
+  return candidates
+    .filter(
+      (p) =>
+        p.id !== current.id &&
+        (p.status === 'sold' || p.status === 'rented') &&
+        p.latitude != null &&
+        p.longitude != null &&
+        distanceKm(current.latitude, current.longitude, p.latitude, p.longitude) <= radiusKm
+    )
+    .sort(
+      (a, b) =>
+        (b.soldDate ?? b.updatedAt ?? '').localeCompare(a.soldDate ?? a.updatedAt ?? '')
+    )
+    .slice(0, maxResults);
+}
+
+/**
+ * Fetch recent sold/rented listings near a property (same city, ≤1km).
+ * Equality-only Firestore query (no orderBy) so no composite index is
+ * needed; recency and distance are applied client-side.
+ */
+export async function getRecentlySoldNearby(
+  property: Property,
+  maxResults = 3
+): Promise<Property[]> {
+  const q = query(
+    collection(db, PROPERTIES_COLLECTION),
+    where('city', '==', property.city),
+    where('status', 'in', ['sold', 'rented']),
+    limit(30)
+  );
+
+  const snap = await firestoreCircuitBreaker.execute(() =>
+    withRetry(() => withTimeout(getDocs(q), DEFAULT_TIMEOUT_MS))
+  );
+
+  const candidates = snap.docs.map((d) => toProperty(d));
+  return filterRecentlySoldNearby(candidates, property, maxResults);
+}
+
+/**
  * Find similar properties: same city + same propertyType + price ±20%.
  * Excludes the current listing and inactive properties.
  * Used by PropertyDetailScreen to show a "Similar Listings" section.

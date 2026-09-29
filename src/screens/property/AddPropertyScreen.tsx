@@ -30,6 +30,7 @@ import { PROPERTY_FEATURES, PROPERTY_TYPES } from '../../config/theme';
 import { generateId } from '../../utils/helpers';
 import { MAX_IMAGES_PER_PROPERTY } from '../../utils/constants';
 import { formatCurrencySymbol } from '../../utils/format';
+import SortableImageGrid from '../../components/property/SortableImageGrid';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -666,24 +667,11 @@ export default function AddPropertyScreen() {
             )}
 
             {images.length > 0 && (
-              <View style={styles.imageGrid}>
-                {images.map((uri, index) => (
-                  <View key={index} style={[styles.imageItem, { borderRadius: radius.md }]}>
-                    <Image source={{ uri }} style={[styles.previewImage, { backgroundColor: colors.gray200, borderRadius: radius.md }]} />
-                    {index === 0 && (
-                      <View style={[styles.coverBadge, { backgroundColor: colors.primary, borderRadius: radius.sm }]}>
-                        <Text style={{ color: colors.white, fontSize: 10, fontWeight: '700' }}>COVER</Text>
-                      </View>
-                    )}
-                    <TouchableOpacity
-                      style={[styles.removeImageBtn, { backgroundColor: colors.error }]}
-                      onPress={() => removeImage(index)}
-                    >
-                      <MaterialCommunityIcons name="close" size={14} color={colors.white} />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
+              <SortableImageGrid
+                images={images}
+                onReorder={setImages}
+                onRemove={removeImage}
+              />
             )}
 
             {images.length === 0 && (

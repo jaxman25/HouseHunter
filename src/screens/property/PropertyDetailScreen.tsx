@@ -31,6 +31,8 @@ import TourRequestModal from '../../components/tours/TourRequestModal';
 import NeighborhoodInsightsSection from '../../components/neighborhood/NeighborhoodInsightsSection';
 import VideoWalkthrough from '../../components/property/VideoWalkthrough';
 import PropertyCard from '../../components/property/PropertyCard';
+import PropertyPosterShare from '../../components/property/PropertyPosterShare';
+import RecentlySoldNearbySection from '../../components/property/RecentlySoldNearbySection';
 import { shareProperty } from '../../utils/share';
 import { getProperty, getSimilarProperties, getPriceHistory } from '../../services/propertyService';
 import { getUserProfile } from '../../services/authService';
@@ -259,6 +261,7 @@ export default function PropertyDetailScreen() {
             <MaterialCommunityIcons name="arrow-left" size={22} color="#fff" />
           </TouchableOpacity>
           <View style={styles.overlayRight}>
+            <PropertyPosterShare property={property} />
             <TouchableOpacity
               onPress={handleShare}
               style={[styles.overlayBtn, { backgroundColor: 'rgba(0,0,0,0.4)' }]}
@@ -594,6 +597,9 @@ export default function PropertyDetailScreen() {
               </ScrollView>
             </Section>
           )}
+
+          {/* Recently Sold Nearby (below Similar Listings) */}
+          <RecentlySoldNearbySection property={property} />
 
           {/* Bottom Spacer */}
           <View style={{ height: 100 }} />

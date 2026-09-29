@@ -41,10 +41,12 @@ Hosting, Cloud Functions), **Cloudinary** (image/video uploads), and **Google Ma
 | Listing verification badges — admin-only toggle; shield icon on PropertyCard + PropertyDetailScreen | `src/components/reviews/VerificationBadge.tsx`, `src/screens/admin/UsersManagementScreen.tsx`, `src/services/adminService.ts`, `firestore.rules` |
 | Price history & price-drop alerts — `priceHistory` subcollection records each price change; line chart on detail screen; Cloud Function notifies favorited users on drops | `src/components/property/PriceHistoryChart.tsx`, `src/services/propertyService.ts`, `functions/src/priceDropNotifications.ts`, `firestore.rules` |
 | Similar properties on detail screen — same city + propertyType + price ±20%, 4–6 results | `src/services/propertyService.ts` (`getSimilarProperties`), `firestore.indexes.json` |
+| "Recently Sold Nearby" on detail screen — up to 3 sold/rented listings within ~1km (same-city pre-filter, haversine distance, newest first); reuses PropertyCard with its Sold/Rented badge; hidden when empty | `src/components/property/RecentlySoldNearbySection.tsx`, `src/services/propertyService.ts` (`getRecentlySoldNearby`, `filterRecentlySoldNearby`, `distanceKm`) | Equality-only query so no composite index is required; distance/sort client-side; unit-tested in `src/services/__tests__/recentlySoldNearby.test.js` |
 | Seller response-time badge — rolling avg first-reply time shown as "Usually responds in ~Xh"; tracked server-side via Cloud Function on the seller's first message per conversation (stats fields are Cloud-Function-only; client writes denied by firestore.rules) | `functions/src/sellerResponseTracking.ts`, `src/screens/property/PropertyDetailScreen.tsx` |
 | Optimistic concurrency control | Firestore rules enforce a `version` bump on every owner edit |
 | Write rate limiting | Firestore rules budget writes per user/minute via `counters/{uid}`; client increments in the same batch (`src/services/propertyService.ts`) |
 | AI Listing Assistant (seller side) — "Improve with AI" in Add/Edit Listing; suggestions modal with per-item accept/reject for title, description rewrite, and price (midpoint of the suggested range); "worth adding" field chips; 20 calls/user/day budget | `src/components/property/AiListingSuggestionsModal.tsx`, `AddPropertyScreen.tsx`, `EditPropertyScreen.tsx`, `src/services/aiAssistantService.ts`, `functions/src/aiAssistant.ts` | Server-side OpenAI call with price suggestions anchored on comparable listings; budget enforced with a transactional counter (`users/{uid}/inquiryCounters/{date}_ai`) |
+| Photo reordering in the listing editors — drag handles (long-press drag on native via react-native-draggable-flatlist; move earlier/later buttons on web) with cover badge following the first photo | `src/components/property/SortableImageGrid.tsx`, `AddPropertyScreen.tsx`, `EditPropertyScreen.tsx` |
 
 ## 3. Explore & Search
 
@@ -200,6 +202,7 @@ Hosting, Cloud Functions), **Cloudinary** (image/video uploads), and **Google Ma
 | Deep links: `househunter://saved-search/{id}` (native) and `{origin}/saved-search/{id}` (web) open Saved Searches with card highlight | `src/utils/deepLinking.ts` |
 | Deep links: `househunter://agent/{uid}` (native) and `{origin}/agent/{uid}` (web) open the public agent profile | `src/utils/deepLinking.ts` |
 | Deep-link handling on cold start and warm links; malformed ids fall back to the "Property not found" screen or Saved Searches list with toast | |
+| Share as image — generates a poster PNG (hero photo + price + address + locally-generated QR code of the deep link) and hands it to the platform share sheet (expo-sharing on native; Web Share with files or download on web); falls back to the link share on any failure | `src/components/property/PropertyPosterShare.tsx`, `src/utils/share.ts` | QR matrix rendered locally (no third-party image hot-linking); requires react-native-view-shot + expo-sharing (native rebuild) |
 
 ## 13b. Neighborhood Insights
 

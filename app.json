@@ -54,6 +54,7 @@
         }
       ],
       "expo-font",
+      "expo-sharing",
       [
         "@sentry/react-native",
         {

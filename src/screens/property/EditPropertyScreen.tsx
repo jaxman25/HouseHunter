@@ -9,7 +9,6 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -28,6 +27,7 @@ import { validateVideoAsset, VIDEO_CONFIG } from '../../utils/security/videoVali
 import { PROPERTY_FEATURES } from '../../config/theme';
 import { MAX_IMAGES_PER_PROPERTY } from '../../utils/constants';
 import { formatCurrencySymbol } from '../../utils/format';
+import SortableImageGrid from '../../components/property/SortableImageGrid';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type Route = RouteProp<RootStackParamList, 'EditProperty'>;
@@ -460,19 +460,11 @@ export default function EditPropertyScreen() {
           <MaterialCommunityIcons name="camera-plus" size={28} color={colors.primary} />
           <Text style={{ color: colors.primary, fontSize: fontSize.sm, fontWeight: '600', marginTop: 4 }}>Add More</Text>
         </TouchableOpacity>
-        <View style={styles.imageGrid}>
-          {images.map((uri, idx) => (
-            <View key={idx} style={[styles.imageItem, { borderRadius: radius.md }]}>
-              <Image source={{ uri }} style={[styles.image, { backgroundColor: colors.gray200, borderRadius: radius.md }]} />
-              <TouchableOpacity
-                style={[styles.removeBtn, { backgroundColor: colors.error }]}
-                onPress={() => removeImage(idx)}
-              >
-                <MaterialCommunityIcons name="close" size={12} color={colors.white} />
-              </TouchableOpacity>
-            </View>
-          ))}
-        </View>
+        <SortableImageGrid
+          images={images}
+          onReorder={setImages}
+          onRemove={(idx) => void removeImage(idx)}
+        />
       </ScrollView>
 
       <View style={[styles.bottomBar, { backgroundColor: colors.surface, paddingBottom: insets.bottom + spacing.md, borderTopColor: colors.border }]}>
