@@ -302,6 +302,14 @@ function friendlyError(err: unknown): string {
   if (code.includes('failed-precondition')) {
     return 'The AI assistant is not configured yet. Please try again later.';
   }
+  // functions/not-found: the backend hasn't been deployed (e.g. Firebase
+  // project still on the free Spark plan, which can't host Cloud Functions).
+  if (code.includes('not-found')) {
+    return 'The AI backend is not deployed yet. The project owner needs to deploy Cloud Functions (requires the Blaze plan).';
+  }
+  if (code.includes('unavailable') || code.includes('deadline-exceeded')) {
+    return 'The AI assistant is temporarily unreachable. Check your connection and try again.';
+  }
   return 'The AI assistant could not be reached. Please try again.';
 }
 
