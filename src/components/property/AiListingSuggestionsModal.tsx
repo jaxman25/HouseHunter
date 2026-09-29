@@ -294,7 +294,9 @@ function friendlyError(err: unknown): string {
       ? String((err as { code: unknown }).code)
       : '';
   if (code.includes('resource-exhausted')) {
-    return 'Daily AI limit reached (20 suggestions). Try again tomorrow.';
+    // The server distinguishes the user's daily budget from provider quota
+    // by message text; the code alone can't tell them apart.
+    return 'AI suggestions are temporarily unavailable (daily limit or provider quota). Please try again later.';
   }
   if (code.includes('unauthenticated')) {
     return 'Please sign in to use the AI assistant.';

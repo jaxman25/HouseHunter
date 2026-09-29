@@ -26,6 +26,7 @@ import EmptyState from '../../components/common/EmptyState';
 import YourActivitySection from '../../components/home/YourActivitySection';
 import SavedSearchChips from '../../components/search/SavedSearchChips';
 import { getProperties } from '../../services/propertyService';
+import { subscribeToNotifications } from '../../services/notificationService';
 import { useResponsive } from '../../hooks/useResponsive';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -107,6 +108,18 @@ export default function HomeScreen() {
     void run();
   }, [loadProperties]);
 
+  // Unread badge for the header bell — live subscription so the count drops
+  // as notifications are read (or new ones arrive) without a refetch.
+  const uid = user?.uid;
+  const [unreadCount, setUnreadCount] = useState(0);
+  useEffect(() => {
+    if (!uid) return;
+    const unsubscribe = subscribeToNotifications(uid, (items) => {
+      setUnreadCount(items.filter((n) => !n.read).length);
+    });
+    return unsubscribe;
+  }, [uid]);
+
   const onRefresh = () => {
     setRefreshing(true);
     loadProperties();
@@ -159,11 +172,29 @@ export default function HomeScreen() {
           </View>
           <TouchableOpacity
             style={[styles.notificationBtn, { backgroundColor: colors.gray100 }]}
-            onPress={() => navigation.navigate('Conversations')}
+            onPress={() => navigation.navigate('Notifications')}
             accessibilityRole="button"
-            accessibilityLabel="Messages"
+            accessibilityLabel={
+              unreadCount > 0 ? `Notifications (${unreadCount} unread)` : 'Notifications'
+            }
           >
-            <MaterialCommunityIcons name="message-outline" size={21} color={colors.text} />
+            <MaterialCommunityIcons name="bell-outline" size={21} color={colors.text} />
+            {unreadCount > 0 && (
+              <View
+                style={[
+                  styles.unreadBadge,
+                  {
+                    backgroundColor: colors.error,
+                    borderColor: colors.gray100,
+                    borderRadius: radius.round,
+                  },
+                ]}
+              >
+                <Text style={{ color: colors.white, fontSize: 9, fontWeight: '800' }}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -555,6 +586,17 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  unreadBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 2,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
   },
   /* ── Search ── */
   searchBar: {

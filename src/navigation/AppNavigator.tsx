@@ -21,6 +21,7 @@ import MyListingsScreen from '../screens/property/MyListingsScreen';
 import SearchScreen from '../screens/search/SearchScreen';
 import ChatScreen from '../screens/chat/ChatScreen';
 import ConversationsScreen from '../screens/chat/ConversationsScreen';
+import NotificationsScreen from '../screens/notifications/NotificationsScreen';
 import RecentlyViewedScreen from '../screens/main/RecentlyViewedScreen';
 import CompareScreen from '../screens/main/CompareScreen';
 import AgentProfileScreen from '../screens/main/AgentProfileScreen';
@@ -100,6 +101,7 @@ function MainStack() {
       <Stack.Screen name="Search" component={withErrorBoundary(SearchScreen)} />
       <Stack.Screen name="Chat" component={withErrorBoundary(ChatScreen)} />
       <Stack.Screen name="Conversations" component={withErrorBoundary(ConversationsScreen)} />
+      <Stack.Screen name="Notifications" component={withErrorBoundary(NotificationsScreen)} />
       <Stack.Screen name="RecentlyViewed" component={withErrorBoundary(RecentlyViewedScreen)} />
       <Stack.Screen name="Compare" component={withErrorBoundary(CompareScreen)} />
       <Stack.Screen name="AgentProfile" component={withErrorBoundary(AgentProfileScreen)} />

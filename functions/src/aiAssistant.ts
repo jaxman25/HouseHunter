@@ -113,7 +113,17 @@ async function callOpenAI(input: {
   });
 
   if (!res.ok) {
-    console.error('[improveListing] OpenAI error:', res.status, await res.text().catch(() => ''));
+    const body = await res.text().catch(() => '');
+    console.error('[improveListing] OpenAI error:', res.status, body);
+    // Quota/credit exhaustion (429 rate limit or 402 no credits): surface a
+    // dedicated code so the client can show a targeted, actionable message
+    // instead of a generic failure.
+    if (res.status === 429 || res.status === 402 || body.includes('no credits remaining')) {
+      throw new HttpsError(
+        'resource-exhausted',
+        'AI suggestions are temporarily unavailable (provider quota). Please try again later.'
+      );
+    }
     throw new HttpsError('internal', 'The AI service could not process this request.');
   }
 

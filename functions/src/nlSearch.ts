@@ -160,7 +160,14 @@ async function callOpenAI(query: string): Promise<ParsedSearchFilter> {
   });
 
   if (!res.ok) {
-    console.error('[parseSearchQuery] OpenAI error:', res.status, await res.text().catch(() => ''));
+    const body = await res.text().catch(() => '');
+    console.error('[parseSearchQuery] OpenAI error:', res.status, body);
+    // Quota/credit exhaustion falls under the same ok:false fallback contract
+    // (caught below → plain full-text search) — only re-tagged here so logs
+    // and the client reason distinguish it from genuine parse failures.
+    if (res.status === 429 || res.status === 402 || body.includes('no credits remaining')) {
+      throw new HttpsError('resource-exhausted', 'AI provider quota exhausted.');
+    }
     throw new HttpsError('internal', 'The AI service could not process this search.');
   }
 
@@ -201,9 +208,11 @@ export const parseSearchQuery = onCall(async (request) => {
     const result: ParseResult = { ok: true, filters, query };
     return result;
   } catch (error) {
-    // Deliberate fallback contract: unparseable/empty queries and service
-    // misconfiguration return ok:false so the client runs a plain full-text
-    // search instead of showing an error.
+    // Deliberate fallback contract: unparseable/empty queries, provider
+    // quota/credit exhaustion, and service misconfiguration all return
+    // ok:false so the client silently runs a plain full-text search instead
+    // of showing an error. Only the user's own daily budget (also
+    // resource-exhausted) propagates — that one is actionable to the user.
     if (error instanceof HttpsError && error.code !== 'resource-exhausted') {
       const result: ParseResult = { ok: false, query, reason: error.code };
       return result;

@@ -319,6 +319,7 @@ export type RootStackParamList = {
   Search: undefined;
   Chat: { conversationId: string; recipientId: string; recipientName: string };
   Conversations: undefined;
+  Notifications: undefined;
   RecentlyViewed: undefined;
   Compare: undefined;
   AgentProfile: { agentId: string };
