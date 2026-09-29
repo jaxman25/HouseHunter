@@ -1,4 +1,4 @@
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getFunctions, connectFunctionsEmulator, httpsCallable } from 'firebase/functions';
 import { app } from '../config/firebase';
 
 /**
@@ -7,13 +7,27 @@ import { app } from '../config/firebase';
  * Calls the `improveListing` Cloud Function, which prompts an LLM to rewrite
  * the title/description, flag missing details, and suggest a price range
  * anchored on comparable listings. Server-side budget: 20 calls/user/day.
+ *
+ * Dev: set EXPO_PUBLIC_FUNCTIONS_EMULATOR=true to route callables to the
+ * local emulator (requires `firebase emulators:start` with functions + auth).
+ * Useful for testing the AI features before the project is upgraded to
+ * Blaze — production deploy is blocked on the Spark plan.
  */
 
 let functionsInstance: ReturnType<typeof getFunctions> | null = null;
 
 function getFunctionsInstance() {
   if (!functionsInstance) {
-    functionsInstance = getFunctions(app);
+    const instance = getFunctions(app);
+    if (
+      process.env.EXPO_PUBLIC_FUNCTIONS_EMULATOR === 'true' &&
+      __DEV__
+    ) {
+      // Host must be reachable from the device/simulator — use your LAN IP
+      // from a phone (e.g. '192.168.x.x'), 'localhost' works on web/iOS sim.
+      connectFunctionsEmulator(instance, 'localhost', 5001);
+    }
+    functionsInstance = instance;
   }
   return functionsInstance;
 }
