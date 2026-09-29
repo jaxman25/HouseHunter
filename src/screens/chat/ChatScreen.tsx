@@ -24,12 +24,13 @@ import {
   uploadChatImage,
   markAsRead,
 } from '../../services/chatService';
+import ReportUserModal from '../../components/moderation/ReportUserModal';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type Route = RouteProp<RootStackParamList, 'Chat'>;
 
 export default function ChatScreen() {
-  const { colors, fontSize, spacing } = useTheme();
+  const { colors, fontSize, spacing, radius } = useTheme();
   const { user } = useAuthContext();
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
@@ -39,6 +40,8 @@ export default function ChatScreen() {
   const { conversationId, recipientId, recipientName } = route.params;
 
   const [messages, setMessages] = useState<Message[]>([]);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [showReportUser, setShowReportUser] = useState(false);
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
@@ -125,7 +128,49 @@ export default function ChatScreen() {
             </Text>
           </View>
         </View>
+        <TouchableOpacity
+          onPress={() => setMenuVisible(!menuVisible)}
+          style={[styles.backBtn, { backgroundColor: colors.gray100 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Conversation options"
+        >
+          <MaterialCommunityIcons name="dots-vertical" size={20} color={colors.text} />
+        </TouchableOpacity>
       </View>
+
+      {/* Overflow menu */}
+      {menuVisible && (
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.menuBackdrop}
+          onPress={() => setMenuVisible(false)}
+        >
+          <View style={[styles.menuCard, { backgroundColor: colors.surface, borderRadius: radius.md, borderColor: colors.border }]}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setMenuVisible(false);
+                setShowReportUser(true);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={`Report ${recipientName}`}
+            >
+              <MaterialCommunityIcons name="flag-outline" size={18} color={colors.error} />
+              <Text style={{ color: colors.error, fontSize: fontSize.sm, marginLeft: 10, fontWeight: '600' }}>
+                Report User
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {/* Report User modal */}
+      <ReportUserModal
+        visible={showReportUser}
+        onClose={() => setShowReportUser(false)}
+        reportedUserId={recipientId}
+        reportedUserName={recipientName}
+      />
 
       {/* Messages */}
       <FlatList
@@ -162,6 +207,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: 0.5,
+  },
+  menuBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 20,
+  },
+  menuCard: {
+    position: 'absolute',
+    top: 100,
+    right: 16,
+    minWidth: 170,
+    borderWidth: 1,
+    paddingVertical: 6,
+    zIndex: 21,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
   backBtn: {
     width: 36,

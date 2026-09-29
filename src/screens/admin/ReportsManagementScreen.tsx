@@ -72,6 +72,13 @@ export default function ReportsManagementScreen() {
     setSelected(report);
     setNote('');
     setPropertyTitle('');
+    if (report.type === 'user') {
+      // User reports carry the reported uid instead of a listing reference.
+      setPropertyTitle(
+        report.reportedUserId ? `User ${report.reportedUserName ?? report.reportedUserId}` : 'User'
+      );
+      return;
+    }
     try {
       const snap = await getDoc(doc(db, PROPERTIES_COLLECTION, report.propertyId));
       setPropertyTitle(snap.exists() ? (snap.data().title as string) : 'Listing no longer exists');
@@ -168,10 +175,15 @@ export default function ReportsManagementScreen() {
                   <Text style={{ color: colors.text, fontSize: fontSize.sm, fontWeight: '700', textTransform: 'capitalize' }}>
                     {report.reason}
                   </Text>
+                  {report.type === 'user' && (
+                    <Badge label="user" variant="info" size="sm" />
+                  )}
                   <Badge label={report.status} variant={report.status === 'pending' ? 'warning' : report.status === 'resolved' ? 'success' : 'neutral'} size="sm" />
                 </View>
                 <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }} numberOfLines={1}>
-                  Property {report.propertyId.slice(0, 8)}… · reported by user {report.reporterId.slice(0, 8)}…
+                  {report.type === 'user'
+                    ? `User ${report.reportedUserName ?? report.reportedUserId?.slice(0, 8) ?? ''} · reported by user ${report.reporterId.slice(0, 8)}…`
+                    : `Property ${report.propertyId.slice(0, 8)}… · reported by user ${report.reporterId.slice(0, 8)}…`}
                 </Text>
                 <Text style={{ color: colors.textLight, fontSize: fontSize.xs, marginTop: 2 }}>
                   {getTimeAgo(report.createdAt)}
@@ -197,7 +209,9 @@ export default function ReportsManagementScreen() {
                 {propertyTitle}
               </Text>
               <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 4 }}>
-                Property ID: {selected?.propertyId} · Reporter: user {selected?.reporterId.slice(0, 10)}…
+                {selected?.type === 'user'
+                  ? `Reported user: ${selected.reportedUserId ?? '—'} · Reporter: user ${selected.reporterId.slice(0, 10)}…`
+                  : `Property ID: ${selected?.propertyId} · Reporter: user ${selected?.reporterId.slice(0, 10)}…`}
               </Text>
               <TextInput
                 value={note}
@@ -230,12 +244,21 @@ export default function ReportsManagementScreen() {
                   onPress={() => void act('resolve')}
                   disabled={acting}
                 />
-                <Button
-                  title="Delete listing"
-                  variant="danger"
-                  onPress={() => void act('delete')}
-                  disabled={acting}
-                />
+                {selected?.type === 'user' ? (
+                  <Button
+                    title="Resolve (no listing action)"
+                    variant="secondary"
+                    onPress={() => void act('resolve')}
+                    disabled={acting}
+                  />
+                ) : (
+                  <Button
+                    title="Delete listing"
+                    variant="danger"
+                    onPress={() => void act('delete')}
+                    disabled={acting}
+                  />
+                )}
               </View>
             </View>
           </View>

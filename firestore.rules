@@ -417,14 +417,33 @@ service cloud.firestore {
     }
 
     // Reports are created by any signed-in user; only admins triage them.
+    // Two shapes: listing reports (propertyId set) and user reports
+    // (type == 'user', reportedUserId set, propertyId pinned to '').
     match /admin_reports/{reportId} {
       allow create: if isAuthenticated() && !isSuspended() &&
         request.resource.data.keys().hasAll([
-          'propertyId', 'reporterId', 'reason', 'status', 'createdAt'
+          'reporterId', 'reason', 'status', 'createdAt'
         ]) &&
         request.resource.data.reporterId == request.auth.uid &&
         request.resource.data.status == 'pending' &&
-        request.resource.data.reason in ['inappropriate', 'scam', 'duplicate', 'other'];
+        request.resource.data.reason in ['inappropriate', 'scam', 'duplicate', 'other'] &&
+        (
+          (
+            (request.resource.data.type == 'listing' || !('type' in request.resource.data)) &&
+            request.resource.data.keys().hasAll(['propertyId']) &&
+            request.resource.data.propertyId is string &&
+            request.resource.data.propertyId.size() > 0
+          )
+          ||
+          (
+            request.resource.data.type == 'user' &&
+            request.resource.data.keys().hasAll(['reportedUserId']) &&
+            request.resource.data.reportedUserId is string &&
+            request.resource.data.reportedUserId.size() > 0 &&
+            request.resource.data.propertyId == '' &&
+            request.resource.data.reportedUserId != request.auth.uid
+          )
+        );
       allow read, update, delete: if isAdmin();
     }
 

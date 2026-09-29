@@ -30,6 +30,8 @@ import { useSavedSearches } from '../../hooks/useSavedSearches';
 import { useDebouncedCallback } from '../../utils/performance/debounce';
 import { useThrottledCallback } from '../../utils/performance/throttle';
 import { useResponsive } from '../../hooks/useResponsive';
+import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
+import KeyboardShortcutsHelp from '../../components/common/KeyboardShortcutsHelp';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type Route = RouteProp<MainTabParamList, 'ExploreTab'>;
@@ -47,6 +49,14 @@ export default function ExploreScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+
+  // Web shortcuts (prompt4 #8): `f` opens filters, `?` toggles the help
+  // overlay. No-ops on native.
+  useKeyboardShortcuts({
+    onOpenFilters: () => setShowFilters(true),
+    onToggleHelp: () => setShowShortcuts((v) => !v),
+  });
   const [filter, setFilter] = useState<PropertyFilter>({
     sortBy: 'newest',
   });
@@ -346,6 +356,9 @@ export default function ExploreScreen() {
         currentFilter={filter}
         onSaveSearch={() => setShowSaveModal(true)}
       />
+
+      {/* Web keyboard shortcuts help (?) */}
+      <KeyboardShortcutsHelp visible={showShortcuts} onClose={() => setShowShortcuts(false)} />
 
       {/* Save Search Modal */}
       <SaveSearchModal

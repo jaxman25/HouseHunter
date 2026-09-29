@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
+import { useEscapeKey } from '../../hooks/useKeyboardShortcuts';
 import { PropertyFilter, PropertyType } from '../../types';
 import Button from '../common/Button';
 import { PROPERTY_TYPES, SORT_OPTIONS } from '../../config/theme';
@@ -40,6 +41,9 @@ export default function FilterModal({
   onSaveSearch,
 }: FilterModalProps) {
   const { colors, fontSize, radius } = useTheme();
+
+  // Web (prompt4 #8): Escape closes the filter modal.
+  useEscapeKey(onClose, visible);
 
   const [filter, setFilter] = useState<PropertyFilter>(currentFilter);
 

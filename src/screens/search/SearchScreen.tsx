@@ -16,6 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuthContext } from '../../context/AuthContext';
+import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { RootStackParamList, Property } from '../../types';
 import PropertyCard from '../../components/property/PropertyCard';
 import EmptyState from '../../components/common/EmptyState';
@@ -41,6 +42,9 @@ export default function SearchScreen() {
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
   const inputRef = useRef<TextInput>(null);
+
+  // Web shortcut (prompt4 #8): `/` focuses the search input. No-op native.
+  useKeyboardShortcuts({ focusSearchRef: inputRef });
 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Property[]>([]);

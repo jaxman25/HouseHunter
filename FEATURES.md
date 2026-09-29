@@ -77,6 +77,7 @@ Hosting, Cloud Functions), **Cloudinary** (image/video uploads), and **Google Ma
 | Local history of viewed properties (max 20, FIFO eviction, re-view moves to front) | `src/services/recentlyViewedService.ts` (AsyncStorage) |
 | Tracking hook with debounced writes + per-item removal | `src/hooks/useRecentlyViewed.ts` |
 | Home screen horizontal section (empty state, See All, focus refresh) | `src/components/home/RecentlyViewedSection.tsx` |
+| "Your Activity" home section — merges Recently Viewed + Favorites into one tabbed horizontal strip (Viewed/Favorites chips with counts, per-tab See All) | `src/components/home/YourActivitySection.tsx` |
 | Full grid screen: pull-to-refresh, Clear All with confirmation | `src/screens/main/RecentlyViewedScreen.tsx` |
 | Tracked on detail-page load; deleted properties auto-removed from history | `src/screens/property/PropertyDetailScreen.tsx` |
 | Works offline and on web (AsyncStorage localStorage backend); zero Firebase writes |
@@ -246,6 +247,7 @@ Hosting, Cloud Functions), **Cloudinary** (image/video uploads), and **Google Ma
 | Terms of Service (v2) — includes Refunds, Local law, Governing law sections | `LegalScreens.tsx`, `src/utils/constants.ts` (`TERMS_VERSION`) |
 | Privacy Policy — rights (GDPR/CCPA/CPRA), data storage location, cookies, third parties (Google Maps, Sentry, Resend) | `LegalScreens.tsx`, `docs/PRIVACY_AND_DATA.md` |
 | Cookie consent banner (essential vs. non-essential, choice stored) | `src/components/common/CookieConsentBanner.tsx` |
+| Report a user (not just listings) — "Report User" in the chat overflow menu writes a `type: 'user'` report to admin_reports | `src/components/moderation/ReportUserModal.tsx`, `src/screens/chat/ChatScreen.tsx`, `firestore.rules` |
 | In-app notice banner (operator-controlled via `config/app_notice`, plus admin announcements) | `src/components/common/NoticeBanner.tsx` |
 | Purchase consent modal (gates any future paid feature) | `src/components/common/PurchaseConsentModal.tsx`, `docs/PAYMENT_CONSENT.md` |
 | Data minimization & deletion guarantees | `docs/PRIVACY_AND_DATA.md`, `accountService.ts` |
@@ -262,6 +264,7 @@ Hosting, Cloud Functions), **Cloudinary** (image/video uploads), and **Google Ma
 | Search bar capped at 400px, centered | `SearchScreen.tsx`, `HomeScreen.tsx` |
 | Category chips wrap + center on web | `HomeScreen.tsx` |
 | Web alert dialogs (react-native-web has no `Alert`) | `src/utils/ui/dialogs.ts` |
+| Web keyboard shortcuts: `/` focuses search, `f` opens filter modal on Explore, `Esc` closes modals, `?` shows a help overlay | `src/hooks/useKeyboardShortcuts.ts` (`useKeyboardShortcuts`, `useEscapeKey`), `src/components/common/KeyboardShortcutsHelp.tsx`, `ExploreScreen.tsx`, `SearchScreen.tsx`, `FilterModal.tsx` | Ignored while typing in inputs and with modifier keys held; web-only |
 
 ## 18. Reliability, Performance & Observability
 

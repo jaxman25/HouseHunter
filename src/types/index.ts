@@ -262,6 +262,12 @@ export interface Report {
   id: string;
   propertyId: string;
   reporterId: string;
+  /** Discriminator: listing reports (legacy default) vs peer-user reports. */
+  type?: 'listing' | 'user';
+  /** For user reports: the uid being reported (propertyId is ''). */
+  reportedUserId?: string;
+  /** For user reports: denormalized display name of the reported user. */
+  reportedUserName?: string;
   reason: ReportReason;
   details?: string;
   status: ReportStatus;

@@ -23,7 +23,7 @@ import PropertyCard from '../../components/property/PropertyCard';
 import PropertyCardSkeleton from '../../components/common/PropertyCardSkeleton';
 import Avatar from '../../components/common/Avatar';
 import EmptyState from '../../components/common/EmptyState';
-import RecentlyViewedSection from '../../components/home/RecentlyViewedSection';
+import YourActivitySection from '../../components/home/YourActivitySection';
 import SavedSearchChips from '../../components/search/SavedSearchChips';
 import { getProperties } from '../../services/propertyService';
 import { useResponsive } from '../../hooks/useResponsive';
@@ -266,7 +266,7 @@ export default function HomeScreen() {
         <SavedSearchChips />
 
         {/* ─── Recently Viewed ─── */}
-        <RecentlyViewedSection />
+        <YourActivitySection />
 
         {/* ─── Featured / Popular Properties ─── */}
         {(featuredProperties.length > 0 || loading) && (
