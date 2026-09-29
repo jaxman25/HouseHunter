@@ -7,6 +7,7 @@ import {
   orderBy,
   onSnapshot,
   updateDoc,
+  deleteDoc,
   doc,
   serverTimestamp,
   deleteField,
@@ -198,6 +199,11 @@ export async function markAllNotificationsAsRead(
       await markNotificationAsRead(n.id);
     }
   }
+}
+
+/** Delete one of the user's own notifications (rules: userId must match). */
+export async function deleteNotification(notificationId: string): Promise<void> {
+  await deleteDoc(doc(db, NOTIFICATIONS_COLLECTION, notificationId));
 }
 
 export async function addNotificationListener(

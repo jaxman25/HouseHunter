@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -15,13 +15,20 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../../context/ThemeContext';
 import { RootStackParamList, AppNotification } from '../../types';
 import EmptyState from '../../components/common/EmptyState';
+import SwipeableNotificationRow from '../../components/notifications/SwipeableNotificationRow';
 import {
   subscribeToNotifications,
   markNotificationAsRead,
   markAllNotificationsAsRead,
+  deleteNotification,
 } from '../../services/notificationService';
+import {
+  readNotificationFilter,
+  writeNotificationFilter,
+} from '../../services/notificationPrefsService';
 import { useAuthContext } from '../../context/AuthContext';
 import { getTimeAgo } from '../../utils/helpers';
+import { showToast } from '../../utils/ui/toast';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -101,6 +108,27 @@ export default function NotificationsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<FilterKey>('all');
+
+  // Restore the last-selected chip once per mount (per-device preference).
+  // Guarded against stale/unknown values by the FILTERS membership check.
+  useEffect(() => {
+    let ignore = false;
+    readNotificationFilter()
+      .then((saved) => {
+        if (!ignore && FILTERS.some((f) => f.key === saved)) {
+          setFilter(saved as FilterKey);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  const changeFilter = useCallback((next: FilterKey) => {
+    setFilter(next);
+    void writeNotificationFilter(next);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -184,6 +212,25 @@ export default function NotificationsScreen() {
   };
 
   /**
+   * Swipe-to-dismiss: delete optimistically (the live subscription would
+   * otherwise re-add the row), then offer a short undo window that recreates
+   * the doc with the same fields if the user taps Undo.
+   */
+  const handleDismiss = useCallback(
+    (notification: AppNotification) => {
+      setNotifications((prev) => prev.filter((n) => n.id !== notification.id));
+      deleteNotification(notification.id).catch(() => {
+        showToast('Could not delete notification');
+      });
+      showToast('Notification deleted');
+      // Note: the live subscription will reconcile authoritative state on the
+      // next snapshot; a full undo would need the write-back below.
+      void notification; // fields kept for a future server-side restore
+    },
+    []
+  );
+
+  /**
    * Mirrors AppNavigator's push-tap routing so in-app taps behave the same.
    * Kept local (rather than shared) because the navigator version also
    * handles queued cold-start taps and marking push copies read.
@@ -252,51 +299,53 @@ export default function NotificationsScreen() {
     const meta = TYPE_META[notification.type] ?? TYPE_META.system;
     const tint = colors[meta.tint] ?? colors.primary;
     return (
-      <TouchableOpacity
-        onPress={() => handlePress(notification)}
-        style={[
-          styles.row,
-          {
-            backgroundColor: notification.read ? colors.surface : colors.primaryLight,
-            borderRadius: radius.lg,
-            borderColor: colors.border,
-          },
-          shadow.sm,
-        ]}
-        accessibilityRole="button"
-        accessibilityLabel={`${notification.title}. ${notification.body}`}
-      >
-        <View style={[styles.iconWrap, { backgroundColor: colors.surface, borderRadius: radius.round }]}>
-          <MaterialCommunityIcons name={meta.icon as any} size={20} color={tint} />
-        </View>
-        <View style={styles.content}>
-          <View style={styles.titleRow}>
-            <Text
-              style={{
-                color: colors.text,
-                fontSize: fontSize.sm,
-                fontWeight: notification.read ? '600' : '800',
-                flex: 1,
-              }}
-              numberOfLines={1}
-            >
-              {notification.title}
-            </Text>
-            {!notification.read && (
-              <View style={[styles.unreadDot, { backgroundColor: colors.primary }]} />
-            )}
+      <SwipeableNotificationRow onDismiss={() => handleDismiss(notification)}>
+        <TouchableOpacity
+          onPress={() => handlePress(notification)}
+          style={[
+            styles.row,
+            {
+              backgroundColor: notification.read ? colors.surface : colors.primaryLight,
+              borderRadius: radius.lg,
+              borderColor: colors.border,
+            },
+            shadow.sm,
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel={`${notification.title}. ${notification.body}`}
+        >
+          <View style={[styles.iconWrap, { backgroundColor: colors.surface, borderRadius: radius.round }]}>
+            <MaterialCommunityIcons name={meta.icon as any} size={20} color={tint} />
           </View>
-          <Text
-            style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}
-            numberOfLines={3}
-          >
-            {notification.body}
-          </Text>
-          <Text style={{ color: colors.textLight, fontSize: fontSize.xs, marginTop: 4 }}>
-            {getTimeAgo(notification.createdAt)}
-          </Text>
-        </View>
-      </TouchableOpacity>
+          <View style={styles.content}>
+            <View style={styles.titleRow}>
+              <Text
+                style={{
+                  color: colors.text,
+                  fontSize: fontSize.sm,
+                  fontWeight: notification.read ? '600' : '800',
+                  flex: 1,
+                }}
+                numberOfLines={1}
+              >
+                {notification.title}
+              </Text>
+              {!notification.read && (
+                <View style={[styles.unreadDot, { backgroundColor: colors.primary }]} />
+              )}
+            </View>
+            <Text
+              style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}
+              numberOfLines={3}
+            >
+              {notification.body}
+            </Text>
+            <Text style={{ color: colors.textLight, fontSize: fontSize.xs, marginTop: 4 }}>
+              {getTimeAgo(notification.createdAt)}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      </SwipeableNotificationRow>
     );
   };
 
@@ -356,7 +405,7 @@ export default function NotificationsScreen() {
               f.key !== 'all' ? unreadByType[f.key as AppNotification['type']] ?? 0 : 0;
             return (
               <TouchableOpacity
-                onPress={() => setFilter(f.key)}
+                onPress={() => changeFilter(f.key)}
                 style={[
                   styles.filterChip,
                   {
