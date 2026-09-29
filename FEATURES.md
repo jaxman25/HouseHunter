@@ -239,6 +239,8 @@ Hosting, Cloud Functions), **Cloudinary** (image/video uploads), and **Google Ma
 |---|---|---|
 | Agent profile screen — photo, bio, role badge, active listings grid, "Responds in ~Xh" (gated on ≥3 conversations), rating, verified-listing count | `src/screens/main/AgentProfileScreen.tsx` | Deep-linkable via `agent/{uid}` |
 | "View Agent Profile" link on the detail screen when the listing owner is an agent | `PropertyDetailScreen.tsx` | Owner role resolved via `getUserProfile` |
+| Review prompts delivered as Expo push (in addition to the notification doc) — without it users never see the rate-the-other-party nudge; respects `notificationsPaused` and the optional `notificationPrefs.user_review` opt-out | `functions/src/reviewPrompts.ts` |
+| Admin review deletion on the public reputation screen (delete button rendered for admins only; rules gate the actual delete) | `src/screens/property/UserReviewsScreen.tsx`, `firestore.rules` (`userReviews`), `src/services/userReviewService.ts` (`deleteUserReview`) |
 
 ## 16. Legal, Privacy & Compliance
 

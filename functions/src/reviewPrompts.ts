@@ -12,6 +12,12 @@
  *
  * Notifications carry data: { type: 'user_review', revieweeId, ... } so the
  * notification-tap router in AppNavigator can open the review form.
+ *
+ * Delivery (prompt3 #14): besides the in-app notification doc, each prompt
+ * is also delivered as an Expo push when the user has a registered token
+ * and hasn't paused user_review notifications. The app has no in-app
+ * notification list screen, so without the push the prompt would never
+ * reach the user. Push failures never block or fail the trigger.
  */
 
 import { onDocumentUpdated, onDocumentCreated, onDocumentWritten } from 'firebase-functions/v2/firestore';
@@ -24,6 +30,79 @@ const db = getFirestore();
 /** Chat-depth threshold that unlocks the rate-the-other-party prompt. */
 const CHAT_PROMPT_THRESHOLD = 5;
 
+/**
+ * Best-effort Expo push (same channel as priceDropNotifications).
+ * Requires EXPO_ACCESS_TOKEN; silently skips when unset.
+ */
+async function sendReviewPromptPush(
+  token: string,
+  revieweeName: string,
+  context: string,
+  data: Record<string, string>
+): Promise<void> {
+  const accessToken = process.env.EXPO_ACCESS_TOKEN;
+  if (!accessToken) return; // not configured — skip silently
+
+  const response = await fetch('https://exp.host/--/api/v2/push/send', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      to: token,
+      title: 'Rate your experience',
+      body: `How was your interaction with ${revieweeName}? ${context}`,
+      data,
+      sound: 'default',
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Expo push failed (${response.status}): ${text}`);
+  }
+}
+
+/**
+ * Deliver a review prompt: in-app notification doc + best-effort Expo push.
+ * The push respects the user's expoPushToken / notificationsPaused flag and
+ * per-type prefs, and never throws into the caller's flow.
+ */
+async function deliverReviewPrompt(opts: {
+  reviewerId: string;
+  revieweeId: string;
+  revieweeName: string;
+  context: string;
+  data: Record<string, string>;
+}): Promise<void> {
+  const { reviewerId, revieweeId, revieweeName, context, data } = opts;
+
+  await db.collection('notifications').add({
+    userId: reviewerId,
+    title: 'Rate your experience',
+    body: `How was your interaction with ${revieweeName}? ${context}`,
+    type: 'system',
+    data,
+    read: false,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+
+  try {
+    const userSnap = await db.doc(`users/${reviewerId}`).get();
+    const userData = userSnap.data() ?? {};
+    if (userData.notificationsPaused === true) return;
+    const prefs = (userData.notificationPrefs as Record<string, boolean> | undefined) ?? {};
+    if (prefs.user_review === false) return;
+    const pushToken = userData.expoPushToken as string | undefined;
+    if (!pushToken) return;
+    await sendReviewPromptPush(pushToken, revieweeName, context, data);
+  } catch (error) {
+    // Push is a bonus channel — never fail the prompt because of it.
+    console.error('[reviewPrompts] push delivery failed:', error);
+  }
+}
+
 async function createReviewPrompt(opts: {
   reviewerId: string;
   revieweeId: string;
@@ -34,11 +113,11 @@ async function createReviewPrompt(opts: {
   conversationId?: string;
 }): Promise<void> {
   const { reviewerId, revieweeId, revieweeName, context } = opts;
-  await db.collection('notifications').add({
-    userId: reviewerId,
-    title: 'Rate your experience',
-    body: `How was your interaction with ${revieweeName}? ${context}`,
-    type: 'system',
+  await deliverReviewPrompt({
+    reviewerId,
+    revieweeId,
+    revieweeName,
+    context,
     data: {
       type: 'user_review',
       revieweeId,
@@ -47,15 +126,9 @@ async function createReviewPrompt(opts: {
       ...(opts.propertyId ? { propertyId: opts.propertyId } : {}),
       ...(opts.conversationId ? { conversationId: opts.conversationId } : {}),
     },
-    read: false,
-    createdAt: FieldValue.serverTimestamp(),
   });
 }
 
-/**
- * Trigger: tour status → completed. Prompt both parties once (guard flag on
- * the tour doc so a completed→completed rewrite doesn't re-prompt).
- */
 export const reviewPromptTourCompleted = onDocumentUpdated('tours/{tourId}', async (event) => {
   const before = event.data?.before?.data();
   const after = event.data?.after?.data();

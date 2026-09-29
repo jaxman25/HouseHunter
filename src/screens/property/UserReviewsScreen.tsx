@@ -6,15 +6,17 @@ import {
   StyleSheet,
   RefreshControl,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../../context/ThemeContext';
+import { useAdmin } from '../../hooks/useAdmin';
 import { RootStackParamList, UserReview } from '../../types';
 import EmptyState from '../../components/common/EmptyState';
-import { getUserReviews, UserRatingSummary, getUserRating } from '../../services/userReviewService';
+import { getUserReviews, UserRatingSummary, getUserRating, deleteUserReview } from '../../services/userReviewService';
 
 type Route = RouteProp<RootStackParamList, 'UserReviews'>;
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -30,6 +32,7 @@ export default function UserReviewsScreen() {
   const route = useRoute<Route>();
   const insets = useSafeAreaInsets();
   const { userId, userName } = route.params;
+  const { isAdmin } = useAdmin();
 
   const [reviews, setReviews] = useState<UserReview[]>([]);
   const [summary, setSummary] = useState<UserRatingSummary>({ averageRating: 0, totalReviews: 0 });
@@ -48,6 +51,28 @@ export default function UserReviewsScreen() {
       setRefreshing(false);
     }
   }, [userId]);
+
+  const handleDelete = useCallback(
+    (review: UserReview) => {
+      Alert.alert(
+        'Delete review',
+        'Remove this review permanently? This cannot be undone.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: () => {
+              void deleteUserReview(review.id)
+                .then(() => void load())
+                .catch(() => Alert.alert('Error', 'Failed to delete review'));
+            },
+          },
+        ]
+      );
+    },
+    [load]
+  );
 
   // Initial load runs once per userId (load is stable per id). setTimeout(0)
   // keeps the setState calls out of the synchronous effect pass.
@@ -88,6 +113,19 @@ export default function UserReviewsScreen() {
       <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 8 }}>
         — {item.reviewerName || 'Anonymous'}
       </Text>
+      {isAdmin && (
+        <TouchableOpacity
+          onPress={() => handleDelete(item)}
+          style={[styles.adminDeleteBtn, { backgroundColor: colors.errorSurface, borderRadius: radius.sm }]}
+          accessibilityRole="button"
+          accessibilityLabel="Delete this review"
+        >
+          <MaterialCommunityIcons name="delete-outline" size={14} color={colors.errorText} />
+          <Text style={{ color: colors.errorText, fontSize: fontSize.xs, fontWeight: '600', marginLeft: 4 }}>
+            Delete (admin)
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 
@@ -175,4 +213,12 @@ const styles = StyleSheet.create({
   stars: { flexDirection: 'row', gap: 2 },
   reviewCard: { padding: 14, marginBottom: 12 },
   reviewHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  adminDeleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginTop: 8,
+  },
 });

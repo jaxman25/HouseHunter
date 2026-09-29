@@ -199,6 +199,8 @@ export interface NotificationPrefs {
   new_listing: boolean;
   favorite: boolean;
   system: boolean; // always true — not user-toggleable
+  /** Optional opt-out for peer-review prompts (server-side check; default on). */
+  user_review?: boolean;
 }
 
 /** Default prefs (all on) for legacy users without notificationPrefs. */
