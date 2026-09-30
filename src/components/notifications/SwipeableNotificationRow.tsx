@@ -10,8 +10,13 @@ import { useTheme } from '../../context/ThemeContext';
  *   • Swipe LEFT  → Delete (tap the button or drag past ~80px, Mail-style).
  *   • Swipe RIGHT → Mark read/unread (tap the button or drag past ~80px).
  *
- * Each action fires `onDismiss`/`onToggleRead` exactly once per gesture; the
- * parent mutates its data, so no manual close animation is required here.
+ * Each action fires at most once per gesture: a button tap and a full-swipe
+ * can both fire in quick succession, so the guard dedupes them — but it is
+ * RE-ARMED on close so subsequent gestures on the same row work (a
+ * set-once guard would permanently disable the toggle after one use).
+ *
+ * Delete removes the row entirely (parent mutates data). Toggle leaves the
+ * row mounted, so we close it explicitly after firing for a Mail-like feel.
  */
 export default function SwipeableNotificationRow({
   onDismiss,
@@ -25,19 +30,21 @@ export default function SwipeableNotificationRow({
   children: React.ReactNode;
 }) {
   const { colors, fontSize, radius } = useTheme();
-  const dismissedRef = useRef(false);
-  const toggledRef = useRef(false);
+  const swipeableRef = useRef<Swipeable>(null);
+  // Guard state: which action fired during the CURRENT gesture. Null once
+  // the Swipeable settles (close) so the next gesture can fire again.
+  const pendingActionRef = useRef<'dismiss' | 'toggle' | null>(null);
 
-  const dismiss = () => {
-    if (dismissedRef.current) return; // button press + full-swipe can both fire
-    dismissedRef.current = true;
-    onDismiss();
-  };
-
-  const toggleRead = () => {
-    if (toggledRef.current) return;
-    toggledRef.current = true;
-    onToggleRead();
+  const fire = (action: 'dismiss' | 'toggle') => {
+    if (pendingActionRef.current) return; // button press + full-swipe both fire
+    pendingActionRef.current = action;
+    if (action === 'dismiss') onDismiss();
+    else {
+      onToggleRead();
+      // Row stays mounted after a toggle — close the revealed action so the
+      // content is fully visible again.
+      swipeableRef.current?.close();
+    }
   };
 
   const renderRightActions = (
@@ -53,7 +60,7 @@ export default function SwipeableNotificationRow({
       <Animated.View style={[styles.actionWrap, { transform: [{ translateX }] }]}>
         <RectButton
           style={[styles.deleteAction, { backgroundColor: colors.error, borderRadius: radius.lg }]}
-          onPress={dismiss}
+          onPress={() => fire('dismiss')}
           accessibilityRole="button"
           accessibilityLabel="Delete notification"
         >
@@ -84,7 +91,7 @@ export default function SwipeableNotificationRow({
             styles.readAction,
             { backgroundColor: colors.success, borderRadius: radius.lg },
           ]}
-          onPress={toggleRead}
+          onPress={() => fire('toggle')}
           accessibilityRole="button"
           accessibilityLabel={`${label} notification`}
         >
@@ -100,6 +107,7 @@ export default function SwipeableNotificationRow({
   return (
     <View style={styles.clipWrap}>
       <Swipeable
+        ref={swipeableRef}
         renderRightActions={renderRightActions}
         renderLeftActions={renderLeftActions}
         rightThreshold={40}
@@ -109,8 +117,11 @@ export default function SwipeableNotificationRow({
         friction={2}
         onSwipeableOpen={(direction) => {
           // Full swipe past the threshold triggers the action directly.
-          if (direction === 'right') dismiss();
-          else toggleRead();
+          fire(direction === 'right' ? 'dismiss' : 'toggle');
+        }}
+        onSwipeableClose={() => {
+          // Gesture settled — re-arm the per-gesture dedupe guard.
+          pendingActionRef.current = null;
         }}
       >
         {children}

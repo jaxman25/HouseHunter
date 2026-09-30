@@ -11,6 +11,8 @@ import {
   doc,
   serverTimestamp,
   deleteField,
+  writeBatch,
+  Timestamp,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { AppNotification } from '../types';
@@ -191,14 +193,41 @@ export async function markNotificationAsRead(
   );
 }
 
+/**
+ * Set a notification's read state in a single write (rules allow updating
+ * only the `read` field). Unlike markNotificationAsRead, this also handles
+ * marking UNREAD — without the intermediate read:true echo that a
+ * read-then-unread double write would produce.
+ */
+export async function setNotificationRead(
+  notificationId: string,
+  read: boolean
+): Promise<void> {
+  await updateDoc(doc(db, NOTIFICATIONS_COLLECTION, notificationId), {
+    read,
+  });
+}
+
+/**
+ * Mark every unread notification in the list read in ONE batched write —
+ * a single round-trip and a single snapshot instead of N sequential updates
+ * (N re-renders). Firestore batches cap at 500 ops; if a user ever has more
+ * unread than that, the remainder is marked in a follow-up batch.
+ *
+ * Returns the number of documents actually written (unread ones).
+ */
 export async function markAllNotificationsAsRead(
   notifications: AppNotification[]
-): Promise<void> {
-  for (const n of notifications) {
-    if (!n.read) {
-      await markNotificationAsRead(n.id);
+): Promise<number> {
+  const unread = notifications.filter((n) => !n.read);
+  for (let i = 0; i < unread.length; i += 500) {
+    const batch = writeBatch(db);
+    for (const n of unread.slice(i, i + 500)) {
+      batch.update(doc(db, NOTIFICATIONS_COLLECTION, n.id), { read: true });
     }
+    await batch.commit();
   }
+  return unread.length;
 }
 
 /** Delete one of the user's own notifications (rules: userId must match). */
@@ -210,10 +239,23 @@ export async function deleteNotification(notificationId: string): Promise<void> 
  * Recreate a notification (undo for swipe-to-delete). Writes a NEW doc with
  * the original fields and returns its id. Creation rules require the full
  * field set and a recognized type — satisfied by construction here.
+ *
+ * The original createdAt is preserved when it is a Firestore Timestamp (the
+ * normal case for docs that came from the live subscription), so a restored
+ * week-old notification doesn't jump to the top dated "now". String/missing
+ * timestamps fall back to serverTimestamp().
  */
 export async function restoreNotification(
   notification: AppNotification
 ): Promise<string> {
+  let createdAt: Timestamp | ReturnType<typeof serverTimestamp> = serverTimestamp();
+  // AppNotification types createdAt as string, but live-subscription docs
+  // carry Firestore Timestamps at runtime — probe for toMillis rather than
+  // trusting the declared type.
+  const rawCreatedAt = notification.createdAt as unknown;
+  if (typeof (rawCreatedAt as { toMillis?: unknown })?.toMillis === 'function') {
+    createdAt = Timestamp.fromMillis((rawCreatedAt as { toMillis: () => number }).toMillis());
+  }
   const ref = await addDoc(collection(db, NOTIFICATIONS_COLLECTION), {
     userId: notification.userId,
     title: notification.title,
@@ -221,7 +263,7 @@ export async function restoreNotification(
     type: notification.type,
     data: notification.data ?? {},
     read: notification.read ?? false,
-    createdAt: serverTimestamp(),
+    createdAt,
   });
   return ref.id;
 }

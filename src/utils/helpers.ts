@@ -67,8 +67,27 @@ export function truncateText(text: string, maxLength: number): string {
   return text.substring(0, maxLength - 3) + '...';
 }
 
+/**
+ * Coerce a timestamp value into epoch millis. Firestore writes land as
+ * Timestamp objects ({ toMillis() }), while older/local data may carry ISO
+ * strings or plain numbers — callers shouldn't have to care. Returns NaN for
+ * null/undefined/unparseable values so callers can fall back cleanly.
+ */
+export function coerceToMs(value: unknown): number {
+  if (value == null) return NaN;
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') return new Date(value).getTime();
+  if (typeof (value as { toMillis?: unknown }).toMillis === 'function') {
+    return (value as { toMillis: () => number }).toMillis();
+  }
+  if (value instanceof Date) return value.getTime();
+  return NaN;
+}
+
 export function getTimeAgo(dateString: string): string {
-  const date = new Date(dateString);
+  const ms = coerceToMs(dateString);
+  if (!Number.isFinite(ms)) return '';
+  const date = new Date(ms);
   const now = new Date();
   const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 

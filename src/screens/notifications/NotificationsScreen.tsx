@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   StyleSheet,
   RefreshControl,
   TouchableOpacity,
+  ActivityIndicator,
   Alert,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -18,7 +19,7 @@ import EmptyState from '../../components/common/EmptyState';
 import SwipeableNotificationRow from '../../components/notifications/SwipeableNotificationRow';
 import {
   subscribeToNotifications,
-  markNotificationAsRead,
+  setNotificationRead,
   markAllNotificationsAsRead,
   deleteNotification,
   restoreNotification,
@@ -28,11 +29,8 @@ import {
   writeNotificationFilter,
 } from '../../services/notificationPrefsService';
 import { useAuthContext } from '../../context/AuthContext';
-import { updateDoc, doc } from 'firebase/firestore';
-import { db } from '../../config/firebase';
-import { NOTIFICATIONS_COLLECTION } from '../../utils/constants';
 import { Swipeable, RectButton } from 'react-native-gesture-handler';
-import { getTimeAgo } from '../../utils/helpers';
+import { getTimeAgo, coerceToMs } from '../../utils/helpers';
 import { showToast } from '../../utils/ui/toast';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -66,22 +64,16 @@ const FILTERS: { key: FilterKey; label: string }[] = [
  * Bucket a notification into a date-group header. Only four buckets — older
  * items collapse into "Earlier" so the list never grows unbounded headers.
  * Timestamps may be ISO strings (client) or Firestore Timestamp objects
- * (fresh server writes) — both are handled.
+ * (fresh server writes) — coerceToMs handles both.
  */
 function toDateGroup(createdAt: AppNotification['createdAt']): 'Today' | 'Yesterday' | 'This week' | 'Earlier' {
-  const ms =
-    typeof createdAt === 'string'
-      ? new Date(createdAt).getTime()
-      : typeof (createdAt as { toMillis?: () => number })?.toMillis === 'function'
-        ? (createdAt as { toMillis: () => number }).toMillis()
-        : NaN;
-
+  const ms = coerceToMs(createdAt);
   if (!Number.isFinite(ms)) return 'Earlier';
-  const d = new Date(ms);
+
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
   const dayMs = 24 * 60 * 60 * 1000;
-  const t = d.getTime();
+  const t = ms;
 
   if (t >= startOfToday.getTime()) return 'Today';
   if (t >= startOfToday.getTime() - dayMs) return 'Yesterday';
@@ -109,10 +101,12 @@ export default function NotificationsScreen() {
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
   const { user } = useAuthContext();
+  const uid = user?.uid;
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<FilterKey>('all');
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Restore the last-selected chip once per mount (per-device preference).
   // Guarded against stale/unknown values by the FILTERS membership check.
@@ -137,25 +131,46 @@ export default function NotificationsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (!user) {
+      if (!uid) {
         setNotifications([]);
         setLoading(false);
         return;
       }
       // Live subscription keeps the list + unread states fresh while the
       // screen is focused; unsubscribes on blur.
-      const unsubscribe = subscribeToNotifications(user.uid, (items) => {
+      const unsubscribe = subscribeToNotifications(uid, (items) => {
         setNotifications(items);
         setLoading(false);
         setRefreshing(false);
       });
       return unsubscribe;
-    }, [user])
+      // uid (not the user object) — identity churn in the auth context
+      // shouldn't tear down and re-establish the Firestore subscription.
+    }, [uid])
   );
 
-  const unreadCount = useMemo(
-    () => notifications.filter((n) => !n.read).length,
-    [notifications]
+  // Clear the refresh fallback timer when the screen unmounts.
+  useEffect(() => {
+    return () => {
+      if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+    };
+  }, []);
+
+  /** Notifications visible under the active filter. */
+  const filtered = useMemo(
+    () =>
+      filter === 'all'
+        ? notifications
+        : notifications.filter((n) => n.type === filter),
+    [notifications, filter]
+  );
+
+  /** Unread count within the ACTIVE FILTER — drives the header button, the
+   * pull strip, and mark-all so the UI never says "3 unread" while the
+   * visible list is fully read (the global count lives on the "All" chip). */
+  const unreadInFilter = useMemo(
+    () => filtered.reduce((count, n) => count + (n.read ? 0 : 1), 0),
+    [filtered]
   );
 
   /** Unread count per type — powers the chips so filters show value upfront. */
@@ -172,9 +187,6 @@ export default function NotificationsScreen() {
    * group headers and notification rows; `type` discriminates them.
    */
   const listData = useMemo(() => {
-    const filtered =
-      filter === 'all' ? notifications : notifications.filter((n) => n.type === filter);
-
     const buckets = new Map<string, AppNotification[]>();
     for (const n of filtered) {
       const group = toDateGroup(n.createdAt);
@@ -197,16 +209,19 @@ export default function NotificationsScreen() {
       }
     }
     return rows;
-  }, [notifications, filter]);
+  }, [filtered]);
 
   const handleMarkAll = () => {
-    if (unreadCount === 0) return;
+    if (unreadInFilter === 0) return;
     // Scope "mark all read" to the active filter so the user can triage one
     // type at a time (e.g. clear all price drops without touching messages).
-    const targets = filter === 'all' ? notifications : notifications.filter((n) => n.type === filter);
-    void markAllNotificationsAsRead(targets).catch(() =>
-      Alert.alert('Error', 'Could not mark notifications as read')
-    );
+    // Batched server-side (one write round-trip); confirm with a toast.
+    const targets = filtered;
+    void markAllNotificationsAsRead(targets)
+      .then((count) => {
+        if (count > 0) showToast(`Marked ${count} as read`);
+      })
+      .catch(() => Alert.alert('Error', 'Could not mark notifications as read'));
   };
 
   /** Toggle one row's read state (right-swipe action); optimistic update. */
@@ -215,31 +230,22 @@ export default function NotificationsScreen() {
     setNotifications((prev) =>
       prev.map((n) => (n.id === notification.id ? { ...n, read: next } : n))
     );
-    markNotificationAsRead(notification.id)
-      .then(() => {
-        if (!next) {
-          // markNotificationAsRead only writes `read: true`; for unread we
-          // must clear the flag explicitly.
-          return updateDoc(doc(db, NOTIFICATIONS_COLLECTION, notification.id), {
-            read: false,
-          });
-        }
-        return undefined;
-      })
-      .catch(() => {
-        // Revert on failure.
-        setNotifications((prev) =>
-          prev.map((n) =>
-            n.id === notification.id ? { ...n, read: notification.read } : n
-          )
-        );
-        showToast('Could not update notification');
-      });
+    // Single { read } write — a read-then-unread double write would echo an
+    // intermediate read:true through the subscription (visible flicker).
+    setNotificationRead(notification.id, next).catch(() => {
+      // Revert on failure.
+      setNotifications((prev) =>
+        prev.map((n) =>
+          n.id === notification.id ? { ...n, read: notification.read } : n
+        )
+      );
+      showToast('Could not update notification');
+    });
   }, []);
 
   const handlePress = (notification: AppNotification) => {
     if (!notification.read) {
-      void markNotificationAsRead(notification.id).catch(() => {});
+      void setNotificationRead(notification.id, true).catch(() => {});
     }
     routeNotification(notification);
   };
@@ -248,16 +254,23 @@ export default function NotificationsScreen() {
    * Swipe-to-dismiss: delete optimistically (the live subscription would
    * otherwise re-add the row), then offer a 6s undo window. Undo recreates
    * the doc server-side with the original fields; the live subscription
-   * re-inserts it (new id, same content) when the write lands.
+   * re-inserts it (new id, same content) when the write lands. The guard
+   * covers the race where the delete fails AFTER Undo was tapped — without
+   * it, restore would resurrect a doc the server refused to delete.
    */
   const handleDismiss = useCallback((notification: AppNotification) => {
+    let deleteFailed = false;
+    let undone = false;
     setNotifications((prev) => prev.filter((n) => n.id !== notification.id));
     deleteNotification(notification.id).catch(() => {
+      deleteFailed = true;
       showToast('Could not delete notification');
     });
     showToast('Notification deleted', {
       label: 'Undo',
       onPress: () => {
+        if (deleteFailed || undone) return;
+        undone = true;
         restoreNotification(notification).catch(() =>
           showToast('Could not restore notification')
         );
@@ -400,6 +413,9 @@ export default function NotificationsScreen() {
     );
   };
 
+  const filterLabel =
+    filter === 'all' ? null : TYPE_META[filter as AppNotification['type']]?.label.toLowerCase();
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View
@@ -425,14 +441,14 @@ export default function NotificationsScreen() {
         </Text>
         <TouchableOpacity
           onPress={handleMarkAll}
-          disabled={unreadCount === 0}
+          disabled={unreadInFilter === 0}
           style={[styles.markAllBtn, { backgroundColor: colors.gray100, borderRadius: radius.round }]}
           accessibilityRole="button"
-          accessibilityLabel="Mark all as read"
+          accessibilityLabel={`Mark all${filterLabel ? ` ${filterLabel}` : ''} notifications as read`}
         >
           <Text
             style={{
-              color: unreadCount > 0 ? colors.primary : colors.gray400,
+              color: unreadInFilter > 0 ? colors.primary : colors.gray400,
               fontSize: fontSize.xs,
               fontWeight: '600',
             }}
@@ -513,12 +529,19 @@ export default function NotificationsScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => setRefreshing(true)}
+            onRefresh={() => {
+              setRefreshing(true);
+              // The subscription only re-emits when data changes — a pull with
+              // nothing new would spin forever. Clear the spinner after a
+              // bounded wait; the snapshot callback clears it sooner.
+              if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+              refreshTimeoutRef.current = setTimeout(() => setRefreshing(false), 4000);
+            }}
             tintColor={colors.primary}
           />
         }
         ListHeaderComponent={
-          unreadCount > 0 ? (
+          unreadInFilter > 0 ? (
             // Pull-to-mark-all: drag the strip down past ~56px (or tap it) to
             // mark everything in the current filter as read.
             <View style={styles.pullWrap}>
@@ -542,7 +565,7 @@ export default function NotificationsScreen() {
                     },
                   ]}
                   accessibilityRole="button"
-                  accessibilityLabel={`Mark all ${filter === 'all' ? '' : TYPE_META[filter as AppNotification['type']]?.label.toLowerCase() + ' '}notifications as read`}
+                  accessibilityLabel={`Mark all${filterLabel ? ` ${filterLabel}` : ''} notifications as read`}
                 >
                   <MaterialCommunityIcons
                     name="check-all"
@@ -557,7 +580,7 @@ export default function NotificationsScreen() {
                       marginLeft: 6,
                     }}
                   >
-                    Pull down or tap to mark {unreadCount} as read
+                    Pull down or tap to mark {unreadInFilter} as read
                   </Text>
                 </TouchableOpacity>
               </Swipeable>
@@ -568,14 +591,20 @@ export default function NotificationsScreen() {
           !loading ? (
             <EmptyState
               icon="bell-off-outline"
-              title={filter === 'all' ? 'No notifications' : `No ${TYPE_META[filter as AppNotification['type']]?.label.toLowerCase() ?? 'notifications'}`}
+              title={filter === 'all' ? 'No notifications' : `No ${filterLabel ?? 'notifications'}`}
               description={
                 filter === 'all'
                   ? 'Tour updates, review prompts, and price alerts will appear here'
                   : 'New items in this category will appear here'
               }
             />
-          ) : null
+          ) : (
+            <ActivityIndicator
+              style={styles.loadingSpinner}
+              size="small"
+              color={colors.primary}
+            />
+          )
         }
       />
     </View>
@@ -646,6 +675,9 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+  loadingSpinner: {
+    marginTop: 24,
   },
   pullWrap: {
     marginBottom: 4,
