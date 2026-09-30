@@ -1,11 +1,6 @@
 import {
   collection,
-  addDoc,
-  getDocs,
   doc,
-  getDoc,
-  updateDoc,
-  deleteDoc,
   query,
   orderBy,
   limit,
@@ -13,6 +8,13 @@ import {
   Timestamp,
   DocumentSnapshot,
 } from 'firebase/firestore';
+import {
+  trackedGetDocs,
+  trackedGetDoc,
+  trackedAddDoc,
+  trackedUpdateDoc,
+  trackedDeleteDoc,
+} from '../utils/firestore/tracked';
 import { auth, db } from '../config/firebase';
 import { Property, PropertyFilter, SavedSearch, SavedSearchFilters } from '../types';
 import { SAVED_SEARCHES_COLLECTION, MAX_SAVED_SEARCHES } from '../utils/constants';
@@ -70,7 +72,7 @@ export async function getSavedSearches(userId: string): Promise<SavedSearch[]> {
     orderBy('updatedAt', 'desc'),
     limit(MAX_SAVED_SEARCHES)
   );
-  const snap = await getDocs(q);
+  const snap = await trackedGetDocs(q, SAVED_SEARCHES_COLLECTION);
   const searches: SavedSearch[] = [];
   snap.forEach((docSnap) => searches.push(toSavedSearch(docSnap)));
   return searches;
@@ -80,7 +82,7 @@ export async function getSavedSearch(
   userId: string,
   searchId: string
 ): Promise<SavedSearch | null> {
-  const snap = await getDoc(searchRef(userId, searchId));
+  const snap = await trackedGetDoc(searchRef(userId, searchId));
   return snap.exists() ? toSavedSearch(snap) : null;
 }
 
@@ -104,7 +106,7 @@ export async function createSavedSearch(
   if (!sanitizedName) throw new Error('Search name cannot be empty');
 
   const now = serverTimestamp();
-  const ref = await addDoc(savedSearchesRef(userId), {
+  const ref = await trackedAddDoc(savedSearchesRef(userId), {
     name: sanitizedName,
     filters: input.filters,
     notificationFrequency: input.notificationFrequency,
@@ -114,7 +116,7 @@ export async function createSavedSearch(
     createdAt: now,
     updatedAt: now,
   });
-  const created = await getDoc(ref);
+  const created = await trackedGetDoc(ref);
   return toSavedSearch(created);
 }
 
@@ -128,7 +130,7 @@ export async function updateSavedSearch(
   if (!user || user.uid !== userId) {
     throw new Error('Unauthorized: you can only update your own saved searches');
   }
-  await updateDoc(searchRef(userId, searchId), { ...data, updatedAt: serverTimestamp() });
+  await trackedUpdateDoc(searchRef(userId, searchId), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function deleteSavedSearch(
@@ -140,7 +142,7 @@ export async function deleteSavedSearch(
   if (!user || user.uid !== userId) {
     throw new Error('Unauthorized: you can only delete your own saved searches');
   }
-  await deleteDoc(searchRef(userId, searchId));
+  await trackedDeleteDoc(searchRef(userId, searchId));
 }
 
 export async function toggleSavedSearchActive(
@@ -153,7 +155,7 @@ export async function toggleSavedSearchActive(
   if (!user || user.uid !== userId) {
     throw new Error('Unauthorized: you can only toggle your own saved searches');
   }
-  await updateDoc(searchRef(userId, searchId), {
+  await trackedUpdateDoc(searchRef(userId, searchId), {
     isActive,
     updatedAt: serverTimestamp(),
   });
@@ -250,7 +252,7 @@ export async function runSavedSearch(
 ): Promise<Property[]> {
   const result = await getProperties(filtersToPropertyFilter(search.filters), 50);
   const matches = result.properties;
-  await updateDoc(searchRef(userId, search.id), {
+  await trackedUpdateDoc(searchRef(userId, search.id), {
     matchCount: matches.length,
     newMatchCount: 0,
     lastRunAt: serverTimestamp(),

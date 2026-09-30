@@ -1,7 +1,5 @@
 import {
   doc,
-  getDoc,
-  setDoc,
   serverTimestamp,
   Timestamp,
   DocumentSnapshot,
@@ -9,6 +7,7 @@ import {
 import { db } from '../config/firebase';
 import { NeighborhoodData } from '../types';
 import { NEIGHBORHOOD_COLLECTION } from '../utils/constants';
+import { trackedGetDoc, trackedSetDoc } from '../utils/firestore/tracked';
 import { firestoreCircuitBreaker } from '../utils/network/circuitBreaker';
 import { withRetry } from '../utils/network/retry';
 import { withTimeout, DEFAULT_TIMEOUT_MS } from '../utils/network/timeout';
@@ -59,7 +58,7 @@ export async function getNeighborhoodData(
 
   const fetchFromFirestore = async (): Promise<NeighborhoodData | null> => {
     const docSnap = await firestoreCircuitBreaker.execute(() =>
-      withRetry(() => withTimeout(getDoc(doc(db, NEIGHBORHOOD_COLLECTION, id)), DEFAULT_TIMEOUT_MS))
+      withRetry(() =>      withTimeout(trackedGetDoc(doc(db, NEIGHBORHOOD_COLLECTION, id)), DEFAULT_TIMEOUT_MS))
     );
     if (!docSnap.exists()) return null;
     return toNeighborhoodData(docSnap);
@@ -85,7 +84,7 @@ export async function saveNeighborhoodData(
   await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        setDoc(doc(db, NEIGHBORHOOD_COLLECTION, id), {
+        trackedSetDoc(doc(db, NEIGHBORHOOD_COLLECTION, id), {
           ...data,
           lastUpdated: serverTimestamp(),
         }),
@@ -305,7 +304,7 @@ export async function getNeighborhoodInsights(
   let cached: NeighborhoodInsights | null = null;
   try {
     const snap: DocumentSnapshot = await firestoreCircuitBreaker.execute(() =>
-      withRetry(() => withTimeout(getDoc(docRef), DEFAULT_TIMEOUT_MS))
+      withRetry(() => withTimeout(trackedGetDoc(docRef), DEFAULT_TIMEOUT_MS))
     );
     if (snap.exists()) cached = toInsights(docId, snap.data() as Record<string, unknown>);
   } catch {
@@ -329,7 +328,7 @@ export async function getNeighborhoodInsights(
     };
     // Best-effort cache write (rules allow authenticated creates/updates of
     // exactly this shape; failures never block the UI).
-    setDoc(docRef, {
+    trackedSetDoc(docRef, {
       walkScore: result.walkScore,
       transitScore: result.transitScore,
       schools: result.schools,

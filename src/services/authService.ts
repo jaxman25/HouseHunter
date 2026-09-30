@@ -16,13 +16,15 @@ import {
 } from 'firebase/auth';
 import {
   doc,
-  setDoc,
-  getDoc,
-  updateDoc,
   serverTimestamp,
   arrayUnion,
   arrayRemove,
 } from 'firebase/firestore';
+import {
+  trackedSetDoc,
+  trackedGetDoc,
+  trackedUpdateDoc,
+} from '../utils/firestore/tracked';
 import { auth, db } from '../config/firebase';
 import { User as AppUser, UserProfile } from '../types';
 import {
@@ -112,7 +114,7 @@ export async function register(
   await authCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        setDoc(doc(db, USERS_COLLECTION, credential.user.uid), {
+        trackedSetDoc(doc(db, USERS_COLLECTION, credential.user.uid), {
           ...userData,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
@@ -210,7 +212,7 @@ export async function signInWithGoogleIdToken(idToken: string): Promise<User> {
 export async function ensureUserDocument(fbUser: User): Promise<void> {
   const userRef = doc(db, USERS_COLLECTION, fbUser.uid);
   const userSnap = await authCircuitBreaker.execute(() =>
-    withRetry(() => withTimeout(getDoc(userRef), DEFAULT_TIMEOUT_MS))
+    withRetry(() => withTimeout(trackedGetDoc(userRef), DEFAULT_TIMEOUT_MS))
   );
   if (userSnap.exists()) return;
 
@@ -223,7 +225,7 @@ export async function ensureUserDocument(fbUser: User): Promise<void> {
   await authCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        setDoc(userRef, {
+        trackedSetDoc(userRef, {
           uid: fbUser.uid,
           email: fbUser.email || '',
           displayName: defaultName,
@@ -267,7 +269,7 @@ export async function getUserProfile(uid: string): Promise<AppUser | null> {
             withTimeout(
               (async () => {
                 const docRef = doc(db, USERS_COLLECTION, uid);
-                const docSnap = await getDoc(docRef);
+                const docSnap = await trackedGetDoc(docRef);
                 if (docSnap.exists()) {
                   return { uid: docSnap.id, ...docSnap.data() } as AppUser;
                 }
@@ -322,7 +324,7 @@ export async function updateUserProfile(
   await authCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        updateDoc(doc(db, USERS_COLLECTION, uid), {
+        trackedUpdateDoc(doc(db, USERS_COLLECTION, uid), {
           ...sanitizedData,
           updatedAt: serverTimestamp(),
         }),
@@ -376,7 +378,7 @@ export async function addFavorite(uid: string, propertyId: string): Promise<void
   await authCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        updateDoc(doc(db, USERS_COLLECTION, uid), {
+        trackedUpdateDoc(doc(db, USERS_COLLECTION, uid), {
           favorites: arrayUnion(propertyId),
           updatedAt: serverTimestamp(),
         }),
@@ -400,7 +402,7 @@ export async function removeFavorite(uid: string, propertyId: string): Promise<v
   await authCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        updateDoc(doc(db, USERS_COLLECTION, uid), {
+        trackedUpdateDoc(doc(db, USERS_COLLECTION, uid), {
           favorites: arrayRemove(propertyId),
           updatedAt: serverTimestamp(),
         }),
@@ -426,7 +428,7 @@ export async function acceptTerms(uid: string): Promise<void> {
   await authCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        updateDoc(doc(db, USERS_COLLECTION, uid), {
+        trackedUpdateDoc(doc(db, USERS_COLLECTION, uid), {
           termsAcceptedAt: new Date().toISOString(),
           termsAcceptedVersion: TERMS_VERSION,
           updatedAt: serverTimestamp(),

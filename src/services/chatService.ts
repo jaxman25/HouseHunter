@@ -1,20 +1,22 @@
 import {
   collection,
-  setDoc,
-  writeBatch,
   doc,
-  getDoc,
-  getDocs,
   query,
   where,
   orderBy,
-  onSnapshot,
   serverTimestamp,
   increment,
   Timestamp,
   DocumentReference,
   DocumentData,
 } from 'firebase/firestore';
+import {
+  trackedGetDoc,
+  trackedGetDocs,
+  trackedSetDoc,
+  trackedOnSnapshot,
+  trackedWriteBatch,
+} from '../utils/firestore/tracked';
 import * as Crypto from 'expo-crypto';
 import { auth, db } from '../config/firebase';
 import { CLOUDINARY_CLOUD_NAME, uploadImage } from './storageService';
@@ -63,7 +65,7 @@ export async function getOrCreateConversation(
 
   // Fast path: the deterministic ID already exists → return it.
   const existing = await firestoreCircuitBreaker.execute(() =>
-    withRetry(() => withTimeout(getDoc(convRef), DEFAULT_TIMEOUT_MS))
+    withRetry(() => withTimeout(trackedGetDoc(convRef), DEFAULT_TIMEOUT_MS))
   );
   if (existing.exists()) {
     return existing.id;
@@ -77,7 +79,7 @@ export async function getOrCreateConversation(
     where('propertyId', '==', propertyId)
   );
   const querySnapshot = await firestoreCircuitBreaker.execute(() =>
-    withRetry(() => withTimeout(getDocs(q), DEFAULT_TIMEOUT_MS))
+    withRetry(() => withTimeout(trackedGetDocs(q, CHAT_COLLECTION), DEFAULT_TIMEOUT_MS))
   );
   for (const docSnap of querySnapshot.docs) {
     const data = docSnap.data();
@@ -119,7 +121,7 @@ export async function getOrCreateConversation(
     await firestoreCircuitBreaker.execute(() =>
       withRetry(() =>
         withTimeout(
-          setDoc(convRef, convData),
+          trackedSetDoc(convRef, convData),
           DEFAULT_TIMEOUT_MS
         )
       )
@@ -131,7 +133,7 @@ export async function getOrCreateConversation(
       await firestoreCircuitBreaker.execute(() =>
         withRetry(() =>
           withTimeout(
-            setDoc(convRef, convData, { merge: true }),
+            trackedSetDoc(convRef, convData, { merge: true }),
             DEFAULT_TIMEOUT_MS
           )
         )
@@ -159,7 +161,7 @@ export async function sendMessage(
 
   // SECURITY (IDOR): Verify the caller is a participant in this conversation.
   const convDoc = await firestoreCircuitBreaker.execute(() =>
-    withRetry(() => withTimeout(getDoc(doc(db, CHAT_COLLECTION, conversationId)), DEFAULT_TIMEOUT_MS))
+    withRetry(() => withTimeout(trackedGetDoc(doc(db, CHAT_COLLECTION, conversationId)), DEFAULT_TIMEOUT_MS))
   );
   if (!convDoc.exists()) throw new Error('Conversation not found');
   const participants = convDoc.data().participants as string[];
@@ -223,7 +225,7 @@ export async function sendMessage(
     messageRef = doc(
       collection(db, CHAT_COLLECTION, conversationId, MESSAGES_COLLECTION)
     );
-    const batch = writeBatch(db);
+    const batch = trackedWriteBatch();
     batch.set(messageRef, messageData);
     batch.update(doc(db, CHAT_COLLECTION, conversationId), {
       lastMessage: sanitizedText || 'Photo',
@@ -265,7 +267,7 @@ export function subscribeToMessages(
     orderBy('createdAt', 'asc')
   );
 
-  return onSnapshot(q, (querySnapshot) => {
+  return trackedOnSnapshot(q, MESSAGES_COLLECTION, (querySnapshot) => {
     const messages: Message[] = [];
     querySnapshot.forEach((doc) => {
       const data = doc.data();
@@ -289,7 +291,7 @@ export function subscribeToConversations(
     orderBy('updatedAt', 'desc')
   );
 
-  return onSnapshot(q, (querySnapshot) => {
+  return trackedOnSnapshot(q, CHAT_COLLECTION, (querySnapshot) => {
     const conversations: Conversation[] = [];
     querySnapshot.forEach((doc) => {
       conversations.push({ id: doc.id, ...doc.data() } as Conversation);
@@ -318,7 +320,7 @@ export async function markAsRead(
     where('read', '==', false)
   );
   const querySnapshot = await firestoreCircuitBreaker.execute(() =>
-    withRetry(() => withTimeout(getDocs(q), DEFAULT_TIMEOUT_MS))
+    withRetry(() => withTimeout(trackedGetDocs(q, MESSAGES_COLLECTION), DEFAULT_TIMEOUT_MS))
   );
   const unreadByOthers = querySnapshot.docs
     .filter((docSnap) => docSnap.data().senderId !== userId)
@@ -334,7 +336,7 @@ export async function markAsRead(
       : [[]];
 
   for (const messageRefs of batches) {
-    const batch = writeBatch(db);
+    const batch = trackedWriteBatch();
     batch.update(convRef, { [`unreadCount.${userId}`]: 0 });
     for (const messageRef of messageRefs) {
       batch.update(messageRef, { read: true });
@@ -350,7 +352,7 @@ export async function getConversation(
 ): Promise<Conversation | null> {
   const docRef = doc(db, CHAT_COLLECTION, conversationId);
   const docSnap = await firestoreCircuitBreaker.execute(() =>
-    withRetry(() => withTimeout(getDoc(docRef), DEFAULT_TIMEOUT_MS))
+    withRetry(() => withTimeout(trackedGetDoc(docRef), DEFAULT_TIMEOUT_MS))
   );
   if (docSnap.exists()) {
     return { id: docSnap.id, ...docSnap.data() } as Conversation;
@@ -367,7 +369,7 @@ export async function getConversationsForUser(
     orderBy('updatedAt', 'desc')
   );
   const querySnapshot = await firestoreCircuitBreaker.execute(() =>
-    withRetry(() => withTimeout(getDocs(q), DEFAULT_TIMEOUT_MS))
+    withRetry(() => withTimeout(trackedGetDocs(q, CHAT_COLLECTION), DEFAULT_TIMEOUT_MS))
   );
   const conversations: Conversation[] = [];
   querySnapshot.forEach((doc) => {

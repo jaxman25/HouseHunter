@@ -13,13 +13,10 @@
 import {
   collection,
   doc,
-  getDocs,
   query,
   where,
   orderBy,
   limit,
-  addDoc,
-  deleteDoc,
   serverTimestamp,
   DocumentData,
 } from 'firebase/firestore';
@@ -30,6 +27,11 @@ import { withRetry } from '../utils/network/retry';
 import { withTimeout, DEFAULT_TIMEOUT_MS } from '../utils/network/timeout';
 import { sanitize } from '../utils/security/sanitize';
 import { trackMetric } from '../utils/monitoring/metrics';
+import {
+  trackedGetDocs,
+  trackedAddDoc,
+  trackedDeleteDoc,
+} from '../utils/firestore/tracked';
 
 /** Client-side collection constant (rules key off the same path). */
 export const USER_REVIEWS_COLLECTION = 'userReviews';
@@ -103,7 +105,7 @@ export async function submitUserReview(review: {
     firestoreCircuitBreaker.execute(() =>
       withRetry(() =>
         withTimeout(
-          addDoc(collection(db, USER_REVIEWS_COLLECTION), payload),
+          trackedAddDoc(collection(db, USER_REVIEWS_COLLECTION), payload),
           DEFAULT_TIMEOUT_MS
         )
       )
@@ -117,13 +119,14 @@ export async function getUserReviews(userId: string, maxResults: number = 20): P
   const result = await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        getDocs(
+        trackedGetDocs(
           query(
             collection(db, USER_REVIEWS_COLLECTION),
             where('revieweeId', '==', userId),
             orderBy('createdAt', 'desc'),
             limit(maxResults)
-          )
+          ),
+          USER_REVIEWS_COLLECTION
         ),
         DEFAULT_TIMEOUT_MS
       )
@@ -137,11 +140,12 @@ export async function getUserRating(userId: string): Promise<UserRatingSummary> 
   const result = await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        getDocs(
+        trackedGetDocs(
           query(
             collection(db, USER_REVIEWS_COLLECTION),
             where('revieweeId', '==', userId)
-          )
+          ),
+          USER_REVIEWS_COLLECTION
         ),
         DEFAULT_TIMEOUT_MS
       )
@@ -167,13 +171,14 @@ export async function hasUserReviewedReviewer(
   const result = await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        getDocs(
+        trackedGetDocs(
           query(
             collection(db, USER_REVIEWS_COLLECTION),
             where('reviewerId', '==', reviewerId),
             where('revieweeId', '==', revieweeId),
             limit(1)
-          )
+          ),
+          USER_REVIEWS_COLLECTION
         ),
         DEFAULT_TIMEOUT_MS
       )
@@ -187,7 +192,7 @@ export async function deleteUserReview(reviewId: string): Promise<void> {
   await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        deleteDoc(doc(db, USER_REVIEWS_COLLECTION, reviewId)),
+        trackedDeleteDoc(doc(db, USER_REVIEWS_COLLECTION, reviewId)),
         DEFAULT_TIMEOUT_MS
       )
     )

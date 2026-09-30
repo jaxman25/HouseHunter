@@ -3,12 +3,12 @@ import {
   query,
   where,
   orderBy,
-  getDocs,
   limit,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { Property } from '../types';
 import { PROPERTIES_COLLECTION } from '../utils/constants';
+import { trackedGetDocs } from '../utils/firestore/tracked';
 import { updateProperty } from './propertyService';
 
 export type ArchiveReason = 'sold' | 'pending' | 'manual' | 'inactive';
@@ -51,7 +51,7 @@ export async function getArchivedProperties(
     orderBy('archivedAt', 'desc'),
     limit(100)
   );
-  const snap = await getDocs(q);
+  const snap = await trackedGetDocs(q, PROPERTIES_COLLECTION);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Property);
 }
 

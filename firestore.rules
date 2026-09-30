@@ -137,20 +137,56 @@ service cloud.firestore {
               || after.data.writes == before.data.writes + 1);
     }
 
+    // Per-user DAILY read budget (see src/utils/firestore/readBudget.ts).
+    // The default cap is 10000/day; admins can raise it per user via the
+    // `readBudgetOverride` field on the user doc (adminService), which the
+    // rule reads so an overridden user's counter can legitimately exceed
+    // the default. One extra users/{uid} read per counter flush (10s max
+    // cadence) is an acceptable cost for rule-level admin control.
+    function readBudgetCap() {
+      let override = get(/databases/$(database)/documents/users/$(request.auth.uid))
+        .get('readBudgetOverride', 0);
+      return override > 0 ? override : 10000;
+    }
+
+    // counters/{uid} writes carry EITHER the write-budget pair (minute,
+    // writes) OR the read-budget triple (readsToday, readsResetAt,
+    // flushWindowReset) — or a subset, since merge-writes produce the
+    // union of existing and new fields in request.resource.data. The hard
+    // guarantee: readsToday can never be written past the effective cap.
+    function countersWriteIsValid() {
+      let d = request.resource.data;
+      let keysOk = d.keys().hasOnly([
+        'minute', 'writes', 'readsToday', 'readsResetAt', 'flushWindowReset'
+      ]);
+      let typesOk = (!('minute' in d) || d.minute is number)
+          && (!('writes' in d) || d.writes is number)
+          && (!('readsToday' in d) || d.readsToday is number)
+          && (!('readsResetAt' in d) || d.readsResetAt is number)
+          && (!('flushWindowReset' in d) || d.flushWindowReset is number);
+      let readsOk = !('readsToday' in d)
+          || (d.readsToday >= 0 && d.readsToday <= readBudgetCap());
+      // A reset instant, when written, must still be in the future — a
+      // client can't zero-out its own counter by backdating the window.
+      let resetOk = !('readsResetAt' in d)
+          || d.readsResetAt > request.time.toMillis();
+      return keysOk && typesOk && readsOk && resetOk;
+    }
+
     // ═══════════════════════════════════════════════════════════
     // COUNTERS COLLECTION (rate limiting bookkeeping)
     // ═══════════════════════════════════════════════════════════
     match /counters/{userId} {
-      // Write-budget bookkeeping for withinWriteLimit(). Shape-locked to
-      // { minute: number, writes: number } so the budget doc can't be
-      // repurposed as arbitrary storage. `minute` remains client-supplied
-      // until server-time binding lands (planned follow-up commit); until
-      // then the budget is cooperative — see the rate-limiting header note.
-      allow read: if isOwner(userId);
-      allow create, update: if isOwner(userId) &&
-        request.resource.data.keys().hasOnly(['minute', 'writes']) &&
-        request.resource.data.minute is number &&
-        request.resource.data.writes is number;
+      // Rate-limit bookkeeping: the write-budget pair { minute, writes }
+      // (withinWriteLimit()) and the daily read-budget triple
+      // { readsToday, readsResetAt, flushWindowReset }
+      // (src/utils/firestore/readBudget.ts). Shape-locked so the doc can't
+      // be repurposed as arbitrary storage; the read cap is enforced HERE
+      // so a compromised client can't write itself past the budget.
+      // `minute`/`readsResetAt` remain client-supplied until server-time
+      // binding lands; the write budget stays cooperative (header note).
+      allow read: if isOwner(userId) || isAdmin();
+      allow create, update: if isOwner(userId) && countersWriteIsValid();
       allow delete: if false;
     }
 
@@ -189,7 +225,8 @@ service cloud.firestore {
         ])
       ) || (isAdmin() && (
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'suspended', 'suspensionReason', 'suspensionExpiry'
+          'suspended', 'suspensionReason', 'suspensionExpiry',
+          'readBudgetOverride'
         ])
       ));
 
@@ -383,6 +420,23 @@ service cloud.firestore {
       // Users can delete their own notifications
       allow delete: if isAuthenticated() &&
         resource.data.userId == request.auth.uid;
+    }
+
+    // ─── Metrics (Firestore cost accounting) ───────────────────────
+    // One aggregated doc per local day (metrics/{yyyy-mm-dd}) that clients
+    // merge per-collection read/write counters into with increment() ops
+    // (src/utils/monitoring/firestoreMetrics.ts). Clients are WRITE-ONLY
+    // (a compromised client can poison counters but never read others');
+    // reads are admin-only via admin_roles. Shape-checked loosely: top-level
+    // keys are allowlisted and per-op map growth is capped (increment
+    // transforms can't be range-checked in rules).
+    match /metrics/{date} {
+      allow create, update: if isAuthenticated() && !isSuspended() &&
+        request.resource.data.keys().hasOnly(['reads', 'writes', 'updatedAt']) &&
+        (!('reads' in request.resource.data) || request.resource.data.reads.keys().size() <= 100) &&
+        (!('writes' in request.resource.data) || request.resource.data.writes.keys().size() <= 100);
+      allow read: if isAdmin();
+      allow delete: if false;
     }
 
     // ═══════════════════════════════════════════════════════════

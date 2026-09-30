@@ -11,9 +11,6 @@
 import {
   collection,
   doc,
-  addDoc,
-  updateDoc,
-  getDocs,
   query,
   where,
   orderBy,
@@ -27,6 +24,11 @@ import { withRetry } from '../utils/network/retry';
 import { withTimeout, DEFAULT_TIMEOUT_MS } from '../utils/network/timeout';
 import { sanitize } from '../utils/security/sanitize';
 import { trackMetric } from '../utils/monitoring/metrics';
+import {
+  trackedGetDocs,
+  trackedAddDoc,
+  trackedUpdateDoc,
+} from '../utils/firestore/tracked';
 
 export const DEALS_COLLECTION = 'deals';
 
@@ -70,12 +72,13 @@ export async function getAgentDeals(agentId: string): Promise<Deal[]> {
       withRetry(() =>
         withTimeout(
           (async () => {
-            const snap = await getDocs(
+            const snap = await trackedGetDocs(
               query(
                 collection(db, DEALS_COLLECTION),
                 where('agentId', '==', agentId),
                 orderBy('closedAt', 'desc')
-              )
+              ),
+              DEALS_COLLECTION
             );
             return snap.docs.map((d) => toDeal(d.data(), d.id));
           })(),
@@ -115,7 +118,7 @@ export async function createDeal(input: {
   const docRef = await trackMetric('deals.create', () =>
     firestoreCircuitBreaker.execute(() =>
       withRetry(() =>
-        withTimeout(addDoc(collection(db, DEALS_COLLECTION), payload), DEFAULT_TIMEOUT_MS)
+        withTimeout(trackedAddDoc(collection(db, DEALS_COLLECTION), payload), DEFAULT_TIMEOUT_MS)
       )
     )
   );
@@ -142,7 +145,7 @@ export async function updateDeal(
   await trackMetric('deals.update', () =>
     firestoreCircuitBreaker.execute(() =>
       withRetry(() =>
-        withTimeout(updateDoc(doc(db, DEALS_COLLECTION, dealId), payload), DEFAULT_TIMEOUT_MS)
+        withTimeout(trackedUpdateDoc(doc(db, DEALS_COLLECTION, dealId), payload), DEFAULT_TIMEOUT_MS)
       )
     )
   );

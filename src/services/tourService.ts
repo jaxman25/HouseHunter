@@ -1,28 +1,26 @@
 import {
   collection,
   doc,
-  getDoc,
-  getDocs,
   query,
   where,
   orderBy,
-  addDoc,
-  updateDoc,
   serverTimestamp,
-  writeBatch,
-  onSnapshot,
   DocumentSnapshot,
   Timestamp,
 } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import {
+  trackedGetDoc,
+  trackedGetDocs,
+  trackedAddDoc,
+  trackedUpdateDoc,
+  trackedOnSnapshot,
+} from '../utils/firestore/tracked';
+import { auth, db } from '../config/firebase';
 import { Tour, TourAvailability, TourStatus } from '../types';
 import {
   TOURS_COLLECTION,
   TOUR_AVAILABILITY_COLLECTION,
-  PROPERTIES_COLLECTION,
-  USERS_COLLECTION,
 } from '../utils/constants';
-import { auth } from '../config/firebase';
 import { firestoreCircuitBreaker } from '../utils/network/circuitBreaker';
 import { withRetry } from '../utils/network/retry';
 import { withTimeout, DEFAULT_TIMEOUT_MS } from '../utils/network/timeout';
@@ -78,7 +76,7 @@ export async function setAvailability(availability: Omit<TourAvailability, 'crea
   await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        updateDoc(docRef, {
+        trackedUpdateDoc(docRef, {
           sellerId: availability.sellerId,
           daysOfWeek: availability.daysOfWeek,
           startTime: availability.startTime,
@@ -87,7 +85,7 @@ export async function setAvailability(availability: Omit<TourAvailability, 'crea
           bufferMinutes: availability.bufferMinutes,
           updatedAt: serverTimestamp(),
         }).catch(() =>
-          addDoc(collection(db, TOUR_AVAILABILITY_COLLECTION), {
+          trackedAddDoc(collection(db, TOUR_AVAILABILITY_COLLECTION), {
             sellerId: availability.sellerId,
             daysOfWeek: availability.daysOfWeek,
             startTime: availability.startTime,
@@ -107,7 +105,7 @@ export async function setAvailability(availability: Omit<TourAvailability, 'crea
 /** Get seller availability settings. */
 export async function getAvailability(sellerId: string): Promise<TourAvailability | null> {
   const docSnap = await firestoreCircuitBreaker.execute(() =>
-    withRetry(() => withTimeout(getDoc(doc(db, TOUR_AVAILABILITY_COLLECTION, sellerId)), DEFAULT_TIMEOUT_MS))
+    withRetry(() => withTimeout(trackedGetDoc(doc(db, TOUR_AVAILABILITY_COLLECTION, sellerId)), DEFAULT_TIMEOUT_MS))
   );
 
   if (!docSnap.exists()) return null;
@@ -153,12 +151,13 @@ export async function isSlotAvailable(
   const existingTours = await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        getDocs(
+        trackedGetDocs(
           query(
             collection(db, TOURS_COLLECTION),
             where('sellerId', '==', sellerId),
             where('status', 'in', ['pending', 'confirmed'] as TourStatus[])
-          )
+          ),
+          TOURS_COLLECTION
         ),
         DEFAULT_TIMEOUT_MS
       )
@@ -221,7 +220,7 @@ export async function createTour(tour: Omit<Tour, 'id' | 'createdAt' | 'updatedA
   const docRef = await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        addDoc(collection(db, TOURS_COLLECTION), {
+        trackedAddDoc(collection(db, TOURS_COLLECTION), {
           ...sanitizedTour,
           status: 'pending',
           reminderSent: false,
@@ -239,7 +238,7 @@ export async function createTour(tour: Omit<Tour, 'id' | 'createdAt' | 'updatedA
 /** Get a single tour. */
 export async function getTour(tourId: string): Promise<Tour | null> {
   const docSnap = await firestoreCircuitBreaker.execute(() =>
-    withRetry(() => withTimeout(getDoc(doc(db, TOURS_COLLECTION, tourId)), DEFAULT_TIMEOUT_MS))
+    withRetry(() => withTimeout(trackedGetDoc(doc(db, TOURS_COLLECTION, tourId)), DEFAULT_TIMEOUT_MS))
   );
   if (!docSnap.exists()) return null;
   return toTour(docSnap);
@@ -254,12 +253,13 @@ export async function getUserTours(
   const result = await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        getDocs(
+        trackedGetDocs(
           query(
             collection(db, TOURS_COLLECTION),
             where(field, '==', userId),
             orderBy('datetime', 'desc')
-          )
+          ),
+          TOURS_COLLECTION
         ),
         DEFAULT_TIMEOUT_MS
       )
@@ -310,7 +310,7 @@ export async function updateTourStatus(
 
   await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
-      withTimeout(updateDoc(doc(db, TOURS_COLLECTION, tourId), updateData), DEFAULT_TIMEOUT_MS)
+      withTimeout(trackedUpdateDoc(doc(db, TOURS_COLLECTION, tourId), updateData), DEFAULT_TIMEOUT_MS)
     )
   );
 }
@@ -337,7 +337,7 @@ export async function rescheduleTour(
   await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        updateDoc(doc(db, TOURS_COLLECTION, tourId), {
+        trackedUpdateDoc(doc(db, TOURS_COLLECTION, tourId), {
           datetime: newDatetime,
           status: 'rescheduled',
           updatedAt: serverTimestamp(),
@@ -354,12 +354,13 @@ export async function getUpcomingTours(sellerId: string): Promise<Tour[]> {
   const result = await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        getDocs(
+        trackedGetDocs(
           query(
             collection(db, TOURS_COLLECTION),
             where('sellerId', '==', sellerId),
             where('status', 'in', ['confirmed', 'pending'] as TourStatus[])
-          )
+          ),
+          TOURS_COLLECTION
         ),
         DEFAULT_TIMEOUT_MS
       )
@@ -385,7 +386,7 @@ export function subscribeToUserTours(
     orderBy('datetime', 'desc')
   );
 
-  return onSnapshot(q, (snapshot) => {
+  return trackedOnSnapshot(q, TOURS_COLLECTION, (snapshot) => {
     const tours = snapshot.docs.map(toTour);
     callback(tours);
   });

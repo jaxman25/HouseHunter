@@ -1,23 +1,25 @@
 import {
   collection,
   doc,
-  getDoc,
-  getDocs,
   query,
   where,
   orderBy,
   limit as limitQuery,
   startAfter,
-  addDoc,
-  updateDoc,
-  deleteDoc,
   deleteField,
   serverTimestamp,
   getCountFromServer,
-  writeBatch,
   Timestamp,
   DocumentSnapshot,
 } from 'firebase/firestore';
+import {
+  trackedGetDoc,
+  trackedGetDocs,
+  trackedAddDoc,
+  trackedUpdateDoc,
+  trackedDeleteDoc,
+  trackedWriteBatch,
+} from '../utils/firestore/tracked';
 import { db } from '../config/firebase';
 import {
   ADMIN_ROLES_COLLECTION,
@@ -43,7 +45,7 @@ import { toProperty } from './propertyService';
 
 /** True when `uid` is listed in admin_roles (operator-provisioned). */
 export async function isAdminUser(uid: string): Promise<boolean> {
-  const snap = await getDoc(doc(db, ADMIN_ROLES_COLLECTION, uid));
+  const snap = await trackedGetDoc(doc(db, ADMIN_ROLES_COLLECTION, uid));
   return snap.exists();
 }
 
@@ -81,7 +83,7 @@ export async function getUsers(
     orderBy('createdAt', 'desc'),
     limitQuery(pageSize)
   );
-  const snap = await getDocs(q);
+  const snap = await trackedGetDocs(q, USERS_COLLECTION);
   const users = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as unknown as User);
   if (!search.trim()) return users;
   const needle = search.trim().toLowerCase();
@@ -100,7 +102,7 @@ export async function setVerified(uid: string, verified: boolean): Promise<void>
   const userProps = await getUserProperties(uid);
   if (userProps.length === 0) return;
 
-  const batch = writeBatch(db);
+  const batch = trackedWriteBatch();
   for (const property of userProps) {
     batch.update(doc(db, PROPERTIES_COLLECTION, property.id), { verified });
   }
@@ -118,7 +120,7 @@ export async function getUserProperties(userId: string): Promise<Property[]> {
               where('userId', '==', userId),
               orderBy('createdAt', 'desc')
             );
-            const querySnapshot = await getDocs(q);
+            const querySnapshot = await trackedGetDocs(q, PROPERTIES_COLLECTION);
             const properties: Property[] = [];
             querySnapshot.forEach((doc) => {
               properties.push(toProperty(doc));
@@ -143,7 +145,7 @@ export async function suspendUser(
   // SECURITY: Sanitize reason to prevent stored XSS.
   const sanitizedReason = sanitize(reason, 500);
 
-  await updateDoc(doc(db, USERS_COLLECTION, uid), {
+  await trackedUpdateDoc(doc(db, USERS_COLLECTION, uid), {
     suspended: true,
     suspensionReason: sanitizedReason,
     suspensionExpiry: durationDays
@@ -154,7 +156,7 @@ export async function suspendUser(
 }
 
 export async function unsuspendUser(uid: string): Promise<void> {
-  await updateDoc(doc(db, USERS_COLLECTION, uid), {
+  await trackedUpdateDoc(doc(db, USERS_COLLECTION, uid), {
     suspended: false,
     suspensionReason: deleteField(),
     suspensionExpiry: deleteField(),
@@ -170,7 +172,7 @@ export async function getReports(
     status && status !== 'all'
       ? query(base, where('status', '==', status), orderBy('createdAt', 'desc'), limitQuery(pageSize))
       : query(base, orderBy('createdAt', 'desc'), limitQuery(pageSize));
-  const snap = await getDocs(q);
+  const snap = await trackedGetDocs(q, ADMIN_REPORTS_COLLECTION);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Report);
 }
 
@@ -183,14 +185,14 @@ export async function resolveReport(
   note: string,
   adminUid: string
 ): Promise<void> {
-  const reportSnap = await getDoc(doc(db, ADMIN_REPORTS_COLLECTION, reportId));
+  const reportSnap = await trackedGetDoc(doc(db, ADMIN_REPORTS_COLLECTION, reportId));
   const report = reportSnap.exists() ? (reportSnap.data() as Report) : null;
   const now = new Date().toISOString();
 
   // SECURITY: Sanitize note to prevent stored XSS.
   const sanitizedNote = note ? sanitize(note, 1000) : undefined;
 
-  await updateDoc(doc(db, ADMIN_REPORTS_COLLECTION, reportId), {
+  await trackedUpdateDoc(doc(db, ADMIN_REPORTS_COLLECTION, reportId), {
     status: action === 'dismiss' ? 'dismissed' : 'resolved',
     resolvedAt: now,
     resolvedBy: adminUid,
@@ -198,7 +200,7 @@ export async function resolveReport(
   });
 
   if (action === 'delete' && report?.propertyId) {
-    await deleteDoc(doc(db, PROPERTIES_COLLECTION, report.propertyId));
+    await trackedDeleteDoc(doc(db, PROPERTIES_COLLECTION, report.propertyId));
   }
 
   await logAudit(adminUid, `resolve_report_${action}`, { reportId, propertyId: report?.propertyId });
@@ -218,7 +220,7 @@ export async function createAnnouncement(input: AnnouncementInput): Promise<void
     body: sanitize(input.body, 2000),
   };
 
-  await addDoc(collection(db, ADMIN_ANNOUNCEMENTS_COLLECTION), {
+  await trackedAddDoc(collection(db, ADMIN_ANNOUNCEMENTS_COLLECTION), {
     ...sanitizedInput,
     version: 1,
     createdAt: serverTimestamp(),
@@ -231,7 +233,7 @@ export async function getAnnouncements(): Promise<Announcement[]> {
     orderBy('createdAt', 'desc'),
     limitQuery(50)
   );
-  const snap = await getDocs(q);
+  const snap = await trackedGetDocs(q, ADMIN_ANNOUNCEMENTS_COLLECTION);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Announcement);
 }
 
@@ -239,7 +241,7 @@ export async function updateAnnouncement(
   id: string,
   data: Partial<AnnouncementInput>
 ): Promise<void> {
-  await updateDoc(doc(db, ADMIN_ANNOUNCEMENTS_COLLECTION, id), data);
+  await trackedUpdateDoc(doc(db, ADMIN_ANNOUNCEMENTS_COLLECTION, id), data);
 }
 
 /** Append an audit entry for every admin action. */
@@ -248,7 +250,7 @@ export async function logAudit(
   action: string,
   detail: Record<string, unknown>
 ): Promise<void> {
-  await addDoc(collection(db, ADMIN_AUDIT_COLLECTION), {
+  await trackedAddDoc(collection(db, ADMIN_AUDIT_COLLECTION), {
     actorUid,
     action,
     detail,
@@ -318,7 +320,7 @@ export async function getAuditLog(
   finalConstraints.push(limitQuery(pageSize));
 
   const q = query(collection(db, ADMIN_AUDIT_COLLECTION), ...finalConstraints);
-  const snap = await getDocs(q);
+  const snap = await trackedGetDocs(q, ADMIN_AUDIT_COLLECTION);
 
   let entries: AuditLogEntry[] = snap.docs.map((d) => ({
     id: d.id,
@@ -369,7 +371,7 @@ export async function resolveActorNames(
 
   for (const chunk of chunks) {
     const docs = await Promise.all(
-      chunk.map((uid) => getDoc(doc(db, USERS_COLLECTION, uid)).catch(() => null))
+      chunk.map((uid) => trackedGetDoc(doc(db, USERS_COLLECTION, uid)).catch(() => null))
     );
     docs.forEach((snap, i) => {
       if (snap?.exists()) {
@@ -379,4 +381,26 @@ export async function resolveActorNames(
   }
 
   return names;
+}
+// ─── Read Budget Override ────────────────────────────────────────────
+
+/**
+ * Raise (or clear) a user's daily Firestore read budget. The cap is
+ * enforced RULE-SIDE from this field (counters writes compare readsToday
+ * against users/{uid}.readBudgetOverride), so this alone is enough — no
+ * counter changes needed. Pass a number ≥ 1 to raise, null/undefined to
+ * clear (falling back to the default 10,000/day).
+ */
+export async function setUserReadBudget(
+  uid: string,
+  budget: number | null,
+  adminUid: string
+): Promise<void> {
+  const update: Record<string, unknown> =
+    budget != null && budget >= 1
+      ? { readBudgetOverride: Math.round(budget) }
+      : { readBudgetOverride: deleteField() };
+
+  await trackedUpdateDoc(doc(db, USERS_COLLECTION, uid), update);
+  await logAudit(adminUid, 'set_read_budget', { uid, budget });
 }

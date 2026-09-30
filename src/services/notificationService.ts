@@ -1,20 +1,22 @@
 import { Platform, AppState, AppStateStatus } from 'react-native';
 import {
   collection,
-  addDoc,
   query,
   where,
   orderBy,
-  onSnapshot,
-  updateDoc,
-  deleteDoc,
   limit,
   doc,
   serverTimestamp,
   deleteField,
-  writeBatch,
   Timestamp,
 } from 'firebase/firestore';
+import {
+  trackedAddDoc,
+  trackedUpdateDoc,
+  trackedDeleteDoc,
+  trackedOnSnapshot,
+  trackedWriteBatch,
+} from '../utils/firestore/tracked';
 import { db } from '../config/firebase';
 import { AppNotification } from '../types';
 import { NOTIFICATIONS_COLLECTION, USERS_COLLECTION } from '../utils/constants';
@@ -80,7 +82,7 @@ export async function persistPushToken(
   const token = await registerForPushNotifications(userId);
   if (!token) return null;
 
-  await updateDoc(doc(db, USERS_COLLECTION, userId), {
+  await trackedUpdateDoc(doc(db, USERS_COLLECTION, userId), {
     expoPushToken: token,
   }).catch(() => {
     // Best-effort; token persistence failure is non-fatal.
@@ -94,7 +96,7 @@ export async function persistPushToken(
  * (Expo will reject pushes), and re-login will write a fresh one.
  */
 export async function clearPushToken(userId: string): Promise<void> {
-  await updateDoc(doc(db, USERS_COLLECTION, userId), {
+  await trackedUpdateDoc(doc(db, USERS_COLLECTION, userId), {
     expoPushToken: deleteField(),
   }).catch(() => {
     // Best-effort; cleanup failure is non-fatal.
@@ -155,7 +157,7 @@ export async function createNotification(
   type: AppNotification['type'],
   data: Record<string, string> = {}
 ): Promise<void> {
-  await addDoc(collection(db, NOTIFICATIONS_COLLECTION), {
+  await trackedAddDoc(collection(db, NOTIFICATIONS_COLLECTION), {
     userId,
     title,
     body,
@@ -180,7 +182,7 @@ export function subscribeToNotifications(
   ];
   const q = query(collection(db, NOTIFICATIONS_COLLECTION), ...constraints);
 
-  return onSnapshot(q, (querySnapshot) => {
+  return trackedOnSnapshot(q, NOTIFICATIONS_COLLECTION, (querySnapshot) => {
     const notifications: AppNotification[] = [];
     querySnapshot.forEach((doc) => {
       notifications.push({ id: doc.id, ...doc.data() } as AppNotification);
@@ -192,7 +194,7 @@ export function subscribeToNotifications(
 export async function markNotificationAsRead(
   notificationId: string
 ): Promise<void> {
-  await updateDoc(
+  await trackedUpdateDoc(
     doc(db, NOTIFICATIONS_COLLECTION, notificationId),
     { read: true }
   );
@@ -208,7 +210,7 @@ export async function setNotificationRead(
   notificationId: string,
   read: boolean
 ): Promise<void> {
-  await updateDoc(doc(db, NOTIFICATIONS_COLLECTION, notificationId), {
+  await trackedUpdateDoc(doc(db, NOTIFICATIONS_COLLECTION, notificationId), {
     read,
   });
 }
@@ -226,7 +228,7 @@ export async function markAllNotificationsAsRead(
 ): Promise<number> {
   const unread = notifications.filter((n) => !n.read);
   for (let i = 0; i < unread.length; i += 500) {
-    const batch = writeBatch(db);
+    const batch = trackedWriteBatch();
     for (const n of unread.slice(i, i + 500)) {
       batch.update(doc(db, NOTIFICATIONS_COLLECTION, n.id), { read: true });
     }
@@ -237,7 +239,7 @@ export async function markAllNotificationsAsRead(
 
 /** Delete one of the user's own notifications (rules: userId must match). */
 export async function deleteNotification(notificationId: string): Promise<void> {
-  await deleteDoc(doc(db, NOTIFICATIONS_COLLECTION, notificationId));
+  await trackedDeleteDoc(doc(db, NOTIFICATIONS_COLLECTION, notificationId));
 }
 
 /**
@@ -261,7 +263,7 @@ export async function restoreNotification(
   if (typeof (rawCreatedAt as { toMillis?: unknown })?.toMillis === 'function') {
     createdAt = Timestamp.fromMillis((rawCreatedAt as { toMillis: () => number }).toMillis());
   }
-  const ref = await addDoc(collection(db, NOTIFICATIONS_COLLECTION), {
+  const ref = await trackedAddDoc(collection(db, NOTIFICATIONS_COLLECTION), {
     userId: notification.userId,
     title: notification.title,
     body: notification.body,

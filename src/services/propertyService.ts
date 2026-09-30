@@ -1,10 +1,6 @@
 import {
   collection,
-  writeBatch,
-  WriteBatch,
   doc,
-  getDoc,
-  getDocs,
   query,
   where,
   orderBy,
@@ -12,12 +8,18 @@ import {
   startAfter,
   increment,
   serverTimestamp,
-  updateDoc,
   DocumentSnapshot,
   DocumentData,
   QueryConstraint,
   Timestamp,
 } from 'firebase/firestore';
+import {
+  trackedGetDoc,
+  trackedGetDocs,
+  trackedUpdateDoc,
+  trackedWriteBatch,
+  type TrackedWriteBatch,
+} from '../utils/firestore/tracked';
 import { auth, db } from '../config/firebase';
 import { uploadImage, deleteImage } from './storageService';
 import { Property, PropertyFilter, PriceHistoryEntry } from '../types';
@@ -85,7 +87,7 @@ export function toProperty(docSnap: DocumentSnapshot<DocumentData>): Property {
  * accompanied, in the same batch, by a `counters/{uid}` write shaped
  * `{ minute: <epochMinute>, writes: increment(1) }`. Call before commit.
  */
-function withWriteCount(batch: WriteBatch, uid: string): void {
+function withWriteCount(batch: TrackedWriteBatch, uid: string): void {
   batch.set(
     doc(db, COUNTERS_COLLECTION, uid),
     { minute: currentMinute(), writes: increment(1) },
@@ -134,7 +136,7 @@ export async function createProperty(
   // NB: the batch is rebuilt per attempt — a Firestore WriteBatch can only be
   // committed once, so a retried commit needs a fresh batch.
   const commitCreate = () => {
-    const batch = writeBatch(db);
+    const batch = trackedWriteBatch();
     batch.set(propRef, {
       ...sanitizedProperty,
       views: 0,
@@ -171,7 +173,7 @@ export async function updateProperty(
   // The write budget is charged to the property owner, so read the doc first.
   // The read also gives us the current `version` for optimistic locking.
   const existing = await firestoreCircuitBreaker.execute(() =>
-    withRetry(() => withTimeout(getDoc(docRef), DEFAULT_TIMEOUT_MS))
+    withRetry(() => withTimeout(trackedGetDoc(docRef), DEFAULT_TIMEOUT_MS))
   );
   const ownerId = existing.exists() ? existing.data().userId : data.userId;
   if (!ownerId) {
@@ -193,7 +195,7 @@ export async function updateProperty(
   // Function (functions/src/priceHistoryTracking.ts) so the client only needs
   // to commit the property update itself.
   const commitUpdate = () => {
-    const batch = writeBatch(db);
+    const batch = trackedWriteBatch();
     // `version` is set AFTER the spread so caller-supplied data can't override it.
     batch.update(docRef, { ...data, version: nextVersion, updatedAt: serverTimestamp() });
     withWriteCount(batch, ownerId);
@@ -222,7 +224,7 @@ export async function deleteProperty(id: string): Promise<void> {
 
   // Delete associated images from storage
   const propDoc = await firestoreCircuitBreaker.execute(() =>
-    withRetry(() => withTimeout(getDoc(docRef), DEFAULT_TIMEOUT_MS))
+    withRetry(() => withTimeout(trackedGetDoc(docRef), DEFAULT_TIMEOUT_MS))
   );
   if (propDoc.exists()) {
     const ownerId = propDoc.data().userId;
@@ -243,7 +245,7 @@ export async function deleteProperty(id: string): Promise<void> {
 
     // Rebuild the batch per retry attempt (a committed batch can't be reused).
     const commitDelete = () => {
-      const batch = writeBatch(db);
+      const batch = trackedWriteBatch();
       batch.delete(docRef);
       withWriteCount(batch, ownerId);
       return batch.commit();
@@ -262,10 +264,10 @@ export async function deleteProperty(id: string): Promise<void> {
 /** Inner fetch: read the property document and bump its view counter. */
 async function fetchProperty(id: string): Promise<Property | null> {
   const docRef = doc(db, PROPERTIES_COLLECTION, id);
-  const docSnap = await getDoc(docRef);
+  const docSnap = await trackedGetDoc(docRef);
   if (docSnap.exists()) {
     // Increment views
-    await updateDoc(docRef, { views: increment(1) });
+    await trackedUpdateDoc(docRef, { views: increment(1) });
     return toProperty(docSnap);
   }
   return null;
@@ -350,7 +352,7 @@ async function fetchPropertiesPage(
   }
 
   const q = query(collection(db, PROPERTIES_COLLECTION), ...constraints);
-  const querySnapshot = await getDocs(q);
+  const querySnapshot = await trackedGetDocs(q, PROPERTIES_COLLECTION);
 
   const properties: Property[] = [];
   querySnapshot.forEach((doc) => {
@@ -438,7 +440,7 @@ export async function searchProperties(
               orderBy('createdAt', 'desc'),
               limit(MAX_RESULTS)
             );
-            const querySnapshot = await getDocs(q);
+            const querySnapshot = await trackedGetDocs(q, PROPERTIES_COLLECTION);
             const term = sanitized.toLowerCase();
 
             const results: Property[] = [];
@@ -476,7 +478,7 @@ export async function getUserProperties(userId: string): Promise<Property[]> {
               where('userId', '==', userId),
               orderBy('createdAt', 'desc')
             );
-            const querySnapshot = await getDocs(q);
+            const querySnapshot = await trackedGetDocs(q, PROPERTIES_COLLECTION);
             const properties: Property[] = [];
             querySnapshot.forEach((doc) => {
               properties.push(toProperty(doc));
@@ -510,7 +512,7 @@ export async function getPropertiesByIds(ids: string[]): Promise<Property[]> {
               collection(db, PROPERTIES_COLLECTION),
               where('__name__', 'in', chunk)
             );
-            const querySnapshot = await getDocs(q);
+            const querySnapshot = await trackedGetDocs(q, PROPERTIES_COLLECTION);
             const docs: Property[] = [];
             querySnapshot.forEach((doc) => {
               docs.push(toProperty(doc));
@@ -561,7 +563,7 @@ export async function getPriceHistory(
     limit(maxEntries)
   );
   const snap = await firestoreCircuitBreaker.execute(() =>
-    withRetry(() => withTimeout(getDocs(q), DEFAULT_TIMEOUT_MS))
+    withRetry(() => withTimeout(trackedGetDocs(q, PRICE_HISTORY_SUBCOLLECTION), DEFAULT_TIMEOUT_MS))
   );
   return snap.docs.map((d) => ({
     id: d.id,
@@ -639,7 +641,7 @@ export async function getRecentlySoldNearby(
   );
 
   const snap = await firestoreCircuitBreaker.execute(() =>
-    withRetry(() => withTimeout(getDocs(q), DEFAULT_TIMEOUT_MS))
+    withRetry(() => withTimeout(trackedGetDocs(q, PROPERTIES_COLLECTION), DEFAULT_TIMEOUT_MS))
   );
 
   const candidates = snap.docs.map((d) => toProperty(d));
@@ -697,7 +699,7 @@ export async function getSimilarProperties(
   );
 
   const snap = await firestoreCircuitBreaker.execute(() =>
-    withRetry(() => withTimeout(getDocs(q), DEFAULT_TIMEOUT_MS))
+    withRetry(() => withTimeout(trackedGetDocs(q, PROPERTIES_COLLECTION), DEFAULT_TIMEOUT_MS))
   );
 
   const candidates = snap.docs.map((d) => toProperty(d));

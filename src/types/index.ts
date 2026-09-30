@@ -26,6 +26,8 @@ export interface User {
   expoPushToken?: string;
   /** Admin-set verification flag on the user's listings (see firestore.rules). */
   verified?: boolean;
+  /** Admin-raised daily Firestore read budget (rules read this server-side). */
+  readBudgetOverride?: number;
   createdAt: string;
   updatedAt: string;
 }

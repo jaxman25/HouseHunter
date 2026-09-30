@@ -5,9 +5,16 @@ import AdminGuard from '../../components/admin/AdminGuard';
 import AdminLayout from '../../components/admin/AdminLayout';
 import MetricCard from '../../components/admin/MetricCard';
 import { getAdminMetrics, AdminMetrics } from '../../services/adminService';
-import { getCountFromServer, collection, query, where } from 'firebase/firestore';
+import { getCountFromServer, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { PROPERTIES_COLLECTION, ADMIN_REPORTS_COLLECTION } from '../../utils/constants';
+import { metricsDocIdFor } from '../../utils/monitoring/firestoreMetrics';
+
+interface FsUsageRow {
+  collection: string;
+  reads: number;
+  writes: number;
+}
 
 interface BarDatum {
   label: string;
@@ -20,6 +27,8 @@ export default function AnalyticsScreen() {
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
   const [statusBars, setStatusBars] = useState<BarDatum[]>([]);
   const [reportBars, setReportBars] = useState<BarDatum[]>([]);
+  const [fsUsage, setFsUsage] = useState<FsUsageRow[] | null>(null);
+  const [fsUsageError, setFsUsageError] = useState(false);
 
   useEffect(() => {
     const run = async () => {
@@ -53,6 +62,42 @@ export default function AnalyticsScreen() {
     void run();
   }, [colors]);
 
+  useEffect(() => {
+    // Firestore cost accounting (rules: admin-only read). Raw Firestore
+    // access on purpose — the metrics doc must not count itself. Aggregates
+    // the per-collection increments from the last 7 daily docs.
+    const run = async () => {
+      try {
+        const dayIds = new Set(
+          Array.from({ length: 7 }, (_, i) =>
+            metricsDocIdFor(new Date(Date.now() - i * 24 * 60 * 60 * 1000))
+          )
+        );
+        const snap = await getDocs(collection(db, 'metrics'));
+        const reads: Record<string, number> = {};
+        const writes: Record<string, number> = {};
+        snap.forEach((d) => {
+          if (!dayIds.has(d.id)) return;
+          const r = (d.get('reads') ?? {}) as Record<string, unknown>;
+          const w = (d.get('writes') ?? {}) as Record<string, unknown>;
+          for (const [c, n] of Object.entries(r)) {
+            if (typeof n === 'number') reads[c] = (reads[c] ?? 0) + n;
+          }
+          for (const [c, n] of Object.entries(w)) {
+            if (typeof n === 'number') writes[c] = (writes[c] ?? 0) + n;
+          }
+        });
+        const rows = [...new Set([...Object.keys(reads), ...Object.keys(writes)])]
+          .map((c) => ({ collection: c, reads: reads[c] ?? 0, writes: writes[c] ?? 0 }))
+          .sort((a, b) => b.reads + b.writes - (a.reads + a.writes));
+        setFsUsage(rows);
+      } catch {
+        setFsUsageError(true);
+      }
+    };
+    void run();
+  }, []);
+
   return (
     <AdminGuard>
       <AdminLayout title="Analytics" active="analytics">
@@ -82,6 +127,48 @@ export default function AnalyticsScreen() {
           {reportBars.map((bar) => (
             <BarRow key={bar.label} datum={bar} colors={colors} />
           ))}
+        </View>
+
+        <Text style={[styles.sectionTitle, { color: colors.text, fontSize: fontSize.lg, marginTop: spacing.xl }]}>
+          Firestore usage (7d)
+        </Text>
+        <View style={[styles.chartCard, { backgroundColor: colors.surface, borderRadius: radius.lg }, shadow.sm]}>
+          {fsUsage === null ? (
+            <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>
+              {fsUsageError ? 'Metrics unavailable' : 'Loading…'}
+            </Text>
+          ) : fsUsage.length === 0 ? (
+            <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>
+              No metrics recorded yet — set EXPO_PUBLIC_METRICS_ENABLED=true to start accounting.
+            </Text>
+          ) : (
+            <View>
+              <View style={styles.usageRow}>
+                <Text style={[styles.usageHead, { color: colors.textSecondary, fontSize: fontSize.xs }]}>
+                  Collection
+                </Text>
+                <Text style={[styles.usageNum, { color: colors.textSecondary, fontSize: fontSize.xs }]}>
+                  Reads
+                </Text>
+                <Text style={[styles.usageNum, { color: colors.textSecondary, fontSize: fontSize.xs }]}>
+                  Writes
+                </Text>
+              </View>
+              {fsUsage.map((row) => (
+                <View key={row.collection} style={styles.usageRow}>
+                  <Text style={{ color: colors.text, fontSize: fontSize.sm, fontWeight: '600', flex: 1 }}>
+                    {row.collection}
+                  </Text>
+                  <Text style={[styles.usageNum, { color: colors.text, fontSize: fontSize.sm }]}>
+                    {row.reads.toLocaleString()}
+                  </Text>
+                  <Text style={[styles.usageNum, { color: colors.text, fontSize: fontSize.sm }]}>
+                    {row.writes.toLocaleString()}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
       </AdminLayout>
     </AdminGuard>
@@ -142,5 +229,20 @@ const styles = StyleSheet.create({
   barFill: {
     height: '100%',
     alignSelf: 'flex-start',
+  },
+  usageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    gap: 12,
+  },
+  usageHead: {
+    flex: 1,
+    fontWeight: '700',
+  },
+  usageNum: {
+    width: 72,
+    textAlign: 'right',
+    fontVariant: ['tabular-nums'],
   },
 });

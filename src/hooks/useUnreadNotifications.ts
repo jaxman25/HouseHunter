@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { subscribeToNotifications } from '../services/notificationService';
+import { setReadBudgetUser } from '../utils/firestore/readBudget';
 
 /**
  * Live unread-notification count for the signed-in user — the shared source
@@ -19,6 +20,8 @@ export function useUnreadNotifications(userId: string | undefined): number {
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
+    // Bind the per-user read budget counter (no-op unless metrics enabled).
+    setReadBudgetUser(userId ?? null);
     if (!userId) return;
 
     let unsubscribe: (() => void) | null = null;

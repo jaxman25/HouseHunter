@@ -27,6 +27,8 @@ export const env: Record<string, string | undefined> = {
   EXPO_PUBLIC_SENTRY_DSN: process.env.EXPO_PUBLIC_SENTRY_DSN,
   EXPO_PUBLIC_ENABLE_PERF_SPANS: process.env.EXPO_PUBLIC_ENABLE_PERF_SPANS,
   EXPO_PUBLIC_ENABLE_DEV_METRICS_LOG: process.env.EXPO_PUBLIC_ENABLE_DEV_METRICS_LOG,
+  EXPO_PUBLIC_METRICS_ENABLED: process.env.EXPO_PUBLIC_METRICS_ENABLED,
+  EXPO_PUBLIC_READ_BUDGET: process.env.EXPO_PUBLIC_READ_BUDGET,
 };
 
 /** Firebase variables the app cannot function without. */

@@ -1,14 +1,8 @@
 import {
   collection,
   doc,
-  getDoc,
-  getDocs,
   query,
   where,
-  orderBy,
-  limit,
-  serverTimestamp,
-  Timestamp,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { UserAnalytics, PlatformAnalytics, Achievement } from '../types';
@@ -22,6 +16,7 @@ import {
 import { firestoreCircuitBreaker } from '../utils/network/circuitBreaker';
 import { withRetry } from '../utils/network/retry';
 import { withTimeout, DEFAULT_TIMEOUT_MS } from '../utils/network/timeout';
+import { trackedGetDoc, trackedGetDocs } from '../utils/firestore/tracked';
 
 /** Default achievements. */
 const DEFAULT_ACHIEVEMENTS: Achievement[] = [
@@ -37,14 +32,14 @@ const DEFAULT_ACHIEVEMENTS: Achievement[] = [
 /** Get user analytics (seller metrics, activity, achievements). */
 export async function getUserAnalytics(userId: string): Promise<UserAnalytics> {
   const userDoc = await firestoreCircuitBreaker.execute(() =>
-    withRetry(() => withTimeout(getDoc(doc(db, USERS_COLLECTION, userId)), DEFAULT_TIMEOUT_MS))
+    withRetry(() => withTimeout(trackedGetDoc(doc(db, USERS_COLLECTION, userId)), DEFAULT_TIMEOUT_MS))
   );
 
   // Listings
   const listings = await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        getDocs(query(collection(db, PROPERTIES_COLLECTION), where('userId', '==', userId))),
+        trackedGetDocs(query(collection(db, PROPERTIES_COLLECTION), where('userId', '==', userId)), PROPERTIES_COLLECTION),
         DEFAULT_TIMEOUT_MS
       )
     )
@@ -54,7 +49,7 @@ export async function getUserAnalytics(userId: string): Promise<UserAnalytics> {
   const reviews = await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        getDocs(query(collection(db, REVIEWS_COLLECTION), where('buyerId', '==', userId))),
+        trackedGetDocs(query(collection(db, REVIEWS_COLLECTION), where('buyerId', '==', userId)), REVIEWS_COLLECTION),
         DEFAULT_TIMEOUT_MS
       )
     )
@@ -64,7 +59,7 @@ export async function getUserAnalytics(userId: string): Promise<UserAnalytics> {
   const buyerTours = await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        getDocs(query(collection(db, TOURS_COLLECTION), where('buyerId', '==', userId))),
+        trackedGetDocs(query(collection(db, TOURS_COLLECTION), where('buyerId', '==', userId)), TOURS_COLLECTION),
         DEFAULT_TIMEOUT_MS
       )
     )
@@ -138,7 +133,7 @@ export async function getPlatformAnalytics(date?: string): Promise<PlatformAnaly
 
   const analyticsDoc = await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
-      withTimeout(getDoc(doc(db, ANALYTICS_COLLECTION, targetDate)), DEFAULT_TIMEOUT_MS)
+      withTimeout(trackedGetDoc(doc(db, ANALYTICS_COLLECTION, targetDate)), DEFAULT_TIMEOUT_MS)
     )
   );
 

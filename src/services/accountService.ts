@@ -2,11 +2,13 @@ import {
   collection,
   query,
   where,
-  getDocs,
-  deleteDoc,
-  updateDoc,
   doc,
 } from 'firebase/firestore';
+import {
+  trackedGetDocs,
+  trackedDeleteDoc,
+  trackedUpdateDoc,
+} from '../utils/firestore/tracked';
 import { db } from '../config/firebase';
 import {
   USERS_COLLECTION,
@@ -42,8 +44,9 @@ export async function deleteAccountData(uid: string): Promise<void> {
 
   // Profile avatar.
   try {
-    const userSnap = await getDocs(
-      query(collection(db, USERS_COLLECTION), where('uid', '==', uid))
+    const userSnap = await trackedGetDocs(
+      query(collection(db, USERS_COLLECTION), where('uid', '==', uid)),
+      USERS_COLLECTION
     );
     const photoURL = userSnap.docs[0]?.data().photoURL as string | undefined;
     // Only touch assets that belong to this user's avatar: Cloudinary
@@ -81,11 +84,12 @@ export async function deleteAccountData(uid: string): Promise<void> {
 
   // Notifications.
   try {
-    const snaps = await getDocs(
-      query(collection(db, NOTIFICATIONS_COLLECTION), where('userId', '==', uid))
+    const snaps = await trackedGetDocs(
+      query(collection(db, NOTIFICATIONS_COLLECTION), where('userId', '==', uid)),
+      NOTIFICATIONS_COLLECTION
     );
     for (const snap of snaps.docs) {
-      await deleteDoc(snap.ref);
+      await trackedDeleteDoc(snap.ref);
     }
   } catch (error) {
     failures.push('notifications');
@@ -94,22 +98,24 @@ export async function deleteAccountData(uid: string): Promise<void> {
 
   // Chat: own messages, then remove self from conversation metadata.
   try {
-    const convSnaps = await getDocs(
+    const convSnaps = await trackedGetDocs(
       query(
         collection(db, CHAT_COLLECTION),
         where('participants', 'array-contains', uid)
-      )
+      ),
+      CHAT_COLLECTION
     );
     for (const convSnap of convSnaps.docs) {
       const convData = convSnap.data();
-      const messages = await getDocs(
+      const messages = await trackedGetDocs(
         query(
           collection(db, CHAT_COLLECTION, convSnap.id, MESSAGES_COLLECTION),
           where('senderId', '==', uid)
-        )
+        ),
+        MESSAGES_COLLECTION
       );
       for (const msg of messages.docs) {
-        await deleteDoc(msg.ref);
+        await trackedDeleteDoc(msg.ref);
       }
       // Strip own entries from the shared conversation metadata.
       const next: Record<string, unknown> = {
@@ -125,7 +131,7 @@ export async function deleteAccountData(uid: string): Promise<void> {
       next.participantNames = names;
       next.participantPhotos = photos;
       next.unreadCount = unread;
-      await updateDoc(doc(db, CHAT_COLLECTION, convSnap.id), next);
+      await trackedUpdateDoc(doc(db, CHAT_COLLECTION, convSnap.id), next);
     }
   } catch (error) {
     failures.push('chat data');
@@ -136,11 +142,12 @@ export async function deleteAccountData(uid: string): Promise<void> {
   // about interactions others had with the account, and admin moderation
   // covers abuse; rules prevent client deletes anyway).
   try {
-    const written = await getDocs(
-      query(collection(db, USER_REVIEWS_COLLECTION), where('reviewerId', '==', uid))
+    const written = await trackedGetDocs(
+      query(collection(db, USER_REVIEWS_COLLECTION), where('reviewerId', '==', uid)),
+      USER_REVIEWS_COLLECTION
     );
     for (const snap of written.docs) {
-      await deleteDoc(snap.ref);
+      await trackedDeleteDoc(snap.ref);
     }
   } catch (error) {
     failures.push('peer reviews written');
@@ -153,7 +160,7 @@ export async function deleteAccountData(uid: string): Promise<void> {
   // User profile document last (listings still reference userName/userPhoto
   // until they are deleted above; chat metadata may too).
   try {
-    await deleteDoc(doc(db, USERS_COLLECTION, uid));
+    await trackedDeleteDoc(doc(db, USERS_COLLECTION, uid));
     await invalidateUserProfile(uid);
     await invalidateFavorites(uid);
   } catch (error) {

@@ -1,21 +1,21 @@
 import {
   collection,
   doc,
-  getDoc,
-  getDocs,
   query,
   where,
   orderBy,
   limit,
-  addDoc,
-  updateDoc,
-  deleteDoc,
   serverTimestamp,
-  writeBatch,
-  increment,
   DocumentSnapshot,
-  onSnapshot,
 } from 'firebase/firestore';
+import {
+  trackedGetDoc,
+  trackedGetDocs,
+  trackedAddDoc,
+  trackedUpdateDoc,
+  trackedOnSnapshot,
+  trackedWriteBatch,
+} from '../utils/firestore/tracked';
 import { db } from '../config/firebase';
 import { Review, ReviewRatingBreakdown } from '../types';
 import { REVIEWS_COLLECTION, PROPERTIES_COLLECTION, USERS_COLLECTION } from '../utils/constants';
@@ -63,7 +63,7 @@ export async function canUserReview(
   userId: string
 ): Promise<{ canReview: boolean; reason?: string }> {
   const propertyDoc = await firestoreCircuitBreaker.execute(() =>
-    withRetry(() => withTimeout(getDoc(doc(db, PROPERTIES_COLLECTION, propertyId)), DEFAULT_TIMEOUT_MS))
+    withRetry(() => withTimeout(trackedGetDoc(doc(db, PROPERTIES_COLLECTION, propertyId)), DEFAULT_TIMEOUT_MS))
   );
 
   if (!propertyDoc.exists()) {
@@ -83,12 +83,13 @@ export async function canUserReview(
   const existingReview = await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        getDocs(
+        trackedGetDocs(
           query(
             collection(db, REVIEWS_COLLECTION),
             where('propertyId', '==', propertyId),
             where('buyerId', '==', userId)
-          )
+          ),
+          REVIEWS_COLLECTION
         ),
         DEFAULT_TIMEOUT_MS
       )
@@ -120,7 +121,7 @@ export async function createReview(
   const docRef = await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        addDoc(collection(db, REVIEWS_COLLECTION), {
+        trackedAddDoc(collection(db, REVIEWS_COLLECTION), {
           ...sanitizedReview,
           isFlagged: false,
           isRemoved: false,
@@ -143,13 +144,14 @@ export async function getPropertyReviews(propertyId: string): Promise<Review[]> 
   const result = await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        getDocs(
+        trackedGetDocs(
           query(
             collection(db, REVIEWS_COLLECTION),
             where('propertyId', '==', propertyId),
             where('isRemoved', '==', false),
             orderBy('createdAt', 'desc')
-          )
+          ),
+          REVIEWS_COLLECTION
         ),
         DEFAULT_TIMEOUT_MS
       )
@@ -164,14 +166,15 @@ export async function getSellerReviews(sellerId: string, maxResults: number = 20
   const result = await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        getDocs(
+        trackedGetDocs(
           query(
             collection(db, REVIEWS_COLLECTION),
             where('sellerId', '==', sellerId),
             where('isRemoved', '==', false),
             orderBy('createdAt', 'desc'),
             limit(maxResults)
-          )
+          ),
+          REVIEWS_COLLECTION
         ),
         DEFAULT_TIMEOUT_MS
       )
@@ -186,12 +189,13 @@ export async function getSellerRating(sellerId: string): Promise<ReviewRatingBre
   const result = await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        getDocs(
+        trackedGetDocs(
           query(
             collection(db, REVIEWS_COLLECTION),
             where('sellerId', '==', sellerId),
             where('isRemoved', '==', false)
-          )
+          ),
+          REVIEWS_COLLECTION
         ),
         DEFAULT_TIMEOUT_MS
       )
@@ -222,7 +226,7 @@ export async function getSellerRating(sellerId: string): Promise<ReviewRatingBre
 /** Recalculate and update a seller's average rating on their user doc. */
 async function updateSellerRating(sellerId: string): Promise<void> {
   const rating = await getSellerRating(sellerId);
-  await updateDoc(doc(db, USERS_COLLECTION, sellerId), {
+  await trackedUpdateDoc(doc(db, USERS_COLLECTION, sellerId), {
     averageRating: rating.averageRating,
     totalReviews: rating.totalReviews,
   });
@@ -234,7 +238,7 @@ export async function respondToReview(
   sellerId: string,
   content: string
 ): Promise<void> {
-  const reviewDoc = await getDoc(doc(db, REVIEWS_COLLECTION, reviewId));
+  const reviewDoc = await trackedGetDoc(doc(db, REVIEWS_COLLECTION, reviewId));
   if (!reviewDoc.exists()) throw new Error('Review not found');
 
   const review = reviewDoc.data();
@@ -244,7 +248,7 @@ export async function respondToReview(
   const sanitizedContent = sanitizeRichText(content, 2000);
   if (!sanitizedContent) throw new Error('Response cannot be empty');
 
-  await updateDoc(doc(db, REVIEWS_COLLECTION, reviewId), {
+  await trackedUpdateDoc(doc(db, REVIEWS_COLLECTION, reviewId), {
     sellerResponse: {
       content: sanitizedContent,
       respondedAt: new Date().toISOString(),
@@ -255,7 +259,7 @@ export async function respondToReview(
 
 /** Flag a review for moderation. */
 export async function flagReview(reviewId: string, reporterId: string): Promise<void> {
-  await updateDoc(doc(db, REVIEWS_COLLECTION, reviewId), {
+  await trackedUpdateDoc(doc(db, REVIEWS_COLLECTION, reviewId), {
     isFlagged: true,
     updatedAt: serverTimestamp(),
   });
@@ -263,10 +267,10 @@ export async function flagReview(reviewId: string, reporterId: string): Promise<
 
 /** Admin: remove a flagged review. */
 export async function removeReview(reviewId: string): Promise<void> {
-  const reviewDoc = await getDoc(doc(db, REVIEWS_COLLECTION, reviewId));
+  const reviewDoc = await trackedGetDoc(doc(db, REVIEWS_COLLECTION, reviewId));
   if (!reviewDoc.exists()) throw new Error('Review not found');
   const review = reviewDoc.data();
-  const batch = writeBatch(db);
+  const batch = trackedWriteBatch();
   batch.update(doc(db, REVIEWS_COLLECTION, reviewId), {
     isRemoved: true,
     updatedAt: serverTimestamp(),
@@ -280,13 +284,14 @@ export async function getFlaggedReviews(): Promise<Review[]> {
   const result = await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        getDocs(
+        trackedGetDocs(
           query(
             collection(db, REVIEWS_COLLECTION),
             where('isFlagged', '==', true),
             where('isRemoved', '==', false),
             orderBy('createdAt', 'desc')
-          )
+          ),
+          REVIEWS_COLLECTION
         ),
         DEFAULT_TIMEOUT_MS
       )
@@ -308,7 +313,7 @@ export function subscribeToPropertyReviews(
     orderBy('createdAt', 'desc')
   );
 
-  return onSnapshot(q, (snapshot) => {
+  return trackedOnSnapshot(q, REVIEWS_COLLECTION, (snapshot) => {
     const reviews = snapshot.docs.map(toReview);
     callback(reviews);
   });

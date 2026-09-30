@@ -1,22 +1,22 @@
 import {
   collection,
   doc,
-  getDoc,
-  getDocs,
   query,
   where,
-  addDoc,
-  updateDoc,
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore';
+import {
+  trackedGetDoc,
+  trackedGetDocs,
+  trackedAddDoc,
+  trackedUpdateDoc,
+} from '../utils/firestore/tracked';
 import { auth, db } from '../config/firebase';
 import { DataExport } from '../types';
 import {
   EXPORTS_COLLECTION,
   PROPERTIES_COLLECTION,
-  CHAT_COLLECTION,
-  MESSAGES_COLLECTION,
   USERS_COLLECTION,
   REVIEWS_COLLECTION,
   TOURS_COLLECTION,
@@ -63,12 +63,13 @@ export async function requestDataExport(userId: string): Promise<string> {
   const existing = await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        getDocs(
+        trackedGetDocs(
           query(
             collection(db, EXPORTS_COLLECTION),
             where('userId', '==', userId),
             where('status', 'in', ['pending', 'processing'])
-          )
+          ),
+          EXPORTS_COLLECTION
         ),
         DEFAULT_TIMEOUT_MS
       )
@@ -85,7 +86,7 @@ export async function requestDataExport(userId: string): Promise<string> {
   const docRef = await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        addDoc(collection(db, EXPORTS_COLLECTION), {
+        trackedAddDoc(collection(db, EXPORTS_COLLECTION), {
           userId,
           status: 'pending',
           createdAt: serverTimestamp(),
@@ -110,12 +111,13 @@ export async function getUserExports(userId: string): Promise<DataExport[]> {
   const result = await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
-        getDocs(
+        trackedGetDocs(
           query(
             collection(db, EXPORTS_COLLECTION),
             where('userId', '==', userId),
             where('status', 'in', ['ready', 'processing', 'pending'])
-          )
+          ),
+          EXPORTS_COLLECTION
         ),
         DEFAULT_TIMEOUT_MS
       )
@@ -128,7 +130,7 @@ export async function getUserExports(userId: string): Promise<DataExport[]> {
 /** Get a single export. */
 export async function getExport(exportId: string): Promise<DataExport | null> {
   const docSnap = await firestoreCircuitBreaker.execute(() =>
-    withRetry(() => withTimeout(getDoc(doc(db, EXPORTS_COLLECTION, exportId)), DEFAULT_TIMEOUT_MS))
+    withRetry(() => withTimeout(trackedGetDoc(doc(db, EXPORTS_COLLECTION, exportId)), DEFAULT_TIMEOUT_MS))
   );
   if (!docSnap.exists()) return null;
   return toExport(docSnap);
@@ -148,7 +150,7 @@ export async function updateExportStatus(
 
   await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
-      withTimeout(updateDoc(doc(db, EXPORTS_COLLECTION, exportId), updateData), DEFAULT_TIMEOUT_MS)
+      withTimeout(trackedUpdateDoc(doc(db, EXPORTS_COLLECTION, exportId), updateData), DEFAULT_TIMEOUT_MS)
     )
   );
 }
@@ -159,7 +161,7 @@ export async function compileUserData(userId: string): Promise<Record<string, un
 
   // Profile
   const userDoc = await firestoreCircuitBreaker.execute(() =>
-    withRetry(() => withTimeout(getDoc(doc(db, USERS_COLLECTION, userId)), DEFAULT_TIMEOUT_MS))
+    withRetry(() => withTimeout(trackedGetDoc(doc(db, USERS_COLLECTION, userId)), DEFAULT_TIMEOUT_MS))
   );
   if (userDoc.exists()) {
     data.profile = userDoc.data();
@@ -168,7 +170,7 @@ export async function compileUserData(userId: string): Promise<Record<string, un
   // Listings
   const listings = await firestoreCircuitBreaker.execute(() =>
     withRetry(() => withTimeout(
-      getDocs(query(collection(db, PROPERTIES_COLLECTION), where('userId', '==', userId))),
+      trackedGetDocs(query(collection(db, PROPERTIES_COLLECTION), where('userId', '==', userId)), PROPERTIES_COLLECTION),
       DEFAULT_TIMEOUT_MS
     ))
   );
@@ -177,7 +179,7 @@ export async function compileUserData(userId: string): Promise<Record<string, un
   // Reviews
   const reviews = await firestoreCircuitBreaker.execute(() =>
     withRetry(() => withTimeout(
-      getDocs(query(collection(db, REVIEWS_COLLECTION), where('buyerId', '==', userId))),
+      trackedGetDocs(query(collection(db, REVIEWS_COLLECTION), where('buyerId', '==', userId)), REVIEWS_COLLECTION),
       DEFAULT_TIMEOUT_MS
     ))
   );
@@ -186,7 +188,7 @@ export async function compileUserData(userId: string): Promise<Record<string, un
   // Tours
   const tours = await firestoreCircuitBreaker.execute(() =>
     withRetry(() => withTimeout(
-      getDocs(query(collection(db, TOURS_COLLECTION), where('buyerId', '==', userId))),
+      trackedGetDocs(query(collection(db, TOURS_COLLECTION), where('buyerId', '==', userId)), TOURS_COLLECTION),
       DEFAULT_TIMEOUT_MS
     ))
   );
@@ -195,7 +197,7 @@ export async function compileUserData(userId: string): Promise<Record<string, un
   // Notifications
   const notifications = await firestoreCircuitBreaker.execute(() =>
     withRetry(() => withTimeout(
-      getDocs(query(collection(db, NOTIFICATIONS_COLLECTION), where('userId', '==', userId))),
+      trackedGetDocs(query(collection(db, NOTIFICATIONS_COLLECTION), where('userId', '==', userId)), NOTIFICATIONS_COLLECTION),
       DEFAULT_TIMEOUT_MS
     ))
   );
