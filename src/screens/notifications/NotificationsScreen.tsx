@@ -129,6 +129,8 @@ export default function NotificationsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<FilterKey>('all');
+  // Windowed subscription: start with the latest 50; "Load older" widens it.
+  const [windowSize, setWindowSize] = useState(50);
   const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Rows currently on screen (mark-read-on-view) and rows the user manually
   // toggled — manual overrides are never auto-marked back to read.
@@ -170,16 +172,21 @@ export default function NotificationsScreen() {
         return;
       }
       // Live subscription keeps the list + unread states fresh while the
-      // screen is focused; unsubscribes on blur.
-      const unsubscribe = subscribeToNotifications(uid, (items) => {
-        setNotifications(items);
-        setLoading(false);
-        setRefreshing(false);
-      });
+      // screen is focused; unsubscribes on blur. Capped by windowSize so
+      // long-lived accounts don't download their full history at once.
+      const unsubscribe = subscribeToNotifications(
+        uid,
+        (items) => {
+          setNotifications(items);
+          setLoading(false);
+          setRefreshing(false);
+        },
+        { limit: windowSize }
+      );
       return unsubscribe;
       // uid (not the user object) — identity churn in the auth context
       // shouldn't tear down and re-establish the Firestore subscription.
-    }, [uid])
+    }, [uid, windowSize])
   );
 
   // Clear the refresh fallback timer when the screen unmounts.
@@ -572,6 +579,22 @@ export default function NotificationsScreen() {
             tintColor={colors.primary}
           />
         }
+        ListFooterComponent={
+          notifications.length >= windowSize ? (
+            // The subscription is capped at windowSize docs; a full window
+            // means there may be more history. Widen it on demand.
+            <TouchableOpacity
+              onPress={() => setWindowSize((w) => w + 50)}
+              style={[styles.loadOlderBtn, { borderColor: colors.border, borderRadius: radius.round }]}
+              accessibilityRole="button"
+              accessibilityLabel="Load older notifications"
+            >
+              <Text style={{ color: colors.primary, fontSize: fontSize.xs, fontWeight: '700' }}>
+                Load older
+              </Text>
+            </TouchableOpacity>
+          ) : null
+        }
         ListHeaderComponent={
           unreadInFilter > 0 ? (
             // Pull-to-mark-all: drag the strip down past ~56px (or tap it) to
@@ -710,6 +733,13 @@ const styles = StyleSheet.create({
   },
   loadingSpinner: {
     marginTop: 24,
+  },
+  loadOlderBtn: {
+    alignSelf: 'center',
+    borderWidth: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 18,
+    marginTop: 4,
   },
   pullWrap: {
     marginBottom: 4,

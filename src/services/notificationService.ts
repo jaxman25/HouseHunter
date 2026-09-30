@@ -8,6 +8,7 @@ import {
   onSnapshot,
   updateDoc,
   deleteDoc,
+  limit,
   doc,
   serverTimestamp,
   deleteField,
@@ -167,13 +168,17 @@ export async function createNotification(
 
 export function subscribeToNotifications(
   userId: string,
-  callback: (notifications: AppNotification[]) => void
+  callback: (notifications: AppNotification[]) => void,
+  options?: { limit?: number }
 ): () => void {
-  const q = query(
-    collection(db, NOTIFICATIONS_COLLECTION),
+  // Optional cap so long-lived accounts don't download their entire history
+  // on every screen open; callers raise the limit for "load older".
+  const constraints = [
     where('userId', '==', userId),
-    orderBy('createdAt', 'desc')
-  );
+    orderBy('createdAt', 'desc'),
+    ...(options?.limit != null ? [limit(options.limit)] : []),
+  ];
+  const q = query(collection(db, NOTIFICATIONS_COLLECTION), ...constraints);
 
   return onSnapshot(q, (querySnapshot) => {
     const notifications: AppNotification[] = [];
