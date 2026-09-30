@@ -85,24 +85,36 @@ function toDateGroup(createdAt: AppNotification['createdAt']): 'Today' | 'Yester
 
 const GROUP_ORDER = ['Today', 'Yesterday', 'This week', 'Earlier'] as const;
 
+/** How long a row must stay on screen before read-on-view marks it read. */
+const READ_ON_VIEW_DWELL_MS = 1500;
+
 /**
- * Mount tracker for mark-read-on-view: registers a row's id while it is on
- * screen and unregisters it when the FlatList recycles it.
+ * Mount tracker for mark-read-on-view: records WHEN a row appeared. On
+ * unmount (FlatList recycling) a row that stayed ≥ READ_ON_VIEW_DWELL_MS is
+ * moved to `seenIdsRef` so the next flush marks it — a fast scroll-through
+ * (short dwell) is simply forgotten.
  */
 function ViewTracker({
   id,
   visibleIdsRef,
+  seenIdsRef,
 }: {
   id: string;
-  visibleIdsRef: React.MutableRefObject<Set<string>>;
+  visibleIdsRef: React.MutableRefObject<Map<string, number>>;
+  seenIdsRef: React.MutableRefObject<Set<string>>;
 }) {
   useEffect(() => {
-    const visible = visibleIdsRef.current; // stable Set instance
-    visible.add(id);
+    const visible = visibleIdsRef.current; // stable Map instance
+    const seen = seenIdsRef.current; // stable Set instance
+    visible.set(id, Date.now());
     return () => {
+      const shownAt = visible.get(id);
       visible.delete(id);
+      if (shownAt != null && Date.now() - shownAt >= READ_ON_VIEW_DWELL_MS) {
+        seen.add(id);
+      }
     };
-  }, [id, visibleIdsRef]);
+  }, [id, visibleIdsRef, seenIdsRef]);
   return null;
 }
 
@@ -132,9 +144,13 @@ export default function NotificationsScreen() {
   // Windowed subscription: start with the latest 50; "Load older" widens it.
   const [windowSize, setWindowSize] = useState(50);
   const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Rows currently on screen (mark-read-on-view) and rows the user manually
-  // toggled — manual overrides are never auto-marked back to read.
-  const visibleIdsRef = useRef<Set<string>>(new Set());
+  // Rows currently on screen (mark-read-on-view) with their appearance
+  // times, and rows the user manually toggled — manual overrides are never
+  // auto-marked back to read.
+  const visibleIdsRef = useRef<Map<string, number>>(new Map());
+  // Rows whose dwell qualified them as seen (possibly already recycled off
+  // screen) — the flush marks these too.
+  const seenIdsRef = useRef<Set<string>>(new Set());
   const manualOverrideRef = useRef<Set<string>>(new Set());
   // Ref mirror so the read-on-view flush always sees the latest list without
   // re-subscribing the focus/app-state listeners on every snapshot.
@@ -265,35 +281,39 @@ export default function NotificationsScreen() {
   };
 
   /**
-   * Mark all currently visible unread rows read (Mail-style read-on-view).
-   * Rows the user explicitly swiped to "Unread" are excluded permanently
-   * for this screen visit. Errors are swallowed (idempotent write; the
-   * subscription re-reverts the optimistic flip if the write failed).
+   * Mark unread rows that have DWELLED on screen read (Mail-style
+   * read-on-view with a 1.5s dwell — scrolling past doesn't count). Rows the
+   * user explicitly swiped to "Unread" are excluded permanently for this
+   * screen visit. Errors are swallowed (idempotent write; the subscription
+   * re-reverts the optimistic flip if the write failed).
    */
   const flushVisibleReads = useCallback(() => {
-    const ids = visibleIdsRef.current;
-    if (ids.size === 0) return;
-    const targets = notificationsRef.current.filter(
-      (n) => !n.read && ids.has(n.id) && !manualOverrideRef.current.has(n.id)
-    );
+    const visible = visibleIdsRef.current;
+    const now = Date.now();
+    const targets = notificationsRef.current.filter((n) => {
+      if (n.read || manualOverrideRef.current.has(n.id)) return false;
+      if (seenIdsRef.current.has(n.id)) return true;
+      const shownAt = visible.get(n.id);
+      return shownAt != null && now - shownAt >= READ_ON_VIEW_DWELL_MS;
+    });
     if (targets.length === 0) return;
-    for (const t of targets) {
-      void setNotificationRead(t.id, true).catch(() => {});
+    const targetIds = new Set(targets.map((t) => t.id));
+    for (const id of targetIds) {
+      void setNotificationRead(id, true).catch(() => {});
+      visible.delete(id); // flushed — don't reprocess this row
+      seenIdsRef.current.delete(id);
     }
     setNotifications((prev) =>
-      prev.map((n) =>
-        !n.read && ids.has(n.id) && !manualOverrideRef.current.has(n.id)
-          ? { ...n, read: true }
-          : n
-      )
+      prev.map((n) => (targetIds.has(n.id) ? { ...n, read: true } : n))
     );
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      // Leaving the screen counts as done viewing — flush what was seen.
-      // App backgrounding flushes too: rows on screen were seen, and this
-      // keeps Home's unread badge honest without waiting for a tap.
+      // Leaving the screen counts as done viewing — flush what dwelled long
+      // enough. App backgrounding flushes too: rows still on screen after
+      // 1.5s were seen, and this keeps Home's unread badge honest without
+      // waiting for a tap.
       const appStateSub = AppState.addEventListener('change', (state) => {
         if (state !== 'active') flushVisibleReads();
       });
@@ -401,8 +421,12 @@ export default function NotificationsScreen() {
         onToggleRead={() => handleToggleRead(notification)}
         isRead={notification.read}
       >
-        {/* Mount = row is visible; unmount (recycled) = flush its read. */}
-        <ViewTracker id={notification.id} visibleIdsRef={visibleIdsRef} />
+        {/* Mount = row appeared (timestamped); recycle = dwell check. */}
+        <ViewTracker
+          id={notification.id}
+          visibleIdsRef={visibleIdsRef}
+          seenIdsRef={seenIdsRef}
+        />
         <TouchableOpacity
           onPress={() => handlePress(notification)}
           style={[
