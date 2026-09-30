@@ -7,6 +7,7 @@ import {
   RefreshControl,
   TouchableOpacity,
   ActivityIndicator,
+  AppState,
   Alert,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -31,6 +32,7 @@ import {
 import { useAuthContext } from '../../context/AuthContext';
 import { Swipeable, RectButton } from 'react-native-gesture-handler';
 import { getTimeAgo, coerceToMs } from '../../utils/helpers';
+import { routeNotification } from '../../utils/notificationRouting';
 import { showToast } from '../../utils/ui/toast';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -84,6 +86,27 @@ function toDateGroup(createdAt: AppNotification['createdAt']): 'Today' | 'Yester
 const GROUP_ORDER = ['Today', 'Yesterday', 'This week', 'Earlier'] as const;
 
 /**
+ * Mount tracker for mark-read-on-view: registers a row's id while it is on
+ * screen and unregisters it when the FlatList recycles it.
+ */
+function ViewTracker({
+  id,
+  visibleIdsRef,
+}: {
+  id: string;
+  visibleIdsRef: React.MutableRefObject<Set<string>>;
+}) {
+  useEffect(() => {
+    const visible = visibleIdsRef.current; // stable Set instance
+    visible.add(id);
+    return () => {
+      visible.delete(id);
+    };
+  }, [id, visibleIdsRef]);
+  return null;
+}
+
+/**
  * In-app notification list (companion to push delivery).
  *
  * Cloud Functions write notification docs (tour prompts, review prompts,
@@ -107,6 +130,16 @@ export default function NotificationsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<FilterKey>('all');
   const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Rows currently on screen (mark-read-on-view) and rows the user manually
+  // toggled — manual overrides are never auto-marked back to read.
+  const visibleIdsRef = useRef<Set<string>>(new Set());
+  const manualOverrideRef = useRef<Set<string>>(new Set());
+  // Ref mirror so the read-on-view flush always sees the latest list without
+  // re-subscribing the focus/app-state listeners on every snapshot.
+  const notificationsRef = useRef(notifications);
+  useEffect(() => {
+    notificationsRef.current = notifications;
+  }, [notifications]);
 
   // Restore the last-selected chip once per mount (per-device preference).
   // Guarded against stale/unknown values by the FILTERS membership check.
@@ -224,8 +257,50 @@ export default function NotificationsScreen() {
       .catch(() => Alert.alert('Error', 'Could not mark notifications as read'));
   };
 
+  /**
+   * Mark all currently visible unread rows read (Mail-style read-on-view).
+   * Rows the user explicitly swiped to "Unread" are excluded permanently
+   * for this screen visit. Errors are swallowed (idempotent write; the
+   * subscription re-reverts the optimistic flip if the write failed).
+   */
+  const flushVisibleReads = useCallback(() => {
+    const ids = visibleIdsRef.current;
+    if (ids.size === 0) return;
+    const targets = notificationsRef.current.filter(
+      (n) => !n.read && ids.has(n.id) && !manualOverrideRef.current.has(n.id)
+    );
+    if (targets.length === 0) return;
+    for (const t of targets) {
+      void setNotificationRead(t.id, true).catch(() => {});
+    }
+    setNotifications((prev) =>
+      prev.map((n) =>
+        !n.read && ids.has(n.id) && !manualOverrideRef.current.has(n.id)
+          ? { ...n, read: true }
+          : n
+      )
+    );
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      // Leaving the screen counts as done viewing — flush what was seen.
+      // App backgrounding flushes too: rows on screen were seen, and this
+      // keeps Home's unread badge honest without waiting for a tap.
+      const appStateSub = AppState.addEventListener('change', (state) => {
+        if (state !== 'active') flushVisibleReads();
+      });
+      return () => {
+        flushVisibleReads();
+        appStateSub.remove();
+      };
+    }, [flushVisibleReads])
+  );
+
   /** Toggle one row's read state (right-swipe action); optimistic update. */
   const handleToggleRead = useCallback((notification: AppNotification) => {
+    // Explicit user intent — read-on-view must never auto-mark it again.
+    manualOverrideRef.current.add(notification.id);
     const next = !notification.read;
     setNotifications((prev) =>
       prev.map((n) => (n.id === notification.id ? { ...n, read: next } : n))
@@ -247,7 +322,10 @@ export default function NotificationsScreen() {
     if (!notification.read) {
       void setNotificationRead(notification.id, true).catch(() => {});
     }
-    routeNotification(notification);
+    // Shared router (also used by push taps) — same payload, same destination.
+    routeNotification(notification, (route, params) =>
+      navigation.navigate(route as any, params as any)
+    );
   };
 
   /**
@@ -278,54 +356,6 @@ export default function NotificationsScreen() {
     });
   }, []);
 
-  /**
-   * Mirrors AppNavigator's push-tap routing so in-app taps behave the same.
-   * Kept local (rather than shared) because the navigator version also
-   * handles queued cold-start taps and marking push copies read.
-   */
-  const routeNotification = (notification: AppNotification) => {
-    const data = notification.data ?? {};
-    switch (data.type) {
-      case 'user_review': {
-        if (data.revieweeId) {
-          navigation.navigate('WriteUserReview', {
-            revieweeId: data.revieweeId,
-            revieweeName: data.revieweeName,
-            tourId: data.tourId,
-            propertyId: data.propertyId,
-          });
-          return;
-        }
-        break;
-      }
-      case 'new_listing': {
-        if (data.savedSearchId) {
-          navigation.navigate('SavedSearches', { savedSearchId: data.savedSearchId });
-          return;
-        }
-        break;
-      }
-      case 'price_drop':
-      case 'favorite': {
-        if (data.propertyId) {
-          navigation.navigate('PropertyDetail', { propertyId: data.propertyId });
-          return;
-        }
-        break;
-      }
-      case 'message':
-        navigation.navigate('Conversations');
-        return;
-      default:
-        break;
-    }
-    // No specific destination — Tours/tour prompts are the common system case.
-    if (data.type === 'tour' || data.tourId) {
-      navigation.navigate('Tours');
-      return;
-    }
-    navigation.navigate('MainTabs');
-  };
 
   /** Revealed by the pull-to-mark-all strip (left actions of the Swipeable). */
   const renderPullActions = () => (
@@ -364,6 +394,8 @@ export default function NotificationsScreen() {
         onToggleRead={() => handleToggleRead(notification)}
         isRead={notification.read}
       >
+        {/* Mount = row is visible; unmount (recycled) = flush its read. */}
+        <ViewTracker id={notification.id} visibleIdsRef={visibleIdsRef} />
         <TouchableOpacity
           onPress={() => handlePress(notification)}
           style={[

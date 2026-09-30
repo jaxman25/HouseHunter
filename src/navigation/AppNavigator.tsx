@@ -7,6 +7,7 @@ import { useAuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { RootStackParamList } from '../types';
 import { parseDeepLink, handleDeepLink } from '../utils/deepLinking';
+import { routeNotificationData } from '../utils/notificationRouting';
 import {
   addNotificationResponseListener,
   markNotificationAsRead,
@@ -183,8 +184,6 @@ export default function AppNavigator() {
    */
   const handleNotificationTap = useCallback(
     (data: Record<string, string>) => {
-      const type = data.type;
-
       // Mark as read (fire-and-forget, idempotent).
       const notificationIds = data.notificationIds
         ? data.notificationIds.split(',').filter(Boolean)
@@ -200,46 +199,12 @@ export default function AppNavigator() {
         return;
       }
 
-      switch (type) {
-        case 'new_listing': {
-          const savedSearchId = data.savedSearchId;
-          if (savedSearchId) {
-            nav.navigate('SavedSearches' as any, { savedSearchId } as any);
-          } else {
-            nav.navigate('MainTabs' as any, undefined as any);
-          }
-          break;
-        }
-        case 'message':
-          // No conversation ID in push payload — navigate to Conversations list.
-          nav.navigate('Conversations' as any, undefined as any);
-          break;
-        case 'user_review': {
-          // Reputation prompt: open the peer review form for the other party.
-          const revieweeId = data.revieweeId;
-          if (revieweeId) {
-            nav.navigate('WriteUserReview' as any, {
-              revieweeId,
-              revieweeName: data.revieweeName,
-              tourId: data.tourId,
-              propertyId: data.propertyId,
-            } as any);
-          } else {
-            nav.navigate('MainTabs' as any, undefined as any);
-          }
-          break;
-        }
-        case 'inquiry':
-          // No property ID in generic inquiry push — navigate to Home.
-          nav.navigate('MainTabs' as any, undefined as any);
-          break;
-        case 'price_drop':
-        case 'favorite':
-        case 'system':
-        default:
-          nav.navigate('MainTabs' as any, undefined as any);
-          break;
-      }
+      // Shared destination table (utils/notificationRouting) — the same
+      // routing the in-app notifications list uses, so a push and its
+      // in-app counterpart always land in the same place.
+      routeNotificationData(data, (route, params) => {
+        nav.navigate(route as any, params as any);
+      });
     },
     []
   );

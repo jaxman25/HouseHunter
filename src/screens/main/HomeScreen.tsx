@@ -26,7 +26,7 @@ import EmptyState from '../../components/common/EmptyState';
 import YourActivitySection from '../../components/home/YourActivitySection';
 import SavedSearchChips from '../../components/search/SavedSearchChips';
 import { getProperties } from '../../services/propertyService';
-import { subscribeToNotifications } from '../../services/notificationService';
+import { useUnreadNotifications } from '../../hooks/useUnreadNotifications';
 import { useResponsive } from '../../hooks/useResponsive';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -108,17 +108,10 @@ export default function HomeScreen() {
     void run();
   }, [loadProperties]);
 
-  // Unread badge for the header bell — live subscription so the count drops
-  // as notifications are read (or new ones arrive) without a refetch.
+  // Unread badge for the header bell — shared hook (foreground-gated
+  // subscription) so every entry-point badge counts identically.
   const uid = user?.uid;
-  const [unreadCount, setUnreadCount] = useState(0);
-  useEffect(() => {
-    if (!uid) return;
-    const unsubscribe = subscribeToNotifications(uid, (items) => {
-      setUnreadCount(items.filter((n) => !n.read).length);
-    });
-    return unsubscribe;
-  }, [uid]);
+  const unreadCount = useUnreadNotifications(uid);
 
   const onRefresh = () => {
     setRefreshing(true);

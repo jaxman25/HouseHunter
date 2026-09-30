@@ -14,10 +14,10 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuthContext } from '../../context/AuthContext';
+import { useUnreadNotifications } from '../../hooks/useUnreadNotifications';
 import { RootStackParamList } from '../../types';
 import { checkFirebaseHealth, HealthStatus } from '../../utils/network/healthCheck';
 import { firestoreCircuitBreaker } from '../../utils/network/circuitBreaker';
-import { ThemeMode } from '../../types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -30,13 +30,16 @@ interface SettingItem {
   onToggle?: (val: boolean) => void;
   onPress?: () => void;
   color?: string;
+  /** Optional unread count pill (notifications row). */
+  badge?: number;
 }
 
 export default function SettingsScreen() {
   const { colors, fontSize, spacing, radius } = useTheme();
-  const { logout } = useAuthContext();
+  const { logout, user } = useAuthContext();
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
+  const unreadCount = useUnreadNotifications(user?.uid);
 
   const [showOnlineStatus, setShowOnlineStatus] = useState(true);
   const [health, setHealth] = useState<HealthStatus | null>(null);
@@ -84,6 +87,7 @@ export default function SettingsScreen() {
           subtitle: 'Manage notification preferences',
           type: 'link' as const,
           onPress: () => navigation.navigate('NotificationPreferences'),
+          badge: unreadCount,
         },
       ],
     },
@@ -327,6 +331,18 @@ export default function SettingsScreen() {
                         thumbColor={settingItem.value ? colors.primary : colors.gray400}
                       />
                     )}
+                    {settingItem.badge != null && settingItem.badge > 0 && (
+                      <View
+                        style={[
+                          styles.rowBadge,
+                          { backgroundColor: colors.error, borderRadius: radius.round },
+                        ]}
+                      >
+                        <Text style={{ color: colors.white, fontSize: 10, fontWeight: '800' }}>
+                          {settingItem.badge > 9 ? '9+' : settingItem.badge}
+                        </Text>
+                      </View>
+                    )}
                     {settingItem.type === 'link' && (
                       <MaterialCommunityIcons name="chevron-right" size={20} color={colors.gray400} />
                     )}
@@ -355,5 +371,13 @@ const styles = StyleSheet.create({
   settingItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16 },
   settingIcon: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   settingContent: { flex: 1 },
+  rowBadge: {
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
+  },
   version: { textAlign: 'center', marginTop: 30, marginBottom: 20 },
 });
