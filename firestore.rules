@@ -371,7 +371,8 @@ service cloud.firestore {
           'userId', 'title', 'body', 'type', 'data', 'read', 'createdAt'
         ]) &&
         request.resource.data.type in [
-          'message', 'inquiry', 'price_drop', 'new_listing', 'favorite', 'system'
+          'message', 'inquiry', 'price_drop', 'new_listing', 'favorite',
+          'tour_approved', 'system'
         ];
 
       // Users can only update their own notifications (mark as read)
