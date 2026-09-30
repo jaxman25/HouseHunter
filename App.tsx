@@ -1,5 +1,5 @@
 import React from 'react';
-import { StatusBar, LogBox, Appearance } from 'react-native';
+import { StatusBar, LogBox } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider } from './src/context/AuthContext';
@@ -11,6 +11,7 @@ import ErrorBoundary from './src/utils/errors/ErrorBoundary';
 import CookieConsentBanner from './src/components/common/CookieConsentBanner';
 import NoticeBanner from './src/components/common/NoticeBanner';
 import ToastHost from './src/components/common/ToastHost';
+import AppIconBadgeSync from './src/components/common/AppIconBadgeSync';
 import WebFrame from './src/components/common/WebFrame';
 import { initSentry } from './src/utils/monitoring/sentry';
 import { validateEnv } from './src/utils/env';
@@ -30,6 +31,8 @@ function AppContent() {
         backgroundColor={colors.background}
       />
       <AppNavigator />
+      {/* Keeps the home-screen icon badge in sync with unread notifications. */}
+      <AppIconBadgeSync />
       <CookieConsentBanner />
       <NoticeBanner />
       <ToastHost />

@@ -157,7 +157,7 @@ export interface AppNotification {
   userId: string;
   title: string;
   body: string;
-  type: 'message' | 'inquiry' | 'price_drop' | 'new_listing' | 'favorite' | 'system';
+  type: 'message' | 'inquiry' | 'price_drop' | 'new_listing' | 'favorite' | 'system' | 'tour_approved';
   data: Record<string, string>;
   read: boolean;
   createdAt: string;

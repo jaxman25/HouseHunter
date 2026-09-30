@@ -50,6 +50,16 @@ export function routeNotificationData(
       }
       break;
     }
+    case 'tour_approved':
+    case 'tour': {
+      // Tour updates: approved requests go STRAIGHT to that tour's details;
+      // other tour pings land on the tours list (tourId optional).
+      if (payload.tourId) {
+        navigate('TourDetails', { tourId: payload.tourId });
+        return 'TourDetails';
+      }
+      break;
+    }
     case 'message':
       // No conversation ID in the payload — open the conversations list.
       navigate('Conversations');
@@ -57,8 +67,9 @@ export function routeNotificationData(
     default:
       break;
   }
-  // No specific destination — Tours/tour prompts are the common system case.
-  if (payload.type === 'tour' || payload.tourId) {
+  // No specific destination — land on the tours list for anything tour-ish
+  // without a tourId, else the main tabs.
+  if (payload.type === 'tour' || payload.type === 'tour_approved' || payload.tourId) {
     navigate('Tours');
     return 'Tours';
   }

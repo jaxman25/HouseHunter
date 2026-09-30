@@ -47,6 +47,7 @@ const TYPE_META: Record<
   price_drop: { icon: 'trending-down', tint: 'success', label: 'Price drops' },
   new_listing: { icon: 'home-plus-outline', tint: 'primary', label: 'New listings' },
   favorite: { icon: 'heart-outline', tint: 'error', label: 'Favorites' },
+  tour_approved: { icon: 'calendar-check', tint: 'success', label: 'Tour approvals' },
   system: { icon: 'bell-outline', tint: 'warning', label: 'System' },
 };
 
@@ -59,6 +60,7 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'price_drop', label: 'Price drops' },
   { key: 'new_listing', label: 'New listings' },
   { key: 'favorite', label: 'Favorites' },
+  { key: 'tour_approved', label: 'Tour approvals' },
   { key: 'system', label: 'System' },
 ];
 
