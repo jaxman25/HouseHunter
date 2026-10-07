@@ -9,6 +9,12 @@ export const CONSENT_STORAGE_KEY = '@househunter/cookie_consent';
 export const NOTICE_DISMISSED_KEY = '@househunter/notice_dismissed_v';
 /** Firestore path of the app-notice banner config (rules: public read, console/Admin write). */
 export const APP_NOTICE_CONFIG_PATH = 'config/app_notice';
+/**
+ * Platform metrics doc maintained by Cloud Function triggers
+ * (functions/src/platformMetrics.ts; rules: admin read, no client write).
+ * Replaces the client-side `getCountFromServer` aggregation queries.
+ */
+export const PLATFORM_METRICS_PATH = 'config/metrics';
 // Empty by design: avatars/property images fall back to local initials or a
 // themed placeholder — we do not hot-link third-party image services.
 export const DEFAULT_AVATAR = '';
@@ -34,6 +40,11 @@ export const ADMIN_ANNOUNCEMENTS_COLLECTION = 'admin_announcements';
 export const ADMIN_AUDIT_COLLECTION = 'admin_auditLog';
 
 export const PRICE_HISTORY_SUBCOLLECTION = 'priceHistory';
+/**
+ * Per-view counting events (`{uid}_{yyyy-mm-dd}` doc ids, create-only —
+ * see firestore.rules and functions/src/viewEvents.ts).
+ */
+export const VIEW_EVENTS_SUBCOLLECTION = 'viewEvents';
 export const REVIEWS_COLLECTION = 'reviews';
 export const TOURS_COLLECTION = 'tours';
 export const TOUR_AVAILABILITY_COLLECTION = 'tourAvailability';
@@ -74,3 +85,6 @@ export const RENT_RANGES = [
   { label: '$3,000 - $5,000/mo', min: 3000, max: 5000 },
   { label: '$5,000+/mo', min: 5000, max: undefined },
 ] as const;
+
+/** App-wide default page size for cursor-paginated lists (usePaginatedQuery). */
+export const PAGE_SIZE_DEFAULT = 20;

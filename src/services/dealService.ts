@@ -14,6 +14,7 @@ import {
   query,
   where,
   orderBy,
+  limit,
   serverTimestamp,
   DocumentData,
 } from 'firebase/firestore';
@@ -76,7 +77,11 @@ export async function getAgentDeals(agentId: string): Promise<Deal[]> {
               query(
                 collection(db, DEALS_COLLECTION),
                 where('agentId', '==', agentId),
-                orderBy('closedAt', 'desc')
+                orderBy('closedAt', 'desc'),
+                // Bounded at 200 — dashboard METRICS (commission sums) are
+                // computed over this list, so it must be effectively
+                // complete, not a 20-item page.
+                limit(200)
               ),
               DEALS_COLLECTION
             );

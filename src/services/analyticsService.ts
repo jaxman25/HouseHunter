@@ -3,6 +3,12 @@ import {
   doc,
   query,
   where,
+  orderBy,
+  limit,
+  startAfter,
+  DocumentSnapshot,
+  DocumentData,
+  QuerySnapshot,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { UserAnalytics, PlatformAnalytics, Achievement } from '../types';
@@ -17,6 +23,76 @@ import { firestoreCircuitBreaker } from '../utils/network/circuitBreaker';
 import { withRetry } from '../utils/network/retry';
 import { withTimeout, DEFAULT_TIMEOUT_MS } from '../utils/network/timeout';
 import { trackedGetDoc, trackedGetDocs } from '../utils/firestore/tracked';
+
+const ANALYTICS_PAGE_SIZE = 500;
+
+/**
+ * Count docs matching a per-user filter with a BOUNDED read (≤3 × 100 docs,
+ * no aggregation query). These are the signed-in user's own activity
+ * collections (reviews written, tours booked) — small by nature, and the
+ * same screen already bulk-reads every listing — so a bounded eventually-
+ * exact read replaces the old client-side `getCountFromServer` aggregation.
+ */
+async function countDocs(
+  collectionName: string,
+  field: string,
+  value: string
+): Promise<number> {
+  let total = 0;
+  let cursor: DocumentSnapshot<DocumentData> | null = null;
+  for (let page = 0; page < 3; page++) {
+    const snap = await firestoreCircuitBreaker.execute(() =>
+      withRetry(() =>
+        withTimeout(
+          trackedGetDocs(
+            query(
+              collection(db, collectionName),
+              where(field, '==', value),
+              ...(cursor ? [startAfter(cursor)] : [])
+              , limit(100)
+            ),
+            collectionName
+          ),
+          DEFAULT_TIMEOUT_MS
+        )
+      )
+    );
+    total += snap.size;
+    if (snap.size < 100) break;
+    cursor = snap.docs[snap.docs.length - 1];
+  }
+  return total;
+}
+
+/**
+ * Drain a user-scoped collection in bounded pages (analytics needs totals,
+ * not every doc in memory). Safety valve at 50 pages ≈ 25k docs.
+ */
+async function collectAllPages(
+  collectionName: string,
+  field: string,
+  value: string
+): Promise<DocumentSnapshot<DocumentData>[]> {
+  const all: DocumentSnapshot<DocumentData>[] = [];
+  let cursor: DocumentSnapshot<DocumentData> | null = null;
+  for (let i = 0; i < 50; i++) {
+    const snap: QuerySnapshot<DocumentData> = await trackedGetDocs(
+      query(
+        collection(db, collectionName),
+        where(field, '==', value),
+        orderBy('createdAt', 'asc'),
+        ...(cursor ? [startAfter(cursor)] : []),
+        limit(ANALYTICS_PAGE_SIZE)
+      ),
+      collectionName
+    );
+    if (snap.empty) break;
+    all.push(...snap.docs);
+    if (snap.size < ANALYTICS_PAGE_SIZE) break;
+    cursor = snap.docs[snap.docs.length - 1];
+  }
+  return all;
+}
 
 /** Default achievements. */
 const DEFAULT_ACHIEVEMENTS: Achievement[] = [
@@ -35,39 +111,29 @@ export async function getUserAnalytics(userId: string): Promise<UserAnalytics> {
     withRetry(() => withTimeout(trackedGetDoc(doc(db, USERS_COLLECTION, userId)), DEFAULT_TIMEOUT_MS))
   );
 
-  // Listings
+  // Listings — pages drained in bounded chunks (views/inquiries sums need
+  // the docs; counts alone wouldn't do).
   const listings = await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
-      withTimeout(
-        trackedGetDocs(query(collection(db, PROPERTIES_COLLECTION), where('userId', '==', userId)), PROPERTIES_COLLECTION),
-        DEFAULT_TIMEOUT_MS
-      )
+      withTimeout(collectAllPages(PROPERTIES_COLLECTION, 'userId', userId), DEFAULT_TIMEOUT_MS)
     )
   );
 
-  // Reviews
-  const reviews = await firestoreCircuitBreaker.execute(() =>
-    withRetry(() =>
-      withTimeout(
-        trackedGetDocs(query(collection(db, REVIEWS_COLLECTION), where('buyerId', '==', userId)), REVIEWS_COLLECTION),
-        DEFAULT_TIMEOUT_MS
-      )
-    )
-  );
+  // Reviews + tours — bounded per-user counts (no aggregation queries).
+  const [totalReviews, totalTours] = await Promise.all([
+    countDocs(REVIEWS_COLLECTION, 'buyerId', userId),
+    countDocs(TOURS_COLLECTION, 'buyerId', userId),
+  ]);
 
-  // Tours (as buyer)
-  const buyerTours = await firestoreCircuitBreaker.execute(() =>
-    withRetry(() =>
-      withTimeout(
-        trackedGetDocs(query(collection(db, TOURS_COLLECTION), where('buyerId', '==', userId)), TOURS_COLLECTION),
-        DEFAULT_TIMEOUT_MS
-      )
-    )
+  const totalListings = listings.length;
+  const totalViews = listings.reduce(
+    (sum, d) => sum + ((d.data()?.views as number) || 0),
+    0
   );
-
-  const totalListings = listings.size;
-  const totalViews = listings.docs.reduce((sum, d) => sum + (d.data().views || 0), 0);
-  const totalInquiries = listings.docs.reduce((sum, d) => sum + (d.data().inquiries || 0), 0);
+  const totalInquiries = listings.reduce(
+    (sum, d) => sum + ((d.data()?.inquiries as number) || 0),
+    0
+  );
   const conversionRate = totalViews > 0 ? Math.round((totalInquiries / totalViews) * 100) : 0;
 
   // Daily activity (last 30 days)
@@ -95,16 +161,16 @@ export async function getUserAnalytics(userId: string): Promise<UserAnalytics> {
         unlocked = totalListings >= 5;
         break;
       case 'first_sale':
-        unlocked = listings.docs.some((d) => d.data().status === 'sold');
+        unlocked = listings.some((d) => d.data()?.status === 'sold');
         break;
       case 'reviewer':
-        unlocked = reviews.size >= 1;
+        unlocked = totalReviews >= 1;
         break;
       case 'popular':
         unlocked = totalInquiries >= 10;
         break;
       case 'tour_guide':
-        unlocked = buyerTours.size >= 10;
+        unlocked = totalTours >= 10;
         break;
     }
     return { ...a, unlockedAt: unlocked ? new Date().toISOString() : undefined };
@@ -115,8 +181,8 @@ export async function getUserAnalytics(userId: string): Promise<UserAnalytics> {
     totalListings,
     totalFavorites: userDoc.exists() ? (userDoc.data().favorites?.length || 0) : 0,
     totalMessages: 0,
-    totalTours: buyerTours.size,
-    totalReviews: reviews.size,
+    totalTours,
+    totalReviews,
     totalViews,
     totalInquiries,
     conversionRate,

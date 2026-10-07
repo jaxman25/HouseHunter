@@ -73,8 +73,8 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'title', 'description', 'price', 'listingType', 'propertyType',
         'status', 'address', 'city', 'state', 'zipCode', 'country',
-        'latitude', 'longitude', 'bedrooms', 'bathrooms', 'area',
-        'areaUnit', 'yearBuilt', 'images', 'features', 'amenities',
+        'latitude', 'longitude', 'bedrooms', 'bathrooms', 'area', 'areaUnit',
+        'yearBuilt', 'images', 'features', 'amenities',
         'views', 'inquiries', 'version', 'soldDate', 'pendingDate',
         'contactEnabled', 'archived', 'archivedAt', 'archiveReason',
         // Video walkthrough (owner-managed, one per listing, Size/URL
@@ -183,8 +183,6 @@ service cloud.firestore {
       // (src/utils/firestore/readBudget.ts). Shape-locked so the doc can't
       // be repurposed as arbitrary storage; the read cap is enforced HERE
       // so a compromised client can't write itself past the budget.
-      // `minute`/`readsResetAt` remain client-supplied until server-time
-      // binding lands; the write budget stays cooperative (header note).
       allow read: if isOwner(userId) || isAdmin();
       allow create, update: if isOwner(userId) && countersWriteIsValid();
       allow delete: if false;
@@ -258,6 +256,29 @@ service cloud.firestore {
             'updatedAt'
           ]);
       }
+
+      // ─── Per-user stats (precomputed nightly + incremental on writes) ───
+      match /stats/{role} {
+        // Client READ: authenticated users may read their own (and any)
+        // stats doc — the dashboard screens do exactly one read each.
+        allow read: if isAuthenticated();
+
+        // Client WRITE: denied. Only Cloud Functions (nightly summary job
+        // `updateUserStats`, and the incremental `onPropertyUpdate`/
+        // `onDealUpdate` triggers) may write `users/{uid}/stats/*`.
+        allow write: if false;
+      }
+
+      // ─── Chat activity meta (Cloud-Function-only) ───
+      // `users/{uid}/meta/chat` = { lastMessageAt, unreadCount } — the
+      // conversations list's single-doc change signal (1 read per change
+      // instead of a per-conversation listener). Written ONLY by the
+      // platformChat triggers (Admin SDK bypasses rules); the owner reads
+      // it via chatService.subscribeToChatMeta, no client may write it.
+      match /meta/{metaId} {
+        allow read: if isOwner(userId);
+        allow write: if false;
+      }
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -316,6 +337,43 @@ service cloud.firestore {
         allow update, delete: if false;
       }
 
+      // ─── View Events Subcollection (server-side view counting) ───
+      // Each counted view is a create-only document
+      // `properties/{propertyId}/viewEvents/{uid}_{yyyy-mm-dd}` (UTC day;
+      // written by `recordViewEvent` in src/services/propertyService.ts).
+      // The doc-id IS the rate-limit guard: `{uid}` pins the event to its
+      // author and `{yyyy-mm-dd}` collapses a whole day into a single id, so
+      // create-only semantics cap a user at ONE event per property per UTC
+      // day. The `countViewEvent` trigger (functions/src/viewEvents.ts)
+      // re-validates the id against the event's own timestamp (rules cannot
+      // format `request.time` as a date string), then bumps the parent's
+      // `views` by exactly +1 — clients never write `views` for counting.
+      match /viewEvents/{eventId} {
+        // Reads are need-to-know: the listing owner (audience data), the
+        // viewer themself, or an admin — viewer identity is personal data,
+        // so this is never a general authenticated read.
+        allow read: if isPropertyOwner(propertyId)
+          || isAdmin()
+          || (isAuthenticated() && resource.data.userId == request.auth.uid);
+
+        // Shape-locked create: the id must be exactly `{auth.uid}_{yyyy-mm-dd}`
+        // — `split()` pins the prefix to the caller WITHOUT interpolating the
+        // uid into a regex (uids containing `_` fail closed and simply don't
+        // count) — and the payload holds only the attribution field the
+        // trigger cross-checks. No update/delete: the unique id plus
+        // create-only access is what makes the rate limit unbreakable.
+        function viewEventIsValid() {
+          let parts = eventId.split('_');
+          return parts.size() == 2
+            && parts[0] == request.auth.uid
+            && parts[1].matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+            && request.resource.data.keys().hasOnly(['userId'])
+            && request.resource.data.userId == request.auth.uid;
+        }
+        allow create: if isAuthenticated() && viewEventIsValid();
+        allow update, delete: if false;
+      }
+
       // ─── Messages Subcollection (under properties for direct messaging) ───
       match /messages/{messageId} {
         allow read, write: if false; // Messages are in conversations subcollection
@@ -353,6 +411,25 @@ service cloud.firestore {
 
       // No one should delete conversations directly
       allow delete: if false;
+
+      // ─── Read receipts (batched — replaces per-message `read` writes) ───
+      // Each participant records ONLY their own receipt:
+      // `conversations/{id}/reads/{uid}` = { lastReadAt } (server time),
+      // throttled client-side to ≤1 write / 5s (chatService
+      // .recordReadReceipt). The platformChatOnRead trigger resets this
+      // conversation's unread badge for that reader. Shape-locked so the
+      // doc can't be repurposed, and pinned to auth.uid so nobody can forge
+      // another reader's "I've read this" state.
+      match /reads/{readerId} {
+        allow read: if isAuthenticated() &&
+          isParticipant(get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants);
+        allow create, update: if isAuthenticated() &&
+          request.auth.uid == readerId &&
+          isParticipant(get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants) &&
+          request.resource.data.keys().hasOnly(['lastReadAt']) &&
+          request.resource.data.lastReadAt == request.time;
+        allow delete: if false;
+      }
 
       // ─── Messages Subcollection ───
       match /messages/{messageId} {
@@ -447,8 +524,11 @@ service cloud.firestore {
     // Writes happen only through the Firebase console / Admin SDK, never
     // from clients, so rules deny all client writes.
     match /config/{docId} {
-      allow read: if true;
-      allow write: if false;
+      // `metrics` (platform totals maintained by the platformMetrics Cloud
+      // Function triggers) is admin-only: aggregate user/listing/report
+      // counts are not public data. Everything else stays public.
+      allow read: if docId != 'metrics' || isAdmin();
+      allow write: if false; // Cloud Functions (Admin SDK) / console only
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -659,9 +739,9 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // ═══════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════
     // TOURS COLLECTION
-    // ═══════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════
     match /tours/{tourId} {
       // Only buyer and seller involved can read tours
       allow read: if isAuthenticated() &&
@@ -691,9 +771,9 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ═══════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════
     // TOUR AVAILABILITY COLLECTION
-    // ═══════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════
     match /tourAvailability/{sellerId} {
       // Anyone authenticated can read availability
       allow read: if isAuthenticated();
@@ -704,9 +784,9 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ═══════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════
     // NEIGHBORHOOD DATA COLLECTION
-    // ═══════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════
     // Two kinds of docs live here:
     //  - Rich neighborhood profiles keyed city_state_zip: written only by
     //    Cloud Functions/Admin (weekly scheduled job) — admin-write.
@@ -737,9 +817,9 @@ service cloud.firestore {
       );
     }
 
-    // ═══════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════
     // EXPORTS COLLECTION (GDPR data export)
-    // ═══════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════
     match /exports/{exportId} {
       // Users can only read their own exports
       allow read: if isAuthenticated() &&
@@ -760,17 +840,17 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ═══════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════
     // ANALYTICS COLLECTION (admin dashboard metrics)
-    // ═══════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════
     match /analytics/{date} {
       // Admins can read/write analytics
       allow read, write: if isAdmin();
     }
 
-    // ═══════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════
     // DEFAULT: DENY ALL OTHER PATHS
-    // ═══════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════
     match /{document=**} {
       allow read, write: if false;
     }

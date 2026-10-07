@@ -63,7 +63,7 @@ export default function UserReviewsScreen() {
             text: 'Delete',
             style: 'destructive',
             onPress: () => {
-              void deleteUserReview(review.id)
+              void deleteUserReview(review.id, review.revieweeId)
                 .then(() => void load())
                 .catch(() => Alert.alert('Error', 'Failed to delete review'));
             },

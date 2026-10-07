@@ -20,10 +20,19 @@ import ChatInput from '../../components/chat/ChatInput';
 import Avatar from '../../components/common/Avatar';
 import {
   subscribeToMessages,
+  subscribeToReadReceipt,
+  getMessagesPage,
   sendMessage,
   uploadChatImage,
-  markAsRead,
+  recordReadReceipt,
+  MESSAGE_WINDOW,
 } from '../../services/chatService';
+import {
+  appendOlder,
+  droppedFromWindow,
+  mergeMessages,
+} from '../../services/messagePagination';
+import type { DocumentSnapshot, DocumentData } from 'firebase/firestore';
 import ReportUserModal from '../../components/moderation/ReportUserModal';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -39,33 +48,125 @@ export default function ChatScreen() {
 
   const { conversationId, recipientId, recipientName } = route.params;
 
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [liveWindow, setLiveWindow] = useState<Message[]>([]);
+  const [older, setOlder] = useState<Message[]>([]);
+  const [cursor, setCursor] = useState<DocumentSnapshot<DocumentData> | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [otherLastReadAt, setOtherLastReadAt] = useState(0);
   const [menuVisible, setMenuVisible] = useState(false);
   const [showReportUser, setShowReportUser] = useState(false);
   const [sending, setSending] = useState(false);
+
+  // Reset thread state when the route switches to a different conversation.
+  // Render-time reset (guarded prev-value compare) — the documented pattern;
+  // calling these setStates inside the subscription effect trips
+  // react-hooks/set-state-in-effect.
+  const [prevConversationId, setPrevConversationId] = useState(conversationId);
+  if (prevConversationId !== conversationId) {
+    setPrevConversationId(conversationId);
+    setLiveWindow([]);
+    setOlder([]);
+    setCursor(null);
+    setHasMore(true);
+    setOtherLastReadAt(0);
+  }
+
+  // Previous live window — detects messages that slid out of the top-30
+  // window as it moves up, so they get absorbed into `older` (no holes).
+  const prevWindowRef = useRef<Message[]>([]);
+  // Only start loading older history once the user has actually scrolled
+  // (contentOffset starts at 0 and must not auto-fetch on mount).
+  const scrolledRef = useRef(false);
 
   useEffect(() => {
     const uid = user?.uid;
     if (!uid) return;
 
-    // Mark messages as read
-    markAsRead(conversationId, uid);
+    // Reset window bookkeeping for the (possibly new) thread; the state
+    // itself is reset at render time above.
+    prevWindowRef.current = [];
+    scrolledRef.current = false;
 
-    const unsubscribe = subscribeToMessages(conversationId, (data) => {
-      setMessages(data);
+    // Batched receipt (≤1 write / 5s): open + arrival-driven, see effects.
+    void recordReadReceipt(conversationId, uid);
+
+    // Live window: newest 30 messages + the cursor for older pages.
+    const unsubscribe = subscribeToMessages(conversationId, (windowMessages, oldestSnap) => {
+      const dropped = droppedFromWindow(prevWindowRef.current, windowMessages);
+      prevWindowRef.current = windowMessages;
+      if (dropped.length > 0) setOlder((o) => appendOlder(o, dropped));
+      setLiveWindow(windowMessages);
+      setCursor((c) => c ?? oldestSnap);
     });
 
-    return () => unsubscribe();
-  }, [conversationId, user?.uid]);
+    // The other participant's receipt — drives live read checkmarks (1 read
+    // per change, one doc) instead of per-message `read` writes.
+    const unsubscribeReceipt = recipientId
+      ? subscribeToReadReceipt(conversationId, recipientId, setOtherLastReadAt)
+      : () => {};
+
+    return () => {
+      unsubscribe();
+      unsubscribeReceipt();
+    };
+  }, [conversationId, user?.uid, recipientId]);
+
+  // Merge both slices: deduped, gapless, ascending (pure helper — unit-tested).
+  const messages = React.useMemo(
+    () => mergeMessages(older, liveWindow),
+    [older, liveWindow]
+  );
+
+  // Rendered thread: own messages flip to "read" once the OTHER participant's
+  // batched lastReadAt covers their createdAt (legacy stored `read` kept as-is).
+  const displayMessages = React.useMemo(() => {
+    if (!user || otherLastReadAt <= 0) return messages;
+    return messages.map((m) =>
+      m.senderId === user.uid && !m.read && Date.parse(m.createdAt) <= otherLastReadAt
+        ? { ...m, read: true }
+        : m
+    );
+  }, [messages, otherLastReadAt, user]);
+
+  const newestId = displayMessages.length > 0
+    ? displayMessages[displayMessages.length - 1].id
+    : '';
+
+  // Load older history on scroll-up (30 at a time) — gated on first scroll,
+  // in-flight, and hasMore so a short page ends pagination.
+  const loadOlder = React.useCallback(async () => {
+    if (loadingOlder || !hasMore || !cursor) return;
+    setLoadingOlder(true);
+    try {
+      const page = await getMessagesPage(conversationId, cursor, MESSAGE_WINDOW);
+      setOlder((o) => appendOlder(o, page.items));
+      setCursor(page.cursor ?? cursor);
+      setHasMore(page.hasMore);
+    } catch (error) {
+      console.warn('Failed to load older messages:', error);
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [conversationId, cursor, hasMore, loadingOlder]);
+
+  // Receipt on open + whenever the newest message changes (throttled to at
+  // most one write per 5s inside recordReadReceipt).
+  useEffect(() => {
+    const uid = user?.uid;
+    if (!uid || !newestId) return;
+    void recordReadReceipt(conversationId, uid);
+  }, [newestId, conversationId, user?.uid]);
 
   useEffect(() => {
-    // Scroll to bottom when new messages arrive
-    if (messages.length > 0) {
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
-    }
-  }, [messages.length]);
+    // Scroll to bottom only when the NEWEST message changes (first load or a
+    // fresh arrival) — never when older history is prepended above.
+    if (!newestId) return;
+    const timer = setTimeout(() => {
+      flatListRef.current?.scrollToEnd({ animated: false });
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [newestId]);
 
   const handleSend = async (text: string) => {
     if (!user) return;
@@ -172,10 +273,10 @@ export default function ChatScreen() {
         reportedUserName={recipientName}
       />
 
-      {/* Messages */}
+      {/* Messages — live window (newest 30) + older pages on scroll-up */}
       <FlatList
         ref={flatListRef}
-        data={messages}
+        data={displayMessages}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <MessageBubble message={item} isOwn={item.senderId === user?.uid} />
@@ -185,7 +286,17 @@ export default function ChatScreen() {
           { paddingTop: spacing.md, paddingBottom: spacing.sm },
         ]}
         showsVerticalScrollIndicator={false}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+        // Keeps the viewport anchored when older pages are prepended above.
+        maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+        onScroll={(event) => {
+          const y = event.nativeEvent.contentOffset.y;
+          if (!scrolledRef.current) {
+            if (y > 20) scrolledRef.current = true;
+            else return; // never auto-fetch older history before user scrolls
+          }
+          if (y < 150 && hasMore && !loadingOlder) void loadOlder();
+        }}
+        scrollEventThrottle={16}
       />
 
       {/* Chat Input */}

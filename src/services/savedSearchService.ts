@@ -20,6 +20,7 @@ import { Property, PropertyFilter, SavedSearch, SavedSearchFilters } from '../ty
 import { SAVED_SEARCHES_COLLECTION, MAX_SAVED_SEARCHES } from '../utils/constants';
 import { getProperties } from './propertyService';
 import { sanitize } from '../utils/security/sanitize';
+import { cachedRead, buildCacheKey, CACHE_TTLS } from '../utils/cache/cacheService';
 
 /**
  * Saved searches: filter criteria a user stores under `users/{uid}/savedSearches`
@@ -66,16 +67,29 @@ export type SavedSearchInput = Pick<
   'name' | 'filters' | 'notificationFrequency'
 >;
 
+/**
+ * Saved searches via the cache layer (60s TTL, tagged per user) — repeat
+ * mounts of SavedSearchesScreen within a minute read zero Firestore docs;
+ * mutations bypass/invalidate via invalidateSavedSearchesTags.
+ */
 export async function getSavedSearches(userId: string): Promise<SavedSearch[]> {
-  const q = query(
-    savedSearchesRef(userId),
-    orderBy('updatedAt', 'desc'),
-    limit(MAX_SAVED_SEARCHES)
+  const result = await cachedRead(
+    buildCacheKey('savedSearches', userId),
+    CACHE_TTLS.savedSearches,
+    async () => {
+      const q = query(
+        savedSearchesRef(userId),
+        orderBy('updatedAt', 'desc'),
+        limit(MAX_SAVED_SEARCHES)
+      );
+      const snap = await trackedGetDocs(q, SAVED_SEARCHES_COLLECTION);
+      const searches: SavedSearch[] = [];
+      snap.forEach((docSnap) => searches.push(toSavedSearch(docSnap)));
+      return searches;
+    },
+    { tags: [`savedSearches:${userId}`] }
   );
-  const snap = await trackedGetDocs(q, SAVED_SEARCHES_COLLECTION);
-  const searches: SavedSearch[] = [];
-  snap.forEach((docSnap) => searches.push(toSavedSearch(docSnap)));
-  return searches;
+  return result.data;
 }
 
 export async function getSavedSearch(
@@ -117,6 +131,8 @@ export async function createSavedSearch(
     updatedAt: now,
   });
   const created = await trackedGetDoc(ref);
+  const { invalidateSavedSearchesTags } = await import('../utils/cache/cacheInvalidation');
+  await invalidateSavedSearchesTags(userId);
   return toSavedSearch(created);
 }
 
@@ -131,6 +147,8 @@ export async function updateSavedSearch(
     throw new Error('Unauthorized: you can only update your own saved searches');
   }
   await trackedUpdateDoc(searchRef(userId, searchId), { ...data, updatedAt: serverTimestamp() });
+  const { invalidateSavedSearchesTags } = await import('../utils/cache/cacheInvalidation');
+  await invalidateSavedSearchesTags(userId);
 }
 
 export async function deleteSavedSearch(
@@ -143,6 +161,8 @@ export async function deleteSavedSearch(
     throw new Error('Unauthorized: you can only delete your own saved searches');
   }
   await trackedDeleteDoc(searchRef(userId, searchId));
+  const { invalidateSavedSearchesTags } = await import('../utils/cache/cacheInvalidation');
+  await invalidateSavedSearchesTags(userId);
 }
 
 export async function toggleSavedSearchActive(
@@ -159,6 +179,8 @@ export async function toggleSavedSearchActive(
     isActive,
     updatedAt: serverTimestamp(),
   });
+  const { invalidateSavedSearchesTags } = await import('../utils/cache/cacheInvalidation');
+  await invalidateSavedSearchesTags(userId);
 }
 
 /** Map a saved search's filters onto the browse query shape. */
@@ -258,5 +280,7 @@ export async function runSavedSearch(
     lastRunAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+  const { invalidateSavedSearchesTags } = await import('../utils/cache/cacheInvalidation');
+  await invalidateSavedSearchesTags(userId);
   return matches;
 }

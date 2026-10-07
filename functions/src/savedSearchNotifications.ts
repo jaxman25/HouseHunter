@@ -7,11 +7,13 @@
  *
  *   1. Check cadence (lastRunAt older than 20 h for daily, 6 d for weekly).
  *   2. Execute the saved search's stored filters against `properties`.
- *   3. Exclude listings created before lastRunAt (only NEW matches).
+ *   3. Split matches: TOTAL matches (all current listings matching the
+ *      filters) are persisted on the doc as `matchCount`; matches created
+ *      after lastRunAt drive the notification (only NEW matches notify).
  *   4. Write one notification doc per saved search per run.
  *   5. Send one aggregated Expo push per user per run (even if multiple
  *      saved searches matched).
- *   6. Update lastRunAt / lastNotifiedAt on the saved search doc.
+ *   6. Update lastRunAt / lastNotifiedAt / matchCount on the saved search doc.
  *
  * Deploy with:  firebase deploy --only functions
  */
@@ -278,11 +280,13 @@ export const runSavedSearches = onSchedule(
 
             const result = await executeSavedSearch(filters as never, since);
 
-            if (result.count === 0) {
-              // No matches — still advance lastRunAt so cadence gates stay fresh.
+            if (result.newCount === 0) {
+              // No NEW matches this run — still advance lastRunAt so cadence
+              // gates stay fresh, and refresh matchCount with the current
+              // TOTAL so the card's "· N matches" badge stays accurate.
               batch.update(searchDoc.ref, {
                 lastRunAt: FieldValue.serverTimestamp(),
-                matchCount: 0,
+                matchCount: result.count,
                 updatedAt: FieldValue.serverTimestamp(),
               });
               batchOps++;
@@ -304,18 +308,18 @@ export const runSavedSearches = onSchedule(
 
             // Write notification doc to top-level notifications collection
             // (matches existing pattern: archive.ts, tours.ts, index.ts).
-            const topIds = result.ids.slice(0, MAX_LISTING_IDS);
+            const topIds = result.newIds.slice(0, MAX_LISTING_IDS);
             const notificationRef = db.collection('notifications').doc();
 
             batch.set(notificationRef, {
               userId: uid,
               title: 'New listings match your search',
-              body: `${result.count} new listing${result.count > 1 ? 's' : ''} match "${searchData.name}"`,
+              body: `${result.newCount} new listing${result.newCount > 1 ? 's' : ''} match "${searchData.name}"`,
               type: 'new_listing',
               data: {
                 savedSearchId: searchDoc.id,
                 savedSearchName: searchData.name,
-                matchCount: String(result.count),
+                matchCount: String(result.newCount),
                 listingIds: topIds.join(','),
               },
               read: false,
@@ -330,7 +334,8 @@ export const runSavedSearches = onSchedule(
               pendingEntry.notificationIds.push(notificationRef.id);
             }
 
-            // Update the saved search doc with run timestamps.
+            // Update the saved search doc: advance run timestamps and store
+            // the TOTAL match count (not the new-only count).
             batch.update(searchDoc.ref, {
               lastRunAt: FieldValue.serverTimestamp(),
               lastNotifiedAt: FieldValue.serverTimestamp(),
@@ -339,7 +344,7 @@ export const runSavedSearches = onSchedule(
             });
             batchOps++;
 
-            userPushMatches.push({ name: searchData.name, count: result.count });
+            userPushMatches.push({ name: searchData.name, count: result.newCount });
           } catch (err) {
             summary.errors++;
             console.error(

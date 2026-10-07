@@ -4,10 +4,9 @@ import { useTheme } from '../../context/ThemeContext';
 import AdminGuard from '../../components/admin/AdminGuard';
 import AdminLayout from '../../components/admin/AdminLayout';
 import MetricCard from '../../components/admin/MetricCard';
-import { getAdminMetrics, AdminMetrics } from '../../services/adminService';
-import { getCountFromServer, collection, query, where, getDocs } from 'firebase/firestore';
+import { getPlatformMetrics, PlatformMetrics } from '../../services/adminService';
+import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../config/firebase';
-import { PROPERTIES_COLLECTION, ADMIN_REPORTS_COLLECTION } from '../../utils/constants';
 import { metricsDocIdFor } from '../../utils/monitoring/firestoreMetrics';
 
 interface FsUsageRow {
@@ -24,7 +23,7 @@ interface BarDatum {
 
 export default function AnalyticsScreen() {
   const { colors, fontSize, spacing, radius, shadow } = useTheme();
-  const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
+  const [metrics, setMetrics] = useState<PlatformMetrics | null>(null);
   const [statusBars, setStatusBars] = useState<BarDatum[]>([]);
   const [reportBars, setReportBars] = useState<BarDatum[]>([]);
   const [fsUsage, setFsUsage] = useState<FsUsageRow[] | null>(null);
@@ -33,27 +32,21 @@ export default function AnalyticsScreen() {
   useEffect(() => {
     const run = async () => {
       try {
-        const [m, active, pending, sold, inactive, repPending, repDismissed, repResolved] = await Promise.all([
-          getAdminMetrics(),
-          getCountFromServer(query(collection(db, PROPERTIES_COLLECTION), where('status', '==', 'active'))),
-          getCountFromServer(query(collection(db, PROPERTIES_COLLECTION), where('status', '==', 'pending'))),
-          getCountFromServer(query(collection(db, PROPERTIES_COLLECTION), where('status', 'in', ['sold', 'rented']))),
-          getCountFromServer(query(collection(db, PROPERTIES_COLLECTION), where('status', '==', 'inactive'))),
-          getCountFromServer(query(collection(db, ADMIN_REPORTS_COLLECTION), where('status', '==', 'pending'))),
-          getCountFromServer(query(collection(db, ADMIN_REPORTS_COLLECTION), where('status', '==', 'dismissed'))),
-          getCountFromServer(query(collection(db, ADMIN_REPORTS_COLLECTION), where('status', '==', 'resolved'))),
-        ]);
-        setMetrics(m);
+        // ONE read of the maintained `config/metrics` doc (kept up to date by
+        // the platformMetrics Cloud Function triggers + nightly reconcile) —
+        // replaces seven client-side `getCountFromServer` aggregations.
+        const p = await getPlatformMetrics();
+        setMetrics(p);
         setStatusBars([
-          { label: 'Active', value: active.data().count, color: colors.success },
-          { label: 'Pending', value: pending.data().count, color: colors.warning },
-          { label: 'Sold/Rented', value: sold.data().count, color: colors.error },
-          { label: 'Inactive', value: inactive.data().count, color: colors.gray500 },
+          { label: 'Active', value: p.propertiesActive, color: colors.success },
+          { label: 'Pending', value: p.propertiesPending, color: colors.warning },
+          { label: 'Sold/Rented', value: p.propertiesSold, color: colors.error },
+          { label: 'Inactive', value: p.propertiesInactive, color: colors.gray500 },
         ]);
         setReportBars([
-          { label: 'Pending', value: repPending.data().count, color: colors.warning },
-          { label: 'Dismissed', value: repDismissed.data().count, color: colors.gray500 },
-          { label: 'Resolved', value: repResolved.data().count, color: colors.success },
+          { label: 'Pending', value: p.reportsPending, color: colors.warning },
+          { label: 'Dismissed', value: p.reportsDismissed, color: colors.gray500 },
+          { label: 'Resolved', value: p.reportsResolved, color: colors.success },
         ]);
       } catch (error) {
         console.error('Analytics load failed:', error);
@@ -103,9 +96,9 @@ export default function AnalyticsScreen() {
       <AdminLayout title="Analytics" active="analytics">
         {metrics ? (
           <View style={styles.metricRow}>
-            <MetricCard icon="account-outline" label="Users" value={metrics.userCount} />
-            <MetricCard icon="home-city-outline" label="Listings" value={metrics.propertyCount} />
-            <MetricCard icon="flag-outline" label="Open reports" value={metrics.pendingReports} />
+            <MetricCard icon="account-outline" label="Users" value={metrics.users} />
+            <MetricCard icon="home-city-outline" label="Listings" value={metrics.properties} />
+            <MetricCard icon="flag-outline" label="Open reports" value={metrics.reportsPending} />
           </View>
         ) : (
           <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>Loading…</Text>

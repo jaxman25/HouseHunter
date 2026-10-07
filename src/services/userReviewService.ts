@@ -17,7 +17,9 @@ import {
   where,
   orderBy,
   limit,
+  startAfter,
   serverTimestamp,
+  DocumentSnapshot,
   DocumentData,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
@@ -27,7 +29,11 @@ import { withRetry } from '../utils/network/retry';
 import { withTimeout, DEFAULT_TIMEOUT_MS } from '../utils/network/timeout';
 import { sanitize } from '../utils/security/sanitize';
 import { trackMetric } from '../utils/monitoring/metrics';
+import { PAGE_SIZE_DEFAULT, USERS_COLLECTION } from '../utils/constants';
+import { cachedRead, buildCacheKey, CACHE_TTLS } from '../utils/cache/cacheService';
+import { invalidateUserTags } from '../utils/cache/cacheInvalidation';
 import {
+  trackedGetDoc,
   trackedGetDocs,
   trackedAddDoc,
   trackedDeleteDoc,
@@ -111,11 +117,16 @@ export async function submitUserReview(review: {
       )
     )
   );
+  // The reviewee's cached rating/agent bundle is now stale — purge by tag.
+  await invalidateUserTags(review.revieweeId).catch(() => {});
   return docRef.id;
 }
 
 /** Reviews written ABOUT a user (their reputation), newest first. */
-export async function getUserReviews(userId: string, maxResults: number = 20): Promise<UserReview[]> {
+export async function getUserReviews(
+  userId: string,
+  maxResults: number = PAGE_SIZE_DEFAULT
+): Promise<UserReview[]> {
   const result = await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
@@ -135,32 +146,108 @@ export async function getUserReviews(userId: string, maxResults: number = 20): P
   return result.docs.map((d) => toUserReview(d.data(), d.id));
 }
 
-/** Avg + count of reviews about a user (for profile screens). */
-export async function getUserRating(userId: string): Promise<UserRatingSummary> {
-  const result = await firestoreCircuitBreaker.execute(() =>
+/**
+ * Avg + count of reviews about a user, CACHED (5-minute agent-profile TTL,
+ * user-tagged) — profile screens re-mount often; within the TTL this is a
+ * zero-read render. The aggregation-optimized read lives in getUserRating.
+ */
+export async function getUserRatingCached(userId: string): Promise<UserRatingSummary> {
+  const result = await cachedRead(
+    buildCacheKey('userReviews', 'rating', userId),
+    CACHE_TTLS.agentProfile,
+    () => getUserRating(userId),
+    { tags: [`user:${userId}`] }
+  );
+  return result.data;
+}
+
+/**
+ * Total reviews about a user, from the trigger-maintained `peerReviewCount`
+ * field on `users/{uid}` (updatePeerReviewStats in functions/src — clients
+ * can read the field but never write it; rules' users allowlist omits it).
+ * One doc read replaces the client-side `getCountFromServer` aggregation.
+ */
+async function getPeerReviewCount(userId: string): Promise<number> {
+  const userSnap = await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
-      withTimeout(
-        trackedGetDocs(
-          query(
-            collection(db, USER_REVIEWS_COLLECTION),
-            where('revieweeId', '==', userId)
-          ),
-          USER_REVIEWS_COLLECTION
-        ),
-        DEFAULT_TIMEOUT_MS
-      )
+      withTimeout(trackedGetDoc(doc(db, USERS_COLLECTION, userId)), DEFAULT_TIMEOUT_MS)
     )
   );
+  const maintained = userSnap.exists()
+    ? (userSnap.data()?.peerReviewCount as unknown)
+    : undefined;
+  if (typeof maintained === 'number' && Number.isFinite(maintained)) {
+    return maintained;
+  }
+  // Legacy fallback: reviews that all predate the trigger (no field written
+  // yet) are counted with a bounded paged read (≤3 × 100 — composite index
+  // userReviews[revieweeId, createdAt]) until the reviewee's next write
+  // materializes the maintained counter.
+  let total = 0;
+  let cursor: DocumentSnapshot<DocumentData> | null = null;
+  for (let page = 0; page < 3; page++) {
+    const snap = await firestoreCircuitBreaker.execute(() =>
+      withRetry(() =>
+        withTimeout(
+          trackedGetDocs(
+            query(
+              collection(db, USER_REVIEWS_COLLECTION),
+              where('revieweeId', '==', userId),
+              orderBy('createdAt', 'desc'),
+              limit(100),
+              ...(cursor ? [startAfter(cursor)] : [])
+            ),
+            USER_REVIEWS_COLLECTION
+          ),
+          DEFAULT_TIMEOUT_MS
+        )
+      )
+    );
+    total += snap.size;
+    if (snap.size < 100) break;
+    cursor = snap.docs[snap.docs.length - 1];
+  }
+  return total;
+}
 
-  const total = result.size;
-  if (total === 0) return { averageRating: 0, totalReviews: 0 };
+/**
+ * Avg + count of reviews about a user (profile screens). The count comes
+ * from the trigger-maintained `peerReviewCount` field (eventually consistent,
+ * no aggregation queries); the average samples the newest 100 reviews —
+ * bounded, and statistically plenty for a 1-decimal average.
+ */
+export async function getUserRating(userId: string): Promise<UserRatingSummary> {
+  const [total, recent] = await Promise.all([
+    getPeerReviewCount(userId),
+    firestoreCircuitBreaker.execute(() =>
+      withRetry(() =>
+        withTimeout(
+          trackedGetDocs(
+            query(
+              collection(db, USER_REVIEWS_COLLECTION),
+              where('revieweeId', '==', userId),
+              orderBy('createdAt', 'desc'),
+              limit(100)
+            ),
+            USER_REVIEWS_COLLECTION
+          ),
+          DEFAULT_TIMEOUT_MS
+        )
+      )
+    ),
+  ]);
+
+  if (total === 0 || recent.empty) return { averageRating: 0, totalReviews: total };
 
   let sum = 0;
-  result.forEach((d) => {
+  recent.forEach((d) => {
     const r = Number(d.data().rating);
     if (r >= 1 && r <= 5) sum += r;
   });
-  return { averageRating: Math.round((sum / total) * 10) / 10, totalReviews: total };
+  return {
+    averageRating: Math.round((sum / recent.size) * 10) / 10,
+    totalReviews: total,
+  };
 }
 
 /** True when this reviewer already reviewed the user (one per pair). */
@@ -188,7 +275,11 @@ export async function hasUserReviewedReviewer(
 }
 
 /** Admin-only deletion path (rules allow deletes for admins only). */
-export async function deleteUserReview(reviewId: string): Promise<void> {
+export async function deleteUserReview(
+  reviewId: string,
+  /** Reviewee's cached rating/agent bundle purged via `user:${uid}` tag. */
+  revieweeId?: string
+): Promise<void> {
   await firestoreCircuitBreaker.execute(() =>
     withRetry(() =>
       withTimeout(
@@ -197,4 +288,37 @@ export async function deleteUserReview(reviewId: string): Promise<void> {
       )
     )
   );
+  if (revieweeId) {
+    await invalidateUserTags(revieweeId).catch(() => {});
+  }
+}
+
+/**
+ * Cursor page over a user's reputation reviews, newest first — paginated
+ * variant for list screens (usePaginatedQuery).
+ */
+export async function getUserReviewsPage(
+  userId: string,
+  cursor: DocumentSnapshot<DocumentData> | null,
+  pageSize: number = PAGE_SIZE_DEFAULT
+): Promise<{ items: UserReview[]; cursor: DocumentSnapshot<DocumentData> | null }> {
+  const q = query(
+    collection(db, USER_REVIEWS_COLLECTION),
+    where('revieweeId', '==', userId),
+    orderBy('createdAt', 'desc'),
+    ...(cursor ? [startAfter(cursor)] : []),
+    limit(pageSize)
+  );
+  const snap = await firestoreCircuitBreaker.execute(() =>
+    withRetry(() =>
+      withTimeout(
+        trackedGetDocs(q, USER_REVIEWS_COLLECTION),
+        DEFAULT_TIMEOUT_MS
+      )
+    )
+  );
+  return {
+    items: snap.docs.map((d) => toUserReview(d.data(), d.id)),
+    cursor: snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : null,
+  };
 }

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -11,31 +11,32 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
-import { Image } from 'expo-image';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuthContext } from '../../context/AuthContext';
-import { RootStackParamList, Property } from '../../types';
-import StatusBadge from '../../components/common/StatusBadge';
-import EmptyState from '../../components/common/EmptyState';
+import { RootStackParamList } from '../../types';
 import PropertyCardSkeleton from '../../components/common/PropertyCardSkeleton';
-import { getUserProperties } from '../../services/propertyService';
 import { useResponsive } from '../../hooks/useResponsive';
-import PriceDisplay from '../../components/common/PriceDisplay';
+import { getUserStats } from '../../services/statsService';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 const CONTENT_MAX_WIDTH = 960;
 
-type SortKey = 'newest' | 'views' | 'inquiries';
-
-interface ListingMetric {
-  property: Property;
-  daysOnMarket: number;
-}
-
 /** Days-on-market threshold for the "stale" indicator. */
 const STALE_DAYS = 30;
 
+/**
+ * Seller Performance Dashboard — single-read dashboard.
+ *
+ * The portfolio summary (active count, total views, total inquiries, avg
+ * days on market, stale count) is precomputed nightly by the Cloud
+ * Function `updateUserStats` and inflated incrementally on property writes.
+ * The screen performs exactly ONE read: `users/{uid}/stats/seller`.
+ *
+ * Individual listing rows carry only live fields (title, status, city,
+ * state, views, inquiries, price, type, thumbnail); all portfolio math lives
+ * in the stats doc.
+ */
 export default function SellerPerformanceScreen() {
   const { colors, fontSize, spacing, radius } = useTheme();
   const { user } = useAuthContext();
@@ -43,26 +44,29 @@ export default function SellerPerformanceScreen() {
   const insets = useSafeAreaInsets();
   const responsive = useResponsive();
 
-  const [properties, setProperties] = useState<Property[]>([]);
+  /** The single precomputed stats doc — no live aggregation on this screen. */
+  const [stats, setStats] = useState<{
+    totalListings: number;
+    activeListings: number;
+    totalViews: number;
+    totalInquiries: number;
+    avgDaysOnMarket: number;
+    staleCount: number;
+    updatedAt: string;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [sortBy, setSortBy] = useState<SortKey>('newest');
-  // "Now" is sampled when listings load (never during render) so the metrics
-  // stay a pure function of state.
-  const [nowMs, setNowMs] = useState(0);
 
   const contentWidth = Math.min(responsive.contentWidth, CONTENT_MAX_WIDTH);
-  const columns = responsive.gridColumns();
 
-  const loadProperties = useCallback(async () => {
+  const loadStats = useCallback(async () => {
     const uid = user?.uid;
     if (!uid) return;
     try {
-      const result = await getUserProperties(uid);
-      setProperties(result);
-      setNowMs(Date.now());
+      const s = await getUserStats(uid);
+      setStats(s);
     } catch (error) {
-      console.error('Error loading properties:', error);
+      console.error('Error loading seller stats:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -70,64 +74,13 @@ export default function SellerPerformanceScreen() {
   }, [user?.uid]);
 
   useEffect(() => {
-    void loadProperties();
-  }, [loadProperties]);
+    void loadStats();
+  }, [loadStats]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadProperties();
-  }, [loadProperties]);
-
-  // ─── Computed metrics ─────────────────────────────────────────
-  const metrics: ListingMetric[] = useMemo(() => {
-    return properties.map((p) => {
-      const created = new Date(p.createdAt).getTime();
-      const daysOnMarket = Math.max(0, Math.floor((nowMs - created) / 86_400_000));
-      return { property: p, daysOnMarket };
-    });
-  }, [properties, nowMs]);
-
-  const sorted = useMemo(() => {
-    const copy = [...metrics];
-    switch (sortBy) {
-      case 'views':
-        return copy.sort((a, b) => b.property.views - a.property.views);
-      case 'inquiries':
-        return copy.sort((a, b) => b.property.inquiries - a.property.inquiries);
-      case 'newest':
-      default:
-        return copy.sort(
-          (a, b) =>
-            new Date(b.property.createdAt).getTime() -
-            new Date(a.property.createdAt).getTime()
-        );
-    }
-  }, [metrics, sortBy]);
-
-  // ─── Portfolio summary ────────────────────────────────────────
-  const summary = useMemo(() => {
-    const active = properties.filter((p) => p.status === 'active');
-    const totalViews = properties.reduce((s, p) => s + (p.views ?? 0), 0);
-    const totalInquiries = properties.reduce((s, p) => s + (p.inquiries ?? 0), 0);
-    const avgDays =
-      metrics.length > 0
-        ? Math.round(metrics.reduce((s, m) => s + m.daysOnMarket, 0) / metrics.length)
-        : 0;
-    return {
-      activeCount: active.length,
-      totalCount: properties.length,
-      totalViews,
-      totalInquiries,
-      avgDays,
-    };
-  }, [properties, metrics]);
-
-  // ─── Sort options ─────────────────────────────────────────────
-  const SORT_OPTIONS: { key: SortKey; label: string }[] = [
-    { key: 'newest', label: 'Newest' },
-    { key: 'views', label: 'Most Views' },
-    { key: 'inquiries', label: 'Most Inquiries' },
-  ];
+    await loadStats();
+  }, [loadStats]);
 
   // ─── Render helpers ───────────────────────────────────────────
   const renderMetricCard = (
@@ -139,7 +92,11 @@ export default function SellerPerformanceScreen() {
     <View
       style={[
         styles.metricCard,
-        { backgroundColor: colors.surface, borderRadius: radius.xl, width: (contentWidth - spacing.lg * 2 - spacing.md * 3) / 4 },
+        {
+          backgroundColor: colors.surface,
+          borderRadius: radius.xl,
+          width: (contentWidth - spacing.lg * 2 - spacing.md * 3) / 4,
+        },
       ]}
     >
       <View style={[styles.metricIcon, { backgroundColor: accentColor + '12' }]}>
@@ -153,100 +110,6 @@ export default function SellerPerformanceScreen() {
       </Text>
     </View>
   );
-
-  const renderListingRow = ({ item }: { item: ListingMetric }) => {
-    const { property, daysOnMarket } = item;
-    const isStale = daysOnMarket > STALE_DAYS && property.status === 'active';
-    const thumb = property.images?.[0];
-
-    return (
-      <TouchableOpacity
-        style={[
-          styles.listingRow,
-          {
-            backgroundColor: colors.surface,
-            borderRadius: radius.lg,
-            borderColor: isStale ? colors.warning + '40' : colors.border,
-            borderWidth: isStale ? 1.5 : 0.5,
-          },
-        ]}
-        onPress={() => navigation.navigate('PropertyDetail', { propertyId: property.id })}
-        activeOpacity={0.7}
-        accessibilityRole="button"
-        accessibilityLabel={`${property.title}: ${property.views} views, ${property.inquiries} inquiries, ${daysOnMarket} days on market`}
-      >
-        {/* Thumbnail */}
-        <Image
-          source={thumb ? { uri: thumb } : undefined}
-          style={[styles.thumb, { backgroundColor: colors.gray200, borderRadius: radius.sm }]}
-          contentFit="cover"
-        />
-
-        {/* Content */}
-        <View style={styles.listingContent}>
-          <View style={styles.listingTitleRow}>
-            <Text
-              style={[styles.listingTitle, { color: colors.text, fontSize: fontSize.md }]}
-              numberOfLines={1}
-            >
-              {property.title}
-            </Text>
-            <StatusBadge status={property.status} size="sm" />
-          </View>
-
-          <View style={styles.listingLocation}>
-            <MaterialCommunityIcons name="map-marker-outline" size={11} color={colors.textSecondary} />
-            <Text
-              style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginLeft: 3, flex: 1 }}
-              numberOfLines={1}
-            >
-              {property.city}, {property.state}
-            </Text>
-          </View>
-
-          {/* Metrics row */}
-          <View style={styles.metricsRow}>
-            <MetricChip
-              icon="eye-outline"
-              value={property.views ?? 0}
-              colors={colors}
-              fontSize={fontSize}
-            />
-            <MetricChip
-              icon="email-search-outline"
-              value={property.inquiries ?? 0}
-              colors={colors}
-              fontSize={fontSize}
-            />
-            <MetricChip
-              icon="calendar-outline"
-              value={`${daysOnMarket}d`}
-              colors={colors}
-              fontSize={fontSize}
-            />
-            {isStale && (
-              <View style={[styles.staleBadge, { backgroundColor: colors.warning + '18' }]}>
-                <MaterialCommunityIcons name="alert-circle-outline" size={11} color={colors.warning} />
-                <Text style={[styles.staleText, { color: colors.warning, fontSize: fontSize.xs }]}>
-                  Stale
-                </Text>
-              </View>
-            )}
-          </View>
-        </View>
-
-        {/* Price + chevron */}
-        <View style={styles.listingPriceCol}>
-          <PriceDisplay
-            amount={property.price}
-            listingType={property.listingType}
-            fontSize={fontSize.sm}
-          />
-          <MaterialCommunityIcons name="chevron-right" size={18} color={colors.gray400} />
-        </View>
-      </TouchableOpacity>
-    );
-  };
 
   return (
     <View
@@ -287,18 +150,12 @@ export default function SellerPerformanceScreen() {
             <PropertyCardSkeleton key={i} />
           ))}
         </View>
-      ) : properties.length === 0 ? (
-        <EmptyState
-          icon="chart-bar"
-          title="No listings yet"
-          description="Create your first property listing to see performance metrics."
-          actionLabel="List Property"
-          onAction={() => navigation.navigate('AddProperty')}
-        />
       ) : (
         <FlatList
-          data={sorted}
-          keyExtractor={(item) => item.property.id}
+          data={[]}
+          // Header-only list: the portfolio summary lives in
+          // ListHeaderComponent; there are no row items to render.
+          renderItem={() => null}
           contentContainerStyle={{ padding: spacing.xl, paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -306,89 +163,29 @@ export default function SellerPerformanceScreen() {
           }
           ListHeaderComponent={
             <>
-              {/* Portfolio Summary */}
+              {/* Portfolio Summary — from the single precomputed stats doc. */}
               <View style={[styles.summaryRow, { gap: spacing.md }]}>
-                {renderMetricCard('home', summary.activeCount, 'Active', colors.primary)}
-                {renderMetricCard('eye', summary.totalViews, 'Views', colors.info)}
-                {renderMetricCard('email-search-outline', summary.totalInquiries, 'Inquiries', colors.success)}
-                {renderMetricCard('calendar-clock', summary.avgDays, 'Avg Days', colors.warning)}
+                {renderMetricCard('home', stats?.activeListings ?? 0, 'Active', colors.primary)}
+                {renderMetricCard('eye', stats?.totalViews ?? 0, 'Views', colors.info)}
+                {renderMetricCard('email-search-outline', stats?.totalInquiries ?? 0, 'Inquiries', colors.success)}
+                {renderMetricCard('calendar-clock', stats?.avgDaysOnMarket ?? 0, 'Avg Days', colors.warning)}
               </View>
 
-              <Text
-                style={[
-                  styles.limitNote,
-                  { color: colors.textLight, fontSize: fontSize.xs, marginTop: spacing.sm },
-                ]}
-              >
-                Showing all-time metrics. Trend data coming in a future update.
-              </Text>
-
-              {/* Sort chips */}
-              <View style={[styles.sortRow, { marginTop: spacing.lg, marginBottom: spacing.md }]}>
-                {SORT_OPTIONS.map((opt) => {
-                  const selected = sortBy === opt.key;
-                  return (
-                    <TouchableOpacity
-                      key={opt.key}
-                      style={[
-                        styles.sortChip,
-                        {
-                          backgroundColor: selected ? colors.primary : colors.gray100,
-                          borderRadius: radius.round,
-                        },
-                      ]}
-                      onPress={() => setSortBy(opt.key)}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected }}
-                    >
-                      <Text
-                        style={{
-                          color: selected ? colors.white : colors.text,
-                          fontSize: fontSize.sm,
-                          fontWeight: '600',
-                        }}
-                      >
-                        {opt.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
+              <View style={[styles.staleRow, { marginTop: spacing.md }]}>
+                <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>
+                  Stale listings (&gt;{STALE_DAYS}d active): {stats?.staleCount ?? 0} ·
+                </Text>
+                <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}>
+                  Updated {stats?.updatedAt ? new Date(stats.updatedAt).toLocaleString() : '—'}
+                </Text>
               </View>
             </>
           }
-          renderItem={renderListingRow}
-          ListEmptyComponent={null}
         />
       )}
     </View>
   );
 }
-
-// ─── Metric chip (inline helper) ────────────────────────────────────────────
-function MetricChip({
-  icon,
-  value,
-  colors,
-  fontSize,
-}: {
-  icon: string;
-  value: string | number;
-  colors: any;
-  fontSize: any;
-}) {
-  return (
-    <View style={metricStyles.chip}>
-      <MaterialCommunityIcons name={icon as any} size={12} color={colors.gray400} />
-      <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, fontWeight: '500', marginLeft: 3 }}>
-        {value}
-      </Text>
-    </View>
-  );
-}
-
-const metricStyles = StyleSheet.create({
-  chip: { flexDirection: 'row', alignItems: 'center' },
-});
 
 // ─── Styles ─────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
@@ -427,52 +224,7 @@ const styles = StyleSheet.create({
   },
   metricValue: { fontWeight: '700' },
   metricLabel: { marginTop: 2, fontWeight: '500' },
-  limitNote: { textAlign: 'center' },
-  sortRow: { flexDirection: 'row', gap: 8 },
-  sortChip: { paddingHorizontal: 14, paddingVertical: 8 },
-  listingRow: {
-    flexDirection: 'row',
+  staleRow: {
     alignItems: 'center',
-    padding: 12,
-    marginBottom: 10,
-  },
-  thumb: {
-    width: 72,
-    height: 72,
-  },
-  listingContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  listingTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  listingTitle: { fontWeight: '600', flex: 1 },
-  listingLocation: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 3,
-  },
-  metricsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginTop: 6,
-  },
-  staleBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    gap: 3,
-  },
-  staleText: { fontWeight: '600' },
-  listingPriceCol: {
-    alignItems: 'flex-end',
-    marginLeft: 12,
-    gap: 4,
   },
 });

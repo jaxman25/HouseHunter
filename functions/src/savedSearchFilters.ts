@@ -63,12 +63,25 @@ interface PropertyDoc {
  *  - Bedrooms, bathrooms, features, area → client-side post-filter (same
  *    as the client because Firestore can't combine range + equality
  *    efficiently without many composite indexes).
- *  - createdAt > since → only NEW matches since the last run.
+ *
+ * ONE query serves both consumers: `ids`/`count` are the TOTAL matches
+ * (capped at the query limit) — persisted on the saved-search doc as
+ * `matchCount` — while `newIds`/`newCount` partition the matches created
+ * after `since` (client-side, newest first) for the notification path.
  */
+export interface SavedSearchResult {
+  /** Total matching ids (capped at the query limit). */
+  ids: string[];
+  count: number;
+  /** Subset of `ids` created after `since` (all of them when no `since`). */
+  newIds: string[];
+  newCount: number;
+}
+
 export async function executeSavedSearch(
   filters: SavedSearchFilters,
   since?: FirebaseFirestore.Timestamp
-): Promise<{ ids: string[]; count: number }> {
+): Promise<SavedSearchResult> {
   // Start with the base collection and chain query constraints.
   // The Admin SDK uses chained method calls, not standalone query functions.
   let q: FirebaseFirestore.Query = db
@@ -100,9 +113,9 @@ export async function executeSavedSearch(
   }
 
   // ── New-only filter ───────────────────────────────────────────────────
-  if (since) {
-    q = q.where('createdAt', '>', since);
-  }
+  // `since` is intentionally NOT applied server-side — one query must see ALL
+  // current matches (total → `matchCount` on the saved-search doc); newness
+  // is partitioned client-side below so a single read serves both counts.
 
   // ── Ordering (newest first by default — sensible for match detection) ─
   q = q.orderBy('createdAt', 'desc');
@@ -114,6 +127,8 @@ export async function executeSavedSearch(
 
   // ── Client-side post-filters (bedrooms, bathrooms, features, area) ────
   const matched: string[] = [];
+  const newIds: string[] = [];
+  const cutoffMs = since ? since.toMillis() : undefined;
   for (const doc of snap.docs) {
     const d = doc.data() as PropertyDoc;
     if (filters.minBedrooms !== undefined && d.bedrooms < filters.minBedrooms) continue;
@@ -127,7 +142,19 @@ export async function executeSavedSearch(
     if (filters.minArea !== undefined && d.area < filters.minArea) continue;
     if (filters.maxArea !== undefined && d.area > filters.maxArea) continue;
     matched.push(doc.id);
+    if (cutoffMs !== undefined) {
+      // Newest-first order means new ids land first. Docs without a usable
+      // createdAt are conservatively treated as NOT new (never re-notify).
+      const created = d.createdAt as { toMillis?: () => number } | undefined;
+      const createdMs = created?.toMillis?.() ?? 0;
+      if (createdMs > cutoffMs) newIds.push(doc.id);
+    }
   }
 
-  return { ids: matched, count: matched.length };
+  return {
+    ids: matched,
+    count: matched.length,
+    newIds: cutoffMs === undefined ? matched : newIds,
+    newCount: cutoffMs === undefined ? matched.length : newIds.length,
+  };
 }

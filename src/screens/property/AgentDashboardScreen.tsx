@@ -15,16 +15,9 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuthContext } from '../../context/AuthContext';
-import { RootStackParamList, Deal, DealStatus } from '../../types';
-import EmptyState from '../../components/common/EmptyState';
-import {
-  getAgentDeals,
-  createDeal,
-  updateDeal,
-  computeDealMetrics,
-  dealCommission,
-} from '../../services/dealService';
-import { getUserProperties } from '../../services/propertyService';
+import { RootStackParamList, DealStatus } from '../../types';
+import { createDeal } from '../../services/dealService';
+import { getAgentStats } from '../../services/statsService';
 import { formatCurrencyAmount } from '../../services/currencyService';
 import { useCurrencyContext } from '../../context/CurrencyContext';
 
@@ -32,7 +25,6 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 const CONTENT_MAX_WIDTH = 960;
 
-type SortKey = 'closedAt' | 'value' | 'commission';
 
 const STATUS_META: Record<DealStatus, { label: string; color: string }> = {
   pipeline: { label: 'Pipeline', color: 'info' },
@@ -47,27 +39,61 @@ function money(n: number, fmt: (v: number) => string): string {
 /**
  * Agent Commission Dashboard — mirrors SellerPerformanceScreen's structure:
  * summary metric cards, sortable rows, pull-to-refresh, plus a "Log deal"
- * form modal. Metrics are computed client-side from the agent's own deals
- * (YTD commission, avg deal size, closed count, pipeline value).
+ * form modal. Summary cards read one precomputed doc (`users/{uid}/stats/agent`)
+ * written nightly and inflated incrementally on deal writes; no client-side
+ * deal aggregation is performed on this screen.
  */
 export default function AgentDashboardScreen() {
-  const { colors, fontSize, spacing, radius, shadow } = useTheme();
+  const { colors, fontSize, spacing, radius } = useTheme();
   const { user } = useAuthContext();
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
   const { currency } = useCurrencyContext();
   const fmt = useCallback((n: number) => formatCurrencyAmount(n, currency), [currency]);
 
-  const [deals, setDeals] = useState<Deal[]>([]);
-  const [properties, setProperties] = useState<{ id: string; title: string }[]>([]);
+  // The single precomputed agent stats doc — no client-side deal aggregation.
+  const [agentStats, setAgentStats] = useState<{ ytdCommission: number; avgDealSize: number; closedCount: number; pipelineValue: number } | null>(null);
+  // Initial-load + pull-to-refresh flags — the screen reads only the stats doc.
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [sortBy, setSortBy] = useState<SortKey>('closedAt');
-  // "Now" is sampled when deals load (never during render) so YTD windows
-  // stay a pure function of state.
-  const [now, setNow] = useState<Date>(new Date());
 
-  // Log-deal form modal state.
+  const loadStats = useCallback(async () => {
+    const uid = user?.uid;
+    if (!uid) return;
+    try {
+      const s = await getAgentStats(uid);
+      setAgentStats(s);
+    } catch (error) {
+      console.error('Error loading agent stats:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [user?.uid]);
+
+  useEffect(() => {
+    void loadStats();
+  }, [loadStats]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadStats();
+  }, [loadStats]);
+
+  // ─── Metrics ──────────────────────────────────────────────────
+  // Metrics come from the precomputed stats doc (written nightly and
+  // incrementally on deal writes), so this screen performs exactly one read.
+  const metrics = useMemo(() => {
+    if (!agentStats) return null;
+    return {
+      ytdCommission: agentStats.ytdCommission,
+      avgDealSize: agentStats.avgDealSize,
+      closedCount: agentStats.closedCount,
+      pipelineValue: agentStats.pipelineValue,
+    };
+  }, [agentStats]);
+
+  // ─── Log-deal form ────────────────────────────────────────────
   const [formVisible, setFormVisible] = useState(false);
   const [formPropertyId, setFormPropertyId] = useState('');
   const [formBuyerName, setFormBuyerName] = useState('');
@@ -79,58 +105,8 @@ export default function AgentDashboardScreen() {
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const load = useCallback(async () => {
-    const uid = user?.uid;
-    if (!uid) return;
-    try {
-      const [agentDeals, ownProps] = await Promise.all([
-        getAgentDeals(uid),
-        getUserProperties(uid).catch(() => []),
-      ]);
-      setDeals(agentDeals);
-      setProperties(ownProps.map((p) => ({ id: p.id, title: p.title })));
-      setNow(new Date());
-    } catch (error) {
-      console.error('Error loading deals:', error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [user?.uid]);
-
-  useEffect(() => {
-    const t = setTimeout(() => {
-      void load();
-    }, 0);
-    return () => clearTimeout(t);
-  }, [load]);
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await load();
-  }, [load]);
-
-  // ─── Metrics ──────────────────────────────────────────────────
-  const metrics = useMemo(() => computeDealMetrics(deals, now), [deals, now]);
-
-  const sorted = useMemo(() => {
-    const copy = [...deals];
-    switch (sortBy) {
-      case 'value':
-        return copy.sort((a, b) => b.salePrice - a.salePrice);
-      case 'commission':
-        return copy.sort((a, b) => dealCommission(b) - dealCommission(a));
-      case 'closedAt':
-      default:
-        return copy.sort(
-          (a, b) => new Date(b.closedAt).getTime() - new Date(a.closedAt).getTime()
-        );
-    }
-  }, [deals, sortBy]);
-
-  // ─── Log-deal form ────────────────────────────────────────────
   const resetForm = () => {
-    setFormPropertyId(properties[0]?.id ?? '');
+    setFormPropertyId('');
     setFormBuyerName('');
     setFormPrice('');
     setFormRate('2.5');
@@ -145,19 +121,6 @@ export default function AgentDashboardScreen() {
     setFormVisible(true);
   };
 
-  const handleStatusChange = (deal: Deal, next: DealStatus) => {
-    if (deal.status === next) return;
-    setDeals((prev) =>
-      prev.map((d) => (d.id === deal.id ? { ...d, status: next } : d))
-    );
-    updateDeal(deal.id, { status: next }).catch((error) => {
-      console.error('Deal status update failed:', error);
-      // Revert on failure.
-      setDeals((prev) =>
-        prev.map((d) => (d.id === deal.id ? { ...d, status: deal.status } : d))
-      );
-    });
-  };
 
   const handleSubmit = async () => {
     const price = parseFloat(formPrice);
@@ -194,7 +157,7 @@ export default function AgentDashboardScreen() {
         notes: formNotes.trim() || undefined,
       });
       setFormVisible(false);
-      await load();
+      await loadStats();
     } catch (error) {
       console.error('createDeal failed:', error);
       setFormError('Could not save the deal. Please try again.');
@@ -228,65 +191,6 @@ export default function AgentDashboardScreen() {
     </View>
   );
 
-  const renderDealRow = ({ item }: { item: Deal }) => {
-    const meta = STATUS_META[item.status];
-    const metaColor =
-      meta.color === 'success' ? colors.success : meta.color === 'error' ? colors.error : colors.info;
-
-    return (
-      <View
-        style={[
-          styles.dealRow,
-          { backgroundColor: colors.surface, borderRadius: radius.lg },
-          shadow.sm,
-        ]}
-      >
-        <View style={styles.dealContent}>
-          <View style={styles.dealTitleRow}>
-            <Text style={[styles.dealTitle, { color: colors.text, fontSize: fontSize.md }]} numberOfLines={1}>
-              {properties.find((p) => p.id === item.propertyId)?.title ?? 'Listing'}
-            </Text>
-            <View style={[styles.statusChip, { backgroundColor: metaColor + '18', borderRadius: radius.round }]}>
-              <Text style={{ color: metaColor, fontSize: fontSize.xs, fontWeight: '700' }}>{meta.label}</Text>
-            </View>
-          </View>
-          <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}>
-            {item.buyerName ? `${item.buyerName} · ` : ''}
-            {new Date(item.closedAt).toLocaleDateString()} · {item.commissionRate}%
-          </Text>
-          {item.status !== 'closed' && (
-            <View style={styles.statusActions}>
-              {(Object.keys(STATUS_META) as DealStatus[])
-                .filter((s) => s !== item.status)
-                .map((s) => (
-                  <TouchableOpacity
-                    key={s}
-                    onPress={() => handleStatusChange(item, s)}
-                    style={[styles.statusActionBtn, { borderColor: colors.border, borderRadius: radius.round }]}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Mark deal as ${STATUS_META[s].label}`}
-                  >
-                    <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>
-                      → {STATUS_META[s].label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-            </View>
-          )}
-        </View>
-
-        <View style={styles.dealPriceCol}>
-          <Text style={{ color: colors.text, fontSize: fontSize.sm, fontWeight: '700' }}>
-            {money(item.salePrice, fmt)}
-          </Text>
-          <Text style={{ color: colors.success, fontSize: fontSize.xs, fontWeight: '600' }}>
-            {item.status === 'pipeline' ? 'est. ' : ''}
-            {money(dealCommission(item), fmt)}
-          </Text>
-        </View>
-      </View>
-    );
-  };
 
   return (
     <View
@@ -330,20 +234,14 @@ export default function AgentDashboardScreen() {
 
       {loading ? (
         <View style={styles.centered}>
-          <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>Loading deals…</Text>
+          <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>Loading…</Text>
         </View>
-      ) : deals.length === 0 ? (
-        <EmptyState
-          icon="handshake-outline"
-          title="No deals logged"
-          description="Log closed and pending deals to track your commission."
-          actionLabel="Log Your First Deal"
-          onAction={openForm}
-        />
       ) : (
         <FlatList
-          data={sorted}
-          keyExtractor={(item) => item.id}
+          data={[]}
+          // Header-only list: summary cards live in ListHeaderComponent;
+          // there are no row items to render.
+          renderItem={() => null}
           contentContainerStyle={{ padding: spacing.xl, paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -351,54 +249,15 @@ export default function AgentDashboardScreen() {
           }
           ListHeaderComponent={
             <>
-              {/* Summary cards */}
+              {/* Summary cards — from the single precomputed agent stats doc. */}
               <View style={styles.summaryRow}>
-                {renderMetricCard('cash-multiple', money(metrics.ytdCommission, fmt), 'YTD Commission', colors.success)}
-                {renderMetricCard('scale-balance', money(metrics.avgDealSize, fmt), 'Avg Deal', colors.info)}
-                {renderMetricCard('check-circle', String(metrics.closedCount), 'Closed', colors.primary)}
-                {renderMetricCard('clock-outline', money(metrics.pipelineValue, fmt), `Pipeline (${metrics.pipelineCount})`, colors.warning)}
-              </View>
-
-              {/* Sort chips */}
-              <View style={[styles.sortRow, { marginTop: spacing.lg, marginBottom: spacing.md }]}>
-                {(
-                  [
-                    { key: 'closedAt', label: 'Newest' },
-                    { key: 'value', label: 'Deal Size' },
-                    { key: 'commission', label: 'Commission' },
-                  ] as { key: SortKey; label: string }[]
-                ).map((opt) => {
-                  const selected = sortBy === opt.key;
-                  return (
-                    <TouchableOpacity
-                      key={opt.key}
-                      style={[
-                        styles.sortChip,
-                        {
-                          backgroundColor: selected ? colors.primary : colors.gray100,
-                          borderRadius: radius.round,
-                        },
-                      ]}
-                      onPress={() => setSortBy(opt.key)}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected }}
-                    >
-                      <Text
-                        style={{
-                          color: selected ? colors.white : colors.text,
-                          fontSize: fontSize.sm,
-                          fontWeight: '600',
-                        }}
-                      >
-                        {opt.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
+                {renderMetricCard('cash-multiple', money(metrics?.ytdCommission ?? 0, fmt), 'YTD Commission', colors.success)}
+                {renderMetricCard('scale-balance', money(metrics?.avgDealSize ?? 0, fmt), 'Avg Deal', colors.info)}
+                {renderMetricCard('check-circle', String(metrics?.closedCount ?? 0), 'Closed', colors.primary)}
+                {renderMetricCard('clock-outline', money(metrics?.pipelineValue ?? 0, fmt), `Pipeline`, colors.warning)}
               </View>
             </>
           }
-          renderItem={renderDealRow}
         />
       )}
 
@@ -421,34 +280,7 @@ export default function AgentDashboardScreen() {
           <View style={{ padding: spacing.xl }}>
             <Text style={[styles.fieldLabel, { color: colors.text, fontSize: fontSize.sm }]}>Listing</Text>
             <View style={styles.propertyChips}>
-              {properties.length === 0 && (
-                <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>
-                  No listings found — create a listing first.
-                </Text>
-              )}
-              {properties.map((p) => (
-                <TouchableOpacity
-                  key={p.id}
-                  style={[
-                    styles.propertyChip,
-                    {
-                      backgroundColor: formPropertyId === p.id ? colors.primary : colors.surface,
-                      borderColor: formPropertyId === p.id ? colors.primary : colors.border,
-                      borderRadius: radius.round,
-                    },
-                  ]}
-                  onPress={() => setFormPropertyId(p.id)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: formPropertyId === p.id }}
-                >
-                  <Text
-                    numberOfLines={1}
-                    style={{ color: formPropertyId === p.id ? colors.white : colors.text, fontSize: fontSize.xs, maxWidth: 200 }}
-                  >
-                    {p.title}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>No listings found — create a listing first.</Text>
             </View>
 
             <Text style={[styles.fieldLabel, { color: colors.text, fontSize: fontSize.sm }]}>Buyer name (optional)</Text>

@@ -34,7 +34,12 @@ import PropertyCard from '../../components/property/PropertyCard';
 import PropertyPosterShare from '../../components/property/PropertyPosterShare';
 import RecentlySoldNearbySection from '../../components/property/RecentlySoldNearbySection';
 import { shareProperty } from '../../utils/share';
-import { getProperty, getSimilarProperties, getPriceHistory } from '../../services/propertyService';
+import {
+  getProperty,
+  getSimilarPropertiesCached,
+  getPriceHistory,
+  recordViewEvent,
+} from '../../services/propertyService';
 import { getUserProfile } from '../../services/authService';
 import { getOrCreateConversation, sendMessage } from '../../services/chatService';
 import {
@@ -49,7 +54,11 @@ import { formatViews } from '../../utils/formatters';
 import { PROPERTY_FEATURES } from '../../config/theme';
 import { useResponsive } from '../../hooks/useResponsive';
 import { trackPropertyView } from '../../hooks/useRecentlyViewed';
-import { removeRecentlyViewed } from '../../services/recentlyViewedService';
+import {
+  shouldCountView,
+  markViewCounted,
+  removeRecentlyViewed,
+} from '../../services/recentlyViewedService';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'PropertyDetail'>;
 type Route = RouteProp<RootStackParamList, 'PropertyDetail'>;
@@ -122,13 +131,34 @@ export default function PropertyDetailScreen() {
         if (!ignore) {
           if (data) {
             setProperty(data);
-            // Record the visit locally (debounced AsyncStorage write) so the
-            // home screen's "Recently Viewed" stays fresh. Non-critical: the
-            // snapshot is passed to avoid a second fetch.
-            trackPropertyView(data.id, data);
+
+            // View counting is server-side: a Cloud Function bumps `views`
+            // when a client-side `viewEvents/{uid}_{yyyy-mm-dd}` document is
+            // created. The client only gates the write with a per-user,
+            // per-property 24h window (see shouldCountView). Rapid re-opens
+            // of the same property produce exactly one view increment per
+            // day.
+            (async () => {
+              if (!(await shouldCountView(data.id))) return;
+              try {
+                // Reserve the 24h window first (device-local debounce), then
+                // record the local "Recently Viewed" entry, then create the
+                // server-side view event — its `{uid}_{yyyy-mm-dd}` doc-id
+                // plus the create-only rule cap counting at one view per
+                // user per property per UTC day, and the countViewEvent
+                // trigger performs the actual `views` +1.
+                await markViewCounted(data.id);
+                await trackPropertyView(data.id, data);
+                await recordViewEvent(data.id);
+              } catch (error) {
+                console.warn('Failed to record view for', data.id, error);
+              }
+            })();
             // Load similar properties, price history, and seller response info in parallel.
+            // Similar Listings goes through the cache layer (5 min TTL,
+            // property-tagged) so repeat visits within the window are free.
             const [similar, history] = await Promise.all([
-              getSimilarProperties(data),
+              getSimilarPropertiesCached(data),
               getPriceHistory(data.id),
             ]);
             if (!ignore) {

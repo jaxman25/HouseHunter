@@ -5,7 +5,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../../context/ThemeContext';
 import { RootStackParamList, Property } from '../../types';
 import PropertyCard from './PropertyCard';
-import { getRecentlySoldNearby } from '../../services/propertyService';
+import { getRecentlySoldNearbyCached } from '../../services/propertyService';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -23,7 +23,8 @@ export default function RecentlySoldNearbySection({ property }: { property: Prop
 
   useEffect(() => {
     let ignore = false;
-    getRecentlySoldNearby(property, 3)
+    // Cached read (5 min TTL, property-tagged) — revisit-friendly.
+    getRecentlySoldNearbyCached(property, 3)
       .then((results) => {
         if (!ignore) setSold(results);
       })

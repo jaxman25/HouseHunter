@@ -68,6 +68,28 @@ function collectionOf(ref: { path: string }): string {
   return ref.path.split('/').pop() ?? 'unknown';
 }
 
+/**
+ * Lint-style dev guardrail: warn when a query-based read has no limit() —
+ * an unbounded getDocs/onSnapshot downloads the whole result set and is the
+ * most common runaway-cost bug. Peeks at the SDK's private query shape
+ * (wrapped in try/catch — if the internals change, the guardrail quietly
+ * goes silent rather than breaking reads). Dev-only, zero prod cost.
+ */
+function warnIfUnbounded(q: Query<unknown>, collectionName: string): void {
+  if (!__DEV__) return;
+  try {
+    const internal = (q as unknown as { _query?: { limit?: unknown } })._query;
+    if (internal && internal.limit == null) {
+      console.warn(
+        `[firestore] Unbounded query on "${collectionName}" — add limit() ` +
+          '(every list should be capped; see usePaginatedQuery / PAGE_SIZE_DEFAULT).'
+      );
+    }
+  } catch {
+    // SDK internals changed — guardrail skipped.
+  }
+}
+
 // ─── Reads ────────────────────────────────────────────────────────────────
 
 export async function trackedGetDoc<T>(
@@ -84,6 +106,7 @@ export async function trackedGetDocs<T>(
   // Per-read budget is spent here (1 doc minimum); the exact result size is
   // accounted after the query resolves.
   await accountRead(sanitizeCollection(collectionName));
+  warnIfUnbounded(q, collectionName);
   const snap = await getDocs(q);
   trackRead(sanitizeCollection(collectionName), Math.max(0, snap.size - 1));
   return snap;
@@ -96,6 +119,7 @@ export function trackedOnSnapshot<T>(
   onError?: (error: Error) => void
 ): Unsubscribe {
   const name = sanitizeCollection(collectionName);
+  warnIfUnbounded(q, name);
 
   // Sync signature (the ~6 subscriber factories return this straight to
   // their callers as an unsubscribe fn), so the budget gate attaches the
@@ -122,6 +146,40 @@ export function trackedOnSnapshot<T>(
       unsubscribe = onSnapshot(q, gatedEmit, onError);
     })
     .catch((error: Error) => onError?.(error));
+
+  return () => {
+    cancelled = true;
+    unsubscribe?.();
+  };
+}
+
+/**
+ * Document-listener variant of `trackedOnSnapshot` — one budget-gated,
+ * attributed read per delivered snapshot (initial included; a not-found
+ * snapshot still costs the one doc read). Used by the conversations list's
+ * single-doc change signal (`users/{uid}/meta/chat`, chatService
+ * .subscribeToChatMeta) — billing stays exactly 1 read per change.
+ */
+export function trackedOnSnapshotDoc<T>(
+  ref: DocumentReference<T>,
+  collectionName: string,
+  onNext: (snapshot: DocumentSnapshot<T>) => void,
+  onError?: (error: Error) => void
+): Unsubscribe {
+  const name = sanitizeCollection(collectionName);
+  let unsubscribe: Unsubscribe | null = null;
+  let cancelled = false;
+
+  const gatedEmit = (snapshot: DocumentSnapshot<T>): void => {
+    void accountRead(name)
+      .then(() => {
+        if (cancelled) return;
+        onNext(snapshot);
+      })
+      .catch((error: Error) => onError?.(error));
+  };
+
+  unsubscribe = onSnapshot(ref, gatedEmit, onError);
 
   return () => {
     cancelled = true;

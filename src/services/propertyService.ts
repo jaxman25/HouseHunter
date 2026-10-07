@@ -16,14 +16,14 @@ import {
 import {
   trackedGetDoc,
   trackedGetDocs,
-  trackedUpdateDoc,
+  trackedSetDoc,
   trackedWriteBatch,
   type TrackedWriteBatch,
 } from '../utils/firestore/tracked';
 import { auth, db } from '../config/firebase';
 import { uploadImage, deleteImage } from './storageService';
 import { Property, PropertyFilter, PriceHistoryEntry } from '../types';
-import { PROPERTIES_COLLECTION, ITEMS_PER_PAGE, PRICE_HISTORY_SUBCOLLECTION } from '../utils/constants';
+import { PROPERTIES_COLLECTION, ITEMS_PER_PAGE, PRICE_HISTORY_SUBCOLLECTION, VIEW_EVENTS_SUBCOLLECTION } from '../utils/constants';
 import { firestoreCircuitBreaker } from '../utils/network/circuitBreaker';
 import { withRetry } from '../utils/network/retry';
 import { withTimeout, DEFAULT_TIMEOUT_MS } from '../utils/network/timeout';
@@ -261,13 +261,14 @@ export async function deleteProperty(id: string): Promise<void> {
   await invalidatePropertyDetail(id);
 }
 
-/** Inner fetch: read the property document and bump its view counter. */
+/** Inner fetch: read the property document. Views are no longer bumped here
+ * (the client-side increment was removed); the server-side trigger owns
+ * `views` via the `properties/{id}/viewEvents/{uid}_{yyyy-mm-dd}` subcollection.
+ */
 async function fetchProperty(id: string): Promise<Property | null> {
   const docRef = doc(db, PROPERTIES_COLLECTION, id);
   const docSnap = await trackedGetDoc(docRef);
   if (docSnap.exists()) {
-    // Increment views
-    await trackedUpdateDoc(docRef, { views: increment(1) });
     return toProperty(docSnap);
   }
   return null;
@@ -287,6 +288,43 @@ export async function getProperty(id: string): Promise<Property | null> {
     PROPERTY_CACHE_TTL_MS
   );
   return result.data;
+}
+
+/**
+ * Record a counted view for `propertyId` as a create-only document
+ * `properties/{id}/viewEvents/{uid}_{yyyy-mm-dd}` (UTC day).
+ *
+ * The doc-id IS the server-side rate-limit guard: `{uid}` pins the event to
+ * its author and `{yyyy-mm-dd}` collapses a whole day into one id, and
+ * firestore.rules only allows `create` — so re-opens can never duplicate or
+ * overwrite an event. The `countViewEvent` trigger
+ * (functions/src/viewEvents.ts) re-validates the id against the event time
+ * and bumps the parent's `views` by +1; the client never writes `views`
+ * itself (that increment was removed from `fetchProperty`).
+ *
+ * Requires a signed-in user — rules deny anonymous events, so signed-out
+ * browsing simply doesn't count. Never throws: the caller debounces locally
+ * first (`shouldCountView`/`markViewCounted`) and logs any failure here.
+ */
+export async function recordViewEvent(propertyId: string): Promise<void> {
+  const uid = auth.currentUser?.uid;
+  if (!propertyId || !uid) return;
+  // UTC day — must match the trigger's `event.time` day (viewEvents.ts).
+  const day = new Date().toISOString().slice(0, 10);
+  const eventRef = doc(
+    db,
+    PROPERTIES_COLLECTION,
+    propertyId,
+    VIEW_EVENTS_SUBCOLLECTION,
+    `${uid}_${day}`
+  );
+  // Benign same-day duplicates surface as permission-denied (create-only
+  // rule) and are non-retryable — withRetry throws them straight through.
+  await firestoreCircuitBreaker.execute(() =>
+    withRetry(() =>
+      withTimeout(trackedSetDoc(eventRef, { userId: uid }), DEFAULT_TIMEOUT_MS)
+    )
+  );
 }
 
 /** Inner fetch: build and execute the (possibly filtered/sorted/paged) query. */
@@ -704,4 +742,39 @@ export async function getSimilarProperties(
 
   const candidates = snap.docs.map((d) => toProperty(d));
   return filterSimilarProperties(candidates, property.id);
+}
+
+
+/**
+ * Cached read of `getRecentlySoldNearby` — "Recently Sold Nearby" remounts
+ * on every detail visit, so reuse the 5-min property TTL (tagged on the
+ * listing: `invalidatePropertyTags` clears it when the listing changes).
+ */
+export async function getRecentlySoldNearbyCached(
+  property: Property,
+  maxResults = 3
+): Promise<Property[]> {
+  const result = await getCachedOrFetch(
+    buildCacheKey('properties', 'soldNearby', property.id, String(maxResults)),
+    () => getRecentlySoldNearby(property, maxResults),
+    PROPERTY_CACHE_TTL_MS,
+    { tags: [`property:${property.id}`] }
+  );
+  return result.data;
+}
+
+/**
+ * Cached read of `getSimilarProperties` — "Similar Listings" remounts on
+ * every detail visit; same 5-min property-tagged TTL as above.
+ */
+export async function getSimilarPropertiesCached(
+  property: Property
+): Promise<Property[]> {
+  const result = await getCachedOrFetch(
+    buildCacheKey('properties', 'similar', property.id),
+    () => getSimilarProperties(property),
+    PROPERTY_CACHE_TTL_MS,
+    { tags: [`property:${property.id}`] }
+  );
+  return result.data;
 }

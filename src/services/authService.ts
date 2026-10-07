@@ -36,11 +36,14 @@ import { authCircuitBreaker } from '../utils/network/circuitBreaker';
 import { withRetry } from '../utils/network/retry';
 import { withTimeout, DEFAULT_TIMEOUT_MS } from '../utils/network/timeout';
 import {
+  cachedRead,
   getCachedOrFetch,
   buildCacheKey,
+  CACHE_TTLS,
   PROFILE_CACHE_TTL_MS,
 } from '../utils/cache/cacheService';
 import {
+  invalidateUserTags,
   invalidateUserProfile,
   invalidateFavorites,
 } from '../utils/cache/cacheInvalidation';
@@ -259,27 +262,47 @@ export async function resetPassword(email: string): Promise<void> {
   logPasswordReset(email).catch(() => {});
 }
 
+/**
+ * Public profile via the cache layer (DEFAULT read path): 15-minute TTL,
+ * tagged `user:${uid}` so a profile edit purges it and every derived read
+ * (peer rating, agent-profile bundle) at once. Second mount within the TTL
+ * issues zero Firestore reads; stale copies serve instantly while one
+ * background revalidation runs; concurrent callers share a single fetch.
+ */
+export async function getUserProfileCached(uid: string): Promise<AppUser | null> {
+  const result = await cachedRead(
+    buildCacheKey('users', 'profile', uid),
+    CACHE_TTLS.userProfile,
+    () => fetchUserProfile(uid),
+    { tags: [`user:${uid}`] }
+  );
+  return result.data;
+}
+
+async function fetchUserProfile(uid: string): Promise<AppUser | null> {
+  return trackMetric('users.profile', () =>
+    authCircuitBreaker.execute(() =>
+      withRetry(() =>
+        withTimeout(
+          (async () => {
+            const docRef = doc(db, USERS_COLLECTION, uid);
+            const docSnap = await trackedGetDoc(docRef);
+            if (docSnap.exists()) {
+              return { uid: docSnap.id, ...docSnap.data() } as AppUser;
+            }
+            return null;
+          })(),
+          DEFAULT_TIMEOUT_MS
+        )
+      )
+    )
+  );
+}
+
 export async function getUserProfile(uid: string): Promise<AppUser | null> {
   const result = await getCachedOrFetch(
     buildCacheKey('users', 'profile', uid),
-    () =>
-      trackMetric('users.profile', () =>
-        authCircuitBreaker.execute(() =>
-          withRetry(() =>
-            withTimeout(
-              (async () => {
-                const docRef = doc(db, USERS_COLLECTION, uid);
-                const docSnap = await trackedGetDoc(docRef);
-                if (docSnap.exists()) {
-                  return { uid: docSnap.id, ...docSnap.data() } as AppUser;
-                }
-                return null;
-              })(),
-              DEFAULT_TIMEOUT_MS
-            )
-          )
-        )
-      ),
+    () => fetchUserProfile(uid),
     PROFILE_CACHE_TTL_MS
   );
   return result.data;
@@ -333,7 +356,9 @@ export async function updateUserProfile(
     )
   );
 
-  // Profile mutated — drop the cached copy so the next read is fresh.
+  // Profile mutated — purge every cached read tagged to this user (profile,
+  // peer rating, agent-profile bundle) via the tag index.
+  await invalidateUserTags(uid);
   await invalidateUserProfile(uid);
 }
 

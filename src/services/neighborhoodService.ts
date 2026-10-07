@@ -11,9 +11,9 @@ import { trackedGetDoc, trackedSetDoc } from '../utils/firestore/tracked';
 import { firestoreCircuitBreaker } from '../utils/network/circuitBreaker';
 import { withRetry } from '../utils/network/retry';
 import { withTimeout, DEFAULT_TIMEOUT_MS } from '../utils/network/timeout';
-import { getCachedOrFetch, buildCacheKey } from '../utils/cache/cacheService';
+import { cachedRead, getCachedOrFetch, buildCacheKey, CACHE_TTLS } from '../utils/cache/cacheService';
 
-const NEIGHBORHOOD_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const NEIGHBORHOOD_CACHE_TTL_MS = CACHE_TTLS.neighborhood; // 7 days (matches server-side freshness)
 
 function toISO(value: unknown): string {
   if (!value) return new Date().toISOString();
@@ -287,7 +287,28 @@ function toInsights(docId: string, data: Record<string, unknown>): NeighborhoodI
 }
 
 /**
- * Get neighborhood insights for a coordinate. Order of preference:
+ * Get neighborhood insights for a coordinate, through the client cache layer
+ * (DEFAULT read path): 7-day TTL — mirroring the server-side Firestore
+ * freshness window — stale-while-revalidate, and in-flight dedupe, so a
+ * property revisited within a week never re-queries Overpass or Firestore.
+ * Falls through to the uncached implementation below on any cache-layer
+ * failure (the section hides itself when this resolves null).
+ */
+export async function getNeighborhoodInsightsCached(
+  latitude: number,
+  longitude: number
+): Promise<NeighborhoodInsights | null> {
+  const result = await cachedRead(
+    buildCacheKey('neighborhood', 'insights', insightsDocId(latitude, longitude)),
+    CACHE_TTLS.neighborhood,
+    () => getNeighborhoodInsights(latitude, longitude),
+    { tags: ['neighborhood:insights'] }
+  );
+  return result.data;
+}
+
+/**
+ * Inner uncached implementation. Order of preference:
  *   1. Fresh Firestore cache (< 7 days)
  *   2. Live Overpass fetch (then cached, best-effort)
  *   3. Stale cache (better than nothing)

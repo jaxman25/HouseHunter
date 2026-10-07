@@ -2,7 +2,14 @@ import {
   collection,
   query,
   where,
+  orderBy,
+  limit,
+  startAfter,
   doc,
+  DocumentSnapshot,
+  DocumentData,
+  Query,
+  QuerySnapshot,
 } from 'firebase/firestore';
 import {
   trackedGetDocs,
@@ -15,12 +22,57 @@ import {
   CHAT_COLLECTION,
   NOTIFICATIONS_COLLECTION,
   MESSAGES_COLLECTION,
+  PROPERTIES_COLLECTION,
+  PAGE_SIZE_DEFAULT,
 } from '../utils/constants';
 import { deleteImage } from './storageService';
-import { getUserProperties, deleteProperty } from './propertyService';
+import { deleteProperty } from './propertyService';
 import { USER_REVIEWS_COLLECTION } from './userReviewService';
-import { invalidateUserProfile, invalidateFavorites } from '../utils/cache/cacheInvalidation';
+import {
+  invalidateUserTags,
+  invalidateUserProfile,
+  invalidateFavorites,
+} from '../utils/cache/cacheInvalidation';
 import { captureError } from '../utils/monitoring/sentry';
+
+type ListingPageSnap = QuerySnapshot<DocumentData>;
+
+const DELETE_PAGE_SIZE = 400;
+
+/**
+ * Drain-and-delete a user-scoped set in bounded pages: fetch a cursor page,
+ * delete its docs, advance. Re-querying per page (delete-by-page) avoids the
+ * classic pitfall of holding every doc id in memory for large accounts; the
+ * loop ends when a page comes back empty.
+ */
+async function deleteAllPages(
+  collectionName: string,
+  buildPage: (
+    cursor: DocumentSnapshot<DocumentData> | null
+  ) => Query<DocumentData, DocumentData>
+): Promise<number> {
+  let deleted = 0;
+  let cursor: DocumentSnapshot<DocumentData> | null = null;
+  // Safety valve — 50 pages x 400 docs; deletion is user-scoped so a full
+  // drain always finishes well inside this.
+  for (let i = 0; i < 50; i++) {
+    const snap: QuerySnapshot<DocumentData> = await trackedGetDocs(
+      buildPage(cursor),
+      collectionName
+    );
+    if (snap.empty) break;
+    for (const d of snap.docs) {
+      await trackedDeleteDoc(d.ref);
+      deleted++;
+    }
+    if (snap.size < DELETE_PAGE_SIZE) {
+      cursor = null;
+      break;
+    }
+    cursor = snap.docs[snap.docs.length - 1];
+  }
+  return deleted;
+}
 
 /**
  * Permanently erase every piece of data the account owns. Runs BEFORE
@@ -63,19 +115,36 @@ export async function deleteAccountData(uid: string): Promise<void> {
     captureError(error, { tags: { category: 'account-deletion' }, extra: { step: 'avatar' } });
   }
 
-  // Property listings (each deletes its storage images too).
+  // Property listings (each deletes its storage images too). Bounded pages
+  // looped to exhaustion — deletion must not stop at one page of listings.
   try {
-    const listings = await getUserProperties(uid);
-    for (const listing of listings) {
-      try {
-        await deleteProperty(listing.id);
-      } catch (error) {
-        failures.push(`listing ${listing.id}`);
-        captureError(error, {
-          tags: { category: 'account-deletion' },
-          extra: { step: 'property', propertyId: listing.id },
-        });
+    let cursor: DocumentSnapshot<DocumentData> | null = null;
+    // Safety valve mirrors deleteAllPages (50 pages).
+    for (let page = 0; page < 50; page++) {
+      const listingsPage: ListingPageSnap = await trackedGetDocs(
+        query(
+          collection(db, PROPERTIES_COLLECTION),
+          where('userId', '==', uid),
+          orderBy('createdAt', 'asc'),
+          ...(cursor ? [startAfter(cursor)] : []),
+          limit(PAGE_SIZE_DEFAULT)
+        ),
+        PROPERTIES_COLLECTION
+      );
+      if (listingsPage.empty) break;
+      for (const listing of listingsPage.docs) {
+        try {
+          await deleteProperty(listing.id);
+        } catch (error) {
+          failures.push(`listing ${listing.id}`);
+          captureError(error, {
+            tags: { category: 'account-deletion' },
+            extra: { step: 'property', propertyId: listing.id },
+          });
+        }
       }
+      if (listingsPage.size < PAGE_SIZE_DEFAULT) break;
+      cursor = listingsPage.docs[listingsPage.docs.length - 1];
     }
   } catch (error) {
     failures.push('listings');
@@ -84,13 +153,15 @@ export async function deleteAccountData(uid: string): Promise<void> {
 
   // Notifications.
   try {
-    const snaps = await trackedGetDocs(
-      query(collection(db, NOTIFICATIONS_COLLECTION), where('userId', '==', uid)),
-      NOTIFICATIONS_COLLECTION
+    await deleteAllPages(NOTIFICATIONS_COLLECTION, (cursor) =>
+      query(
+        collection(db, NOTIFICATIONS_COLLECTION),
+        where('userId', '==', uid),
+        orderBy('createdAt', 'asc'),
+        ...(cursor ? [startAfter(cursor)] : []),
+        limit(DELETE_PAGE_SIZE)
+      )
     );
-    for (const snap of snaps.docs) {
-      await trackedDeleteDoc(snap.ref);
-    }
   } catch (error) {
     failures.push('notifications');
     captureError(error, { tags: { category: 'account-deletion' }, extra: { step: 'notifications' } });
@@ -101,22 +172,24 @@ export async function deleteAccountData(uid: string): Promise<void> {
     const convSnaps = await trackedGetDocs(
       query(
         collection(db, CHAT_COLLECTION),
-        where('participants', 'array-contains', uid)
+        where('participants', 'array-contains', uid),
+        // Bounded: conversations are capped in practice; deletion only
+        // needs to reach the user's own recent threads.
+        limit(200)
       ),
       CHAT_COLLECTION
     );
     for (const convSnap of convSnaps.docs) {
       const convData = convSnap.data();
-      const messages = await trackedGetDocs(
+      await deleteAllPages(MESSAGES_COLLECTION, (cursor) =>
         query(
           collection(db, CHAT_COLLECTION, convSnap.id, MESSAGES_COLLECTION),
-          where('senderId', '==', uid)
-        ),
-        MESSAGES_COLLECTION
+          where('senderId', '==', uid),
+          orderBy('createdAt', 'asc'),
+          ...(cursor ? [startAfter(cursor)] : []),
+          limit(DELETE_PAGE_SIZE)
+        )
       );
-      for (const msg of messages.docs) {
-        await trackedDeleteDoc(msg.ref);
-      }
       // Strip own entries from the shared conversation metadata.
       const next: Record<string, unknown> = {
         participants: (convData.participants || []).filter((id: string) => id !== uid),
@@ -142,13 +215,15 @@ export async function deleteAccountData(uid: string): Promise<void> {
   // about interactions others had with the account, and admin moderation
   // covers abuse; rules prevent client deletes anyway).
   try {
-    const written = await trackedGetDocs(
-      query(collection(db, USER_REVIEWS_COLLECTION), where('reviewerId', '==', uid)),
-      USER_REVIEWS_COLLECTION
+    await deleteAllPages(USER_REVIEWS_COLLECTION, (cursor) =>
+      query(
+        collection(db, USER_REVIEWS_COLLECTION),
+        where('reviewerId', '==', uid),
+        orderBy('createdAt', 'asc'),
+        ...(cursor ? [startAfter(cursor)] : []),
+        limit(DELETE_PAGE_SIZE)
+      )
     );
-    for (const snap of written.docs) {
-      await trackedDeleteDoc(snap.ref);
-    }
   } catch (error) {
     failures.push('peer reviews written');
     captureError(error, {
@@ -161,6 +236,7 @@ export async function deleteAccountData(uid: string): Promise<void> {
   // until they are deleted above; chat metadata may too).
   try {
     await trackedDeleteDoc(doc(db, USERS_COLLECTION, uid));
+    await invalidateUserTags(uid);
     await invalidateUserProfile(uid);
     await invalidateFavorites(uid);
   } catch (error) {

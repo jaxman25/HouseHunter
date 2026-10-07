@@ -3,8 +3,15 @@ import {
   doc,
   query,
   where,
+  orderBy,
+  limit,
+  startAfter,
   serverTimestamp,
   Timestamp,
+  DocumentSnapshot,
+  DocumentData,
+  Query,
+  QuerySnapshot,
 } from 'firebase/firestore';
 import {
   trackedGetDoc,
@@ -25,6 +32,37 @@ import {
 import { firestoreCircuitBreaker } from '../utils/network/circuitBreaker';
 import { withRetry } from '../utils/network/retry';
 import { withTimeout, DEFAULT_TIMEOUT_MS } from '../utils/network/timeout';
+
+const EXPORT_PAGE_SIZE = 500;
+
+/**
+ * Drain an entire (filtered) collection in bounded pages — GDPR exports must
+ * be complete, so instead of one unbounded getDocs the fetch loops cursor
+ * pages of EXPORT_PAGE_SIZE. Stops when a page comes back short.
+ */
+async function collectAllPages(
+  collectionName: string,
+  buildPage: (
+    cursor: DocumentSnapshot<DocumentData> | null
+  ) => Query<DocumentData, DocumentData>
+): Promise<Record<string, unknown>[]> {
+  type Snap = DocumentSnapshot<DocumentData>;
+  const all: Record<string, unknown>[] = [];
+  let cursor: Snap | null = null;
+  // Hard safety valve (≈ 100k docs) — exports are user-scoped so this is
+  // never reached in practice; protects against a cursor that never advances.
+  for (let i = 0; i < 200; i++) {
+    const snap: QuerySnapshot<DocumentData> = await trackedGetDocs(
+      buildPage(cursor),
+      collectionName
+    );
+    if (snap.empty) break;
+    snap.forEach((d) => all.push({ id: d.id, ...d.data() }));
+    if (snap.size < EXPORT_PAGE_SIZE) break;
+    cursor = snap.docs[snap.docs.length - 1];
+  }
+  return all;
+}
 
 function toISO(value: unknown): string {
   if (!value) return new Date().toISOString();
@@ -168,40 +206,48 @@ export async function compileUserData(userId: string): Promise<Record<string, un
   }
 
   // Listings
-  const listings = await firestoreCircuitBreaker.execute(() =>
-    withRetry(() => withTimeout(
-      trackedGetDocs(query(collection(db, PROPERTIES_COLLECTION), where('userId', '==', userId)), PROPERTIES_COLLECTION),
-      DEFAULT_TIMEOUT_MS
-    ))
+  data.listings = await collectAllPages(PROPERTIES_COLLECTION, (cursor) =>
+    query(
+      collection(db, PROPERTIES_COLLECTION),
+      where('userId', '==', userId),
+      orderBy('createdAt', 'asc'),
+      ...(cursor ? [startAfter(cursor)] : []),
+      limit(EXPORT_PAGE_SIZE)
+    )
   );
-  data.listings = listings.docs.map((d) => ({ id: d.id, ...d.data() }));
 
   // Reviews
-  const reviews = await firestoreCircuitBreaker.execute(() =>
-    withRetry(() => withTimeout(
-      trackedGetDocs(query(collection(db, REVIEWS_COLLECTION), where('buyerId', '==', userId)), REVIEWS_COLLECTION),
-      DEFAULT_TIMEOUT_MS
-    ))
+  data.reviews = await collectAllPages(REVIEWS_COLLECTION, (cursor) =>
+    query(
+      collection(db, REVIEWS_COLLECTION),
+      where('buyerId', '==', userId),
+      orderBy('createdAt', 'asc'),
+      ...(cursor ? [startAfter(cursor)] : []),
+      limit(EXPORT_PAGE_SIZE)
+    )
   );
-  data.reviews = reviews.docs.map((d) => ({ id: d.id, ...d.data() }));
 
   // Tours
-  const tours = await firestoreCircuitBreaker.execute(() =>
-    withRetry(() => withTimeout(
-      trackedGetDocs(query(collection(db, TOURS_COLLECTION), where('buyerId', '==', userId)), TOURS_COLLECTION),
-      DEFAULT_TIMEOUT_MS
-    ))
+  data.tours = await collectAllPages(TOURS_COLLECTION, (cursor) =>
+    query(
+      collection(db, TOURS_COLLECTION),
+      where('buyerId', '==', userId),
+      orderBy('createdAt', 'asc'),
+      ...(cursor ? [startAfter(cursor)] : []),
+      limit(EXPORT_PAGE_SIZE)
+    )
   );
-  data.tours = tours.docs.map((d) => ({ id: d.id, ...d.data() }));
 
   // Notifications
-  const notifications = await firestoreCircuitBreaker.execute(() =>
-    withRetry(() => withTimeout(
-      trackedGetDocs(query(collection(db, NOTIFICATIONS_COLLECTION), where('userId', '==', userId)), NOTIFICATIONS_COLLECTION),
-      DEFAULT_TIMEOUT_MS
-    ))
+  data.notifications = await collectAllPages(NOTIFICATIONS_COLLECTION, (cursor) =>
+    query(
+      collection(db, NOTIFICATIONS_COLLECTION),
+      where('userId', '==', userId),
+      orderBy('createdAt', 'asc'),
+      ...(cursor ? [startAfter(cursor)] : []),
+      limit(EXPORT_PAGE_SIZE)
+    )
   );
-  data.notifications = notifications.docs.map((d) => ({ id: d.id, ...d.data() }));
 
   return data;
 }

@@ -28,6 +28,9 @@ export default function AdminDashboardScreen() {
   useEffect(() => {
     const run = async () => {
       try {
+        // Source: maintained `config/metrics` doc (Cloud Function triggers +
+        // nightly reconcile — see functions/src/platformMetrics.ts). No
+        // client-side aggregation queries.
         setMetrics(await getAdminMetrics());
       } catch (error) {
         console.error('Admin metrics failed:', error);

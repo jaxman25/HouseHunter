@@ -34,11 +34,18 @@ import { trackSellerResponseTime } from './sellerResponseTracking';
 import { trackPriceHistory } from './priceHistoryTracking';
 import { improveListing } from './aiAssistant';
 import { parseSearchQuery } from './nlSearch';
-import { deleteCloudinaryAsset } from './cloudinaryAssets';
-import {
-  reviewPromptTourCompleted,
+import { deleteCloudinaryAsset } from './cloudinaryAssets';import { reviewPromptTourCompleted,
   reviewPromptChatDepth,
 } from './reviewPrompts';
+import { countViewEvent } from './viewEvents';
+import {
+  platformMetricsOnUser,
+  platformMetricsOnProperty,
+  platformMetricsOnReport,
+  syncPlatformMetrics,
+} from './platformMetrics';
+import { updatePeerReviewStats } from './userReviewStats';
+import { platformChatOnMessage, platformChatOnRead } from './chatMeta';
 
 export {
   autoArchiveProperties,
@@ -64,6 +71,14 @@ export {
   deleteCloudinaryAsset,
   reviewPromptTourCompleted,
   reviewPromptChatDepth,
+  countViewEvent,
+  platformMetricsOnUser,
+  platformMetricsOnProperty,
+  platformMetricsOnReport,
+  syncPlatformMetrics,
+  updatePeerReviewStats,
+  platformChatOnMessage,
+  platformChatOnRead,
 };
 import {
   SecurityAlertInput,

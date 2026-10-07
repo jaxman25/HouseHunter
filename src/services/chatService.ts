@@ -4,9 +4,12 @@ import {
   query,
   where,
   orderBy,
+  limit,
+  startAfter,
   serverTimestamp,
   increment,
   Timestamp,
+  DocumentSnapshot,
   DocumentReference,
   DocumentData,
 } from 'firebase/firestore';
@@ -15,18 +18,25 @@ import {
   trackedGetDocs,
   trackedSetDoc,
   trackedOnSnapshot,
+  trackedOnSnapshotDoc,
   trackedWriteBatch,
 } from '../utils/firestore/tracked';
 import * as Crypto from 'expo-crypto';
 import { auth, db } from '../config/firebase';
 import { CLOUDINARY_CLOUD_NAME, uploadImage } from './storageService';
 import { Conversation, Message } from '../types';
-import { CHAT_COLLECTION, MESSAGES_COLLECTION } from '../utils/constants';
+import {
+  CHAT_COLLECTION,
+  MESSAGES_COLLECTION,
+  PAGE_SIZE_DEFAULT,
+  USERS_COLLECTION,
+} from '../utils/constants';
 import { firestoreCircuitBreaker } from '../utils/network/circuitBreaker';
 import { withRetry } from '../utils/network/retry';
 import { withTimeout, DEFAULT_TIMEOUT_MS } from '../utils/network/timeout';
 import { trackMetric } from '../utils/monitoring/metrics';
 import { sanitizeRichText, sanitize } from '../utils/security/sanitize';
+import { pageHasMore } from './messagePagination';
 
 /**
  * Deterministic conversation ID for a (buyer, seller, property) triple.
@@ -76,7 +86,10 @@ export async function getOrCreateConversation(
   const q = query(
     collection(db, CHAT_COLLECTION),
     where('participants', 'array-contains', userId1),
-    where('propertyId', '==', propertyId)
+    where('propertyId', '==', propertyId),
+    // Bounded: deterministic-ID fast path covers real conversations; this
+    // legacy fallback only needs the most recent handful.
+    limit(20)
   );
   const querySnapshot = await firestoreCircuitBreaker.execute(() =>
     withRetry(() => withTimeout(trackedGetDocs(q, CHAT_COLLECTION), DEFAULT_TIMEOUT_MS))
@@ -258,93 +271,193 @@ export async function uploadChatImage(
   return trackMetric('chat.uploadImage', () => uploadImage(uri, filename));
 }
 
+/** Newest-message window kept live in the open thread (paged older below). */
+export const MESSAGE_WINDOW = 30;
+
+/** Read-receipt subcollection: `conversations/{id}/reads/{uid}`. */
+export const READ_RECEIPTS_SUBCOLLECTION = 'reads';
+
+/** Minimum interval between a client's receipt writes (≤1 write / 5s). */
+const READ_RECEIPT_THROTTLE_MS = 5000;
+
+/** Normalize a message doc (serverTimestamp createdAt → ISO string). */
+function toMessage(snap: DocumentSnapshot<DocumentData>): Message {
+  const data = snap.data() ?? {};
+  const createdAt =
+    data.createdAt instanceof Timestamp
+      ? data.createdAt.toDate().toISOString()
+      : (data.createdAt as string);
+  return { id: snap.id, ...data, createdAt } as Message;
+}
+
 export function subscribeToMessages(
   conversationId: string,
-  callback: (messages: Message[]) => void
+  callback: (
+    messages: Message[],
+    oldestSnapshot: DocumentSnapshot<DocumentData> | null
+  ) => void
 ): () => void {
+  // Live window: ONLY the newest 30 messages (was 200 — every open used to
+  // (re)download 200 docs). Older history is paged in via getMessagesPage
+  // on scroll-up; the callback also yields the window's OLDEST snapshot as
+  // the cursor for that first older page.
   const q = query(
     collection(db, CHAT_COLLECTION, conversationId, MESSAGES_COLLECTION),
-    orderBy('createdAt', 'asc')
+    orderBy('createdAt', 'desc'),
+    limit(MESSAGE_WINDOW)
   );
 
   return trackedOnSnapshot(q, MESSAGES_COLLECTION, (querySnapshot) => {
-    const messages: Message[] = [];
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      const createdAt =
-        data.createdAt instanceof Timestamp
-          ? data.createdAt.toDate().toISOString()
-          : (data.createdAt as string);
-      messages.push({ id: doc.id, ...data, createdAt } as Message);
-    });
-    callback(messages);
+    const docs = querySnapshot.docs;
+    const messages = docs.map(toMessage);
+    messages.reverse(); // ascending for display
+    callback(messages, docs.length > 0 ? docs[docs.length - 1] : null);
   });
 }
 
-export function subscribeToConversations(
-  userId: string,
-  callback: (conversations: Conversation[]) => void
-): () => void {
-  const q = query(
-    collection(db, CHAT_COLLECTION),
-    where('participants', 'array-contains', userId),
-    orderBy('updatedAt', 'desc')
-  );
-
-  return trackedOnSnapshot(q, CHAT_COLLECTION, (querySnapshot) => {
-    const conversations: Conversation[] = [];
-    querySnapshot.forEach((doc) => {
-      conversations.push({ id: doc.id, ...doc.data() } as Conversation);
-    });
-    callback(conversations);
-  });
-}
-
-export async function markAsRead(
+/**
+ * One OLDER page of a thread — newest-first query reversed to ascending,
+ * `cursor` = the oldest snapshot already loaded (initial window or previous
+ * page). `hasMore` comes straight from the page fill: a short page ends
+ * pagination (see pageHasMore).
+ */
+export async function getMessagesPage(
   conversationId: string,
-  userId: string
-): Promise<void> {
-  // SECURITY (IDOR): Verify the caller is marking their own messages as read.
-  const user = auth.currentUser;
-  if (!user || user.uid !== userId) {
-    throw new Error('Unauthorized: you can only mark your own messages as read');
-  }
-
-  const convRef = doc(db, CHAT_COLLECTION, conversationId);
-
-  // Mark individual messages as read — one query, then batched writes.
-  // Previously this was an N-round-trip loop (one updateDoc per message);
-  // now it's one query + chunked writeBatch commits (batch cap is 500).
+  cursor: DocumentSnapshot<DocumentData> | null,
+  pageSize: number = MESSAGE_WINDOW
+): Promise<{
+  items: Message[];
+  cursor: DocumentSnapshot<DocumentData> | null;
+  hasMore: boolean;
+}> {
   const q = query(
     collection(db, CHAT_COLLECTION, conversationId, MESSAGES_COLLECTION),
-    where('read', '==', false)
+    orderBy('createdAt', 'desc'),
+    ...(cursor ? [startAfter(cursor)] : []),
+    limit(pageSize)
   );
-  const querySnapshot = await firestoreCircuitBreaker.execute(() =>
+  const snap = await firestoreCircuitBreaker.execute(() =>
     withRetry(() => withTimeout(trackedGetDocs(q, MESSAGES_COLLECTION), DEFAULT_TIMEOUT_MS))
   );
-  const unreadByOthers = querySnapshot.docs
-    .filter((docSnap) => docSnap.data().senderId !== userId)
-    .map((docSnap) => docSnap.ref);
+  const items = snap.docs.map(toMessage);
+  items.reverse();
+  return {
+    items,
+    cursor: snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : null,
+    hasMore: pageHasMore(snap.docs.length, pageSize),
+  };
+}
 
-  // Always at least one batch (the unread-count reset itself).
-  const chunkSize = 400;
-  const batches =
-    unreadByOthers.length > 0
-      ? Array.from({ length: Math.ceil(unreadByOthers.length / chunkSize) }, (_, i) =>
-          unreadByOthers.slice(i * chunkSize, (i + 1) * chunkSize)
-        )
-      : [[]];
+/** Shape of `users/{uid}/meta/chat` (written only by platformChat triggers). */
+export interface ChatMeta {
+  /** Epoch millis of the user's most recent message activity (0 = none). */
+  lastMessageAt: number;
+  /** Total unread messages across the user's conversations. */
+  unreadCount: number;
+}
 
-  for (const messageRefs of batches) {
-    const batch = trackedWriteBatch();
-    batch.update(convRef, { [`unreadCount.${userId}`]: 0 });
-    for (const messageRef of messageRefs) {
-      batch.update(messageRef, { read: true });
-    }
-    await firestoreCircuitBreaker.execute(() =>
-      withRetry(() => withTimeout(batch.commit(), DEFAULT_TIMEOUT_MS))
+/**
+ * The conversations list's ONLY real-time subscription: one doc listener
+ * on `users/{uid}/meta/chat` — 1 read per change, instead of the old
+ * first-page query listener whose N conversation docs were re-billed on
+ * every message. Callers refetch the first page with `getConversationsPage`
+ * when the meta signature changes (ConversationsScreen skips the first
+ * snapshot: the paged hook has just loaded page 1 on mount).
+ */
+export function subscribeToChatMeta(
+  userId: string,
+  callback: (meta: ChatMeta) => void
+): () => void {
+  const ref = doc(db, USERS_COLLECTION, userId, 'meta', 'chat');
+  return trackedOnSnapshotDoc(ref, USERS_COLLECTION, (snap) => {
+    const data = snap.exists() ? snap.data() : undefined;
+    const at = data?.lastMessageAt;
+    const atMs =
+      at instanceof Timestamp
+        ? at.toDate().getTime()
+        : typeof at === 'string'
+          ? Date.parse(at) || 0
+          : 0;
+    callback({
+      lastMessageAt: atMs,
+      unreadCount: typeof data?.unreadCount === 'number' ? data.unreadCount : 0,
+    });
+  });
+}
+
+/**
+ * Batched read receipt — writes ONLY `conversations/{id}/reads/{uid}` =
+ * { lastReadAt } (server time), at most one write per 5s per conversation.
+ * The `platformChatOnRead` trigger resets this conversation's unread badge
+ * for the reader and recomputes their `meta/chat.unreadCount`, so this stays
+ * a single doc write.
+ *
+ * Replaces the old per-message flow (one `read == false` query — up to 400
+ * reads — plus a batch of `read: true` message updates on every open).
+ * Never throws; returns whether a receipt was written (false = throttled).
+ */
+const lastReceiptAtByConversation = new Map<string, number>();
+
+export async function recordReadReceipt(
+  conversationId: string,
+  userId: string
+): Promise<boolean> {
+  // SECURITY (IDOR): receipts are always the caller's own; rules additionally
+  // pin reads/{uid} to auth.uid == readerId and participant membership.
+  const user = auth.currentUser;
+  if (!user || user.uid !== userId) return false;
+
+  const now = Date.now();
+  const last = lastReceiptAtByConversation.get(conversationId) ?? 0;
+  if (now - last < READ_RECEIPT_THROTTLE_MS) return false;
+  lastReceiptAtByConversation.set(conversationId, now);
+
+  try {
+    const receiptRef = doc(
+      db,
+      CHAT_COLLECTION,
+      conversationId,
+      READ_RECEIPTS_SUBCOLLECTION,
+      userId
     );
+    await firestoreCircuitBreaker.execute(() =>
+      withRetry(() =>
+        withTimeout(
+          trackedSetDoc(receiptRef, { lastReadAt: serverTimestamp() }),
+          DEFAULT_TIMEOUT_MS
+        )
+      )
+    );
+    return true;
+  } catch (error) {
+    // Failed write — allow the next call to retry immediately.
+    lastReceiptAtByConversation.delete(conversationId);
+    console.warn('Failed to record read receipt:', error);
+    return false;
   }
+}
+
+/**
+ * Watch the OTHER participant's receipt (one doc — 1 read per change) so the
+ * thread renders live read checkmarks without any per-message writes: an
+ * own message flips to read once its createdAt <= their `lastReadAt`.
+ */
+export function subscribeToReadReceipt(
+  conversationId: string,
+  readerId: string,
+  callback: (lastReadAtMs: number) => void
+): () => void {
+  const ref = doc(
+    db,
+    CHAT_COLLECTION,
+    conversationId,
+    READ_RECEIPTS_SUBCOLLECTION,
+    readerId
+  );
+  return trackedOnSnapshotDoc(ref, CHAT_COLLECTION, (snap) => {
+    const at = snap.exists() ? snap.data()?.lastReadAt : undefined;
+    callback(at instanceof Timestamp ? at.toDate().getTime() : 0);
+  });
 }
 
 export async function getConversation(
@@ -366,7 +479,9 @@ export async function getConversationsForUser(
   const q = query(
     collection(db, CHAT_COLLECTION),
     where('participants', 'array-contains', userId),
-    orderBy('updatedAt', 'desc')
+    orderBy('updatedAt', 'desc'),
+    // Bounded: list screens use getConversationsPage for older pages.
+    limit(PAGE_SIZE_DEFAULT)
   );
   const querySnapshot = await firestoreCircuitBreaker.execute(() =>
     withRetry(() => withTimeout(trackedGetDocs(q, CHAT_COLLECTION), DEFAULT_TIMEOUT_MS))
@@ -376,4 +491,33 @@ export async function getConversationsForUser(
     conversations.push({ id: doc.id, ...doc.data() } as Conversation);
   });
   return conversations;
+}
+
+/**
+ * Cursor page over a user's conversations, most recently active first —
+ * used by ConversationsScreen to fetch older pages on scroll (real-time
+ * covers only the first page).
+ */
+export async function getConversationsPage(
+  userId: string,
+  cursor: DocumentSnapshot<DocumentData> | null,
+  pageSize: number = PAGE_SIZE_DEFAULT
+): Promise<{
+  items: Conversation[];
+  cursor: DocumentSnapshot<DocumentData> | null;
+}> {
+  const q = query(
+    collection(db, CHAT_COLLECTION),
+    where('participants', 'array-contains', userId),
+    orderBy('updatedAt', 'desc'),
+    ...(cursor ? [startAfter(cursor)] : []),
+    limit(pageSize)
+  );
+  const snap = await firestoreCircuitBreaker.execute(() =>
+    withRetry(() => withTimeout(trackedGetDocs(q, CHAT_COLLECTION), DEFAULT_TIMEOUT_MS))
+  );
+  return {
+    items: snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Conversation),
+    cursor: snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : null,
+  };
 }

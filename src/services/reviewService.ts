@@ -6,6 +6,7 @@ import {
   orderBy,
   limit,
   serverTimestamp,
+  startAfter,
   DocumentSnapshot,
 } from 'firebase/firestore';
 import {
@@ -18,7 +19,13 @@ import {
 } from '../utils/firestore/tracked';
 import { db } from '../config/firebase';
 import { Review, ReviewRatingBreakdown } from '../types';
-import { REVIEWS_COLLECTION, PROPERTIES_COLLECTION, USERS_COLLECTION } from '../utils/constants';
+import {
+  REVIEWS_COLLECTION,
+  PROPERTIES_COLLECTION,
+  USERS_COLLECTION,
+  PAGE_SIZE_DEFAULT,
+} from '../utils/constants';
+import type { DocumentSnapshot as FsDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { firestoreCircuitBreaker } from '../utils/network/circuitBreaker';
 import { withRetry } from '../utils/network/retry';
 import { withTimeout, DEFAULT_TIMEOUT_MS } from '../utils/network/timeout';
@@ -149,7 +156,8 @@ export async function getPropertyReviews(propertyId: string): Promise<Review[]> 
             collection(db, REVIEWS_COLLECTION),
             where('propertyId', '==', propertyId),
             where('isRemoved', '==', false),
-            orderBy('createdAt', 'desc')
+            orderBy('createdAt', 'desc'),
+            limit(PAGE_SIZE_DEFAULT)
           ),
           REVIEWS_COLLECTION
         ),
@@ -193,7 +201,9 @@ export async function getSellerRating(sellerId: string): Promise<ReviewRatingBre
           query(
             collection(db, REVIEWS_COLLECTION),
             where('sellerId', '==', sellerId),
-            where('isRemoved', '==', false)
+            where('isRemoved', '==', false),
+            // Bounded: rating aggregates tolerate a large-but-capped sample.
+            limit(500)
           ),
           REVIEWS_COLLECTION
         ),
@@ -289,7 +299,8 @@ export async function getFlaggedReviews(): Promise<Review[]> {
             collection(db, REVIEWS_COLLECTION),
             where('isFlagged', '==', true),
             where('isRemoved', '==', false),
-            orderBy('createdAt', 'desc')
+            orderBy('createdAt', 'desc'),
+            limit(100)
           ),
           REVIEWS_COLLECTION
         ),
@@ -301,16 +312,44 @@ export async function getFlaggedReviews(): Promise<Review[]> {
   return result.docs.map(toReview);
 }
 
+/**
+ * Cursor page over a property's reviews, newest first — paginated variant
+ * for list screens (usePaginatedQuery).
+ */
+export async function getPropertyReviewsPage(
+  propertyId: string,
+  cursor: FsDocumentSnapshot<DocumentData> | null,
+  pageSize: number = PAGE_SIZE_DEFAULT
+): Promise<{ items: Review[]; cursor: FsDocumentSnapshot<DocumentData> | null }> {
+  const q = query(
+    collection(db, REVIEWS_COLLECTION),
+    where('propertyId', '==', propertyId),
+    where('isRemoved', '==', false),
+    orderBy('createdAt', 'desc'),
+    ...(cursor ? [startAfter(cursor)] : []),
+    limit(pageSize)
+  );
+  const snap = await firestoreCircuitBreaker.execute(() =>
+    withRetry(() => withTimeout(trackedGetDocs(q, REVIEWS_COLLECTION), DEFAULT_TIMEOUT_MS))
+  );
+  return {
+    items: snap.docs.map(toReview),
+    cursor: snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : null,
+  };
+}
+
 /** Real-time subscription to reviews for a property. */
 export function subscribeToPropertyReviews(
   propertyId: string,
   callback: (reviews: Review[]) => void
 ): () => void {
+  // Real-time covers only the newest page (bounded).
   const q = query(
     collection(db, REVIEWS_COLLECTION),
     where('propertyId', '==', propertyId),
     where('isRemoved', '==', false),
-    orderBy('createdAt', 'desc')
+    orderBy('createdAt', 'desc'),
+    limit(PAGE_SIZE_DEFAULT)
   );
 
   return trackedOnSnapshot(q, REVIEWS_COLLECTION, (snapshot) => {

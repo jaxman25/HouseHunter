@@ -34,7 +34,8 @@ Hosting, Cloud Functions), **Cloudinary** (image/video uploads), and **Google Ma
 | 6 property types: House, Apartment, Condo, Townhouse, Land, Commercial | `src/utils/constants.ts` |
 | Listing types: Buy / Rent | |
 | 20 amenities/features (parking, pool, gym, pet-friendly, AC, …) | |
-| View counts & inquiry tracking per listing | `src/services/propertyService.ts` |
+| View counts & inquiry tracking per listing — the old client-side `views: increment(1)` in `fetchProperty` was removed; counting is fully server-side (next row) | `src/services/propertyService.ts` (`fetchProperty`) |
+| Debounced view counting — one view per user per property per 24h: the detail screen gates on `shouldCountView`/`markViewCounted` (device-local 24h TTL), then creates a create-only `properties/{id}/viewEvents/{uid}_{yyyy-mm-dd}` (UTC day) whose doc-id IS the Firestore rate-limit guard (create must be exactly `{auth.uid}_{yyyy-mm-dd}` with a `{ userId }` payload; no update/delete); the `countViewEvent` trigger re-validates the id against the event timestamp and bumps `views` by exactly +1 | `src/screens/property/PropertyDetailScreen.tsx`, `src/services/recentlyViewedService.ts`, `src/services/propertyService.ts` (`recordViewEvent`), `firestore.rules` (`viewEvents`), `functions/src/viewEvents.ts` | Guard unit-tested in `src/services/__tests__/recentlyViewedService.test.js` |
 | Seller Performance Dashboard — per-listing views, inquiries, days-on-market; portfolio summary with totals; sort by newest/views/inquiries; stale indicator for listings > 30 days | `src/screens/property/SellerPerformanceScreen.tsx`, reads existing `views`, `inquiries`, `createdAt` fields |
 | Agent Deals & Commission Dashboard — agent-owned `deals` records (property, buyer, price, rate %, close date, pipeline/closed/lost); summary cards for YTD commission, avg deal size, closed count, and pipeline value; log-deal form modal; inline status changes with optimistic revert; Profile entry for agent-role users | `src/screens/property/AgentDashboardScreen.tsx`, `src/services/dealService.ts` (`computeDealMetrics`), `src/types/index.ts` (`Deal`), `firestore.rules` (`deals`), `firestore.indexes.json`, `src/screens/main/ProfileScreen.tsx` | Owner-scoped rules (agentId immutable, price/rate bounds re-checked, no client deletes); metrics mirror SellerPerformanceScreen patterns; commission math unit-tested in `src/services/__tests__/dealMetrics.test.js` |
 | Current-location capture when adding a listing | `expo-location` in `AddPropertyScreen.tsx` |
@@ -112,10 +113,10 @@ Hosting, Cloud Functions), **Cloudinary** (image/video uploads), and **Google Ma
 
 | Feature | Where |
 |---|---|
-| Conversations per property between buyers, sellers, agents | `src/screens/chat/ConversationsScreen.tsx`, `ConversationItem.tsx` |
-| Live messaging via Firestore `onSnapshot` | `src/screens/chat/ChatScreen.tsx`, `src/services/chatService.ts` |
+| Conversations per property between buyers, sellers, agents — the list's real-time layer is ONE doc (`users/{uid}/meta/chat`, 1 read per change) instead of an onSnapshot over the whole first page; when its lastMessageAt/unreadCount signature changes the first page is refetched via getDocs (first snapshot skipped — the paged hook just loaded page 1), older pages load on scroll | `src/screens/chat/ConversationsScreen.tsx`, `ConversationItem.tsx`, `src/services/chatService.ts` (`subscribeToChatMeta`, `getConversationsPage`), `firestore.rules` (`users/meta` — client-write denied) |
+| Live messaging via Firestore `onSnapshot` — newest-30 live window (was 200); older history paginates on scroll-up, 30 at a time (`getMessagesPage` + pure merge helpers: deduped, gapless when the window slides, unit-tested) | `src/screens/chat/ChatScreen.tsx`, `src/services/chatService.ts`, `src/services/messagePagination.ts`, `src/services/__tests__/messagePagination.test.js` |
 | Image sharing in chat | `ChatInput.tsx`, Cloudinary upload |
-| Unread counts & read receipts | `src/services/chatService.ts` |
+| Unread counts & read receipts — batched: each participant writes a single `conversations/{id}/reads/{uid}` = { lastReadAt } (server time), throttled to ≤1 write / 5s; replaces the old per-message `read == false` query (up to 400 reads) + `read: true` batch. Cloud Function `platformChatOnRead` resets that conversation's unread badge and recomputes `meta/chat.unreadCount`; `platformChatOnMessage` bumps both participants' meta on each new message; live read checkmarks derive from the other participant's receipt doc (1 doc listener) | `src/services/chatService.ts` (`recordReadReceipt`, `subscribeToReadReceipt`), `functions/src/chatMeta.ts`, `firestore.rules` (`conversations/reads`) |
 | Data erasure: users can delete their own messages | Firestore rules |
 | Back navigation on both Messages and Chat screens | header back buttons |
 
@@ -183,11 +184,11 @@ Hosting, Cloud Functions), **Cloudinary** (image/video uploads), and **Google Ma
 | Feature | Where |
 |---|---|
 | Role-gated admin suite (`admin_roles` provisioned by operators; client writes denied) | `src/hooks/useAdmin.ts`, `src/components/admin/AdminGuard.tsx`, `firestore.rules` |
-| Dashboard with live metrics (users, listings, active, pending reports) | `src/screens/admin/AdminDashboardScreen.tsx`, `src/services/adminService.ts` |
+| Dashboard with live metrics (users, listings, active, pending reports) — all four read from the maintained `config/metrics` doc (one read; no client-side aggregation queries) | `src/screens/admin/AdminDashboardScreen.tsx`, `src/services/adminService.ts` (`getAdminMetrics` → `getPlatformMetrics`), `functions/src/platformMetrics.ts` |
 | User management — search, suspend (reason + 3d/14d/permanent), unsuspend | `src/screens/admin/UsersManagementScreen.tsx` |
 | Reports triage — dismiss / resolve / delete listing (admins may delete listings via rules) | `src/screens/admin/ReportsManagementScreen.tsx`, `firestore.rules` |
 | Announcements editor — publish / activate / pause; the latest active one renders in NoticeBanner | `src/screens/admin/SystemSettingsScreen.tsx`, `NoticeBanner.tsx` |
-| Analytics — count metrics + listings/reports status distributions (no chart dependency) | `src/screens/admin/AnalyticsScreen.tsx` |
+| Analytics — count metrics + listings/reports status distributions (no chart dependency). Metrics source: the single `config/metrics` doc — created/updated by Cloud Function triggers (`platformMetricsOnUser/Property/Report`, pure before→after deltas on existence/status changes) and reconciled to exact values nightly by `syncPlatformMetrics`; rules deny all client writes and restrict reads to admins. Replaces the former per-metric `getCountFromServer` queries (zero remain in the app) | `src/screens/admin/AnalyticsScreen.tsx`, `src/services/adminService.ts` (`getPlatformMetrics`), `firestore.rules` (`config`), `functions/src/platformMetrics.ts` + `platformMetricsDelta.ts` (unit-tested) |
 | Report a listing from the detail screen (inappropriate / scam / duplicate / other, anonymous to the seller) | `src/components/moderation/ReportListingModal.tsx`, `PropertyDetailScreen.tsx` |
 | Audit log appended for every admin action | `admin_auditLog` + `adminService.logAudit()` |
 | Suspended users blocked from creating listings/messages/inquiries while their data stays readable (GDPR) | `firestore.rules` |

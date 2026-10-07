@@ -4,6 +4,7 @@ import {
   query,
   where,
   orderBy,
+  limit,
   serverTimestamp,
   DocumentSnapshot,
   Timestamp,
@@ -20,6 +21,7 @@ import { Tour, TourAvailability, TourStatus } from '../types';
 import {
   TOURS_COLLECTION,
   TOUR_AVAILABILITY_COLLECTION,
+  PAGE_SIZE_DEFAULT,
 } from '../utils/constants';
 import { firestoreCircuitBreaker } from '../utils/network/circuitBreaker';
 import { withRetry } from '../utils/network/retry';
@@ -155,7 +157,10 @@ export async function isSlotAvailable(
           query(
             collection(db, TOURS_COLLECTION),
             where('sellerId', '==', sellerId),
-            where('status', 'in', ['pending', 'confirmed'] as TourStatus[])
+            where('status', 'in', ['pending', 'confirmed'] as TourStatus[]),
+            // Bounded conflict scan (a day cannot hold more than a few
+            // tours given maxToursPerDay + buffers).
+            limit(200)
           ),
           TOURS_COLLECTION
         ),
@@ -257,7 +262,9 @@ export async function getUserTours(
           query(
             collection(db, TOURS_COLLECTION),
             where(field, '==', userId),
-            orderBy('datetime', 'desc')
+            orderBy('datetime', 'desc'),
+            // Bounded at 200 — effectively complete for owner-scoped tours.
+            limit(200)
           ),
           TOURS_COLLECTION
         ),
@@ -358,7 +365,9 @@ export async function getUpcomingTours(sellerId: string): Promise<Tour[]> {
           query(
             collection(db, TOURS_COLLECTION),
             where('sellerId', '==', sellerId),
-            where('status', 'in', ['confirmed', 'pending'] as TourStatus[])
+            where('status', 'in', ['confirmed', 'pending'] as TourStatus[]),
+            // Bounded: reminder helper, upcoming tours only.
+            limit(200)
           ),
           TOURS_COLLECTION
         ),
@@ -380,10 +389,12 @@ export function subscribeToUserTours(
   callback: (tours: Tour[]) => void
 ): () => void {
   const field = role === 'buyer' ? 'buyerId' : 'sellerId';
+  // Real-time covers only the newest page; the collection is bounded.
   const q = query(
     collection(db, TOURS_COLLECTION),
     where(field, '==', userId),
-    orderBy('datetime', 'desc')
+    orderBy('datetime', 'desc'),
+    limit(PAGE_SIZE_DEFAULT)
   );
 
   return trackedOnSnapshot(q, TOURS_COLLECTION, (snapshot) => {

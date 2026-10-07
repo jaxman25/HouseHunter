@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import {
-  getNeighborhoodInsights,
+  getNeighborhoodInsightsCached,
   NeighborhoodInsights,
 } from '../../services/neighborhoodService';
 import Skeleton from '../common/Skeleton';
@@ -36,7 +36,9 @@ export default function NeighborhoodInsightsSection({
   useEffect(() => {
     let ignore = false;
     setState('loading');
-    getNeighborhoodInsights(latitude, longitude)
+    // Cached read (7-day client TTL on top of the Firestore cache) —
+    // revisiting the same property serves instantly with zero reads.
+    getNeighborhoodInsightsCached(latitude, longitude)
       .then((result) => {
         if (ignore) return;
         if (result) {

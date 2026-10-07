@@ -18,9 +18,9 @@ import PropertyCard from '../../components/property/PropertyCard';
 import PropertyCardSkeleton from '../../components/common/PropertyCardSkeleton';
 import VerificationBadge from '../../components/reviews/VerificationBadge';
 import Skeleton from '../../components/common/Skeleton';
-import { getUserProfile } from '../../services/authService';
+import { getUserProfileCached } from '../../services/authService';
 import { getUserProperties } from '../../services/propertyService';
-import { getUserRating, UserRatingSummary } from '../../services/userReviewService';
+import { getUserRatingCached, UserRatingSummary } from '../../services/userReviewService';
 import { useResponsive } from '../../hooks/useResponsive';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -48,9 +48,11 @@ export default function AgentProfileScreen() {
     setNotFound(false);
     try {
       const [profile, properties, peerRating] = await Promise.all([
-        getUserProfile(agentId),
+        // Cached reads (profile 15 min, rating 5 min, user-tagged) — repeat
+        // mounts within the windows issue zero Firestore reads.
+        getUserProfileCached(agentId),
         getUserProperties(agentId).catch(() => [] as Property[]),
-        getUserRating(agentId).catch(() => null),
+        getUserRatingCached(agentId).catch(() => null),
       ]);
       if (!profile) {
         setNotFound(true);

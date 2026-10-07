@@ -8,7 +8,6 @@ import {
   startAfter,
   deleteField,
   serverTimestamp,
-  getCountFromServer,
   Timestamp,
   DocumentSnapshot,
 } from 'firebase/firestore';
@@ -28,6 +27,7 @@ import {
   ADMIN_AUDIT_COLLECTION,
   USERS_COLLECTION,
   PROPERTIES_COLLECTION,
+  PLATFORM_METRICS_PATH,
 } from '../utils/constants';
 import { User, Report, ReportStatus, Announcement, Property } from '../types';
 import { sanitize } from '../utils/security/sanitize';
@@ -56,20 +56,62 @@ export interface AdminMetrics {
   pendingReports: number;
 }
 
-/** Aggregated platform metrics (Firestore count() — no extra backend). */
-export async function getAdminMetrics(): Promise<AdminMetrics> {
-  const countAll = (q: ReturnType<typeof query>) => getCountFromServer(q);
-  const [users, properties, active, pending] = await Promise.all([
-    countAll(query(collection(db, USERS_COLLECTION))),
-    countAll(query(collection(db, PROPERTIES_COLLECTION))),
-    countAll(query(collection(db, PROPERTIES_COLLECTION), where('status', '==', 'active'))),
-    countAll(query(collection(db, ADMIN_REPORTS_COLLECTION), where('status', '==', 'pending'))),
-  ]);
+/**
+ * Platform totals as stored on the maintained `config/metrics` doc — the
+ * single source for the admin dashboard + analytics screens. Fields default
+ * to 0 until the first trigger event (or nightly `syncPlatformMetrics`
+ * reconcile) seeds the doc.
+ */
+export interface PlatformMetrics {
+  users: number;
+  properties: number;
+  propertiesActive: number;
+  propertiesPending: number;
+  propertiesSold: number;
+  propertiesInactive: number;
+  reportsPending: number;
+  reportsDismissed: number;
+  reportsResolved: number;
+}
+
+function toCount(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+/**
+ * Read `config/metrics` (one doc — replaces four client-side
+ * `getCountFromServer` aggregations). Maintained by the Cloud Function
+ * triggers in functions/src/platformMetrics.ts; rules deny all client
+ * writes and restrict reads to admins.
+ */
+export async function getPlatformMetrics(): Promise<PlatformMetrics> {
+  const snap = await firestoreCircuitBreaker.execute(() =>
+    withRetry(() =>
+      withTimeout(trackedGetDoc(doc(db, PLATFORM_METRICS_PATH)), DEFAULT_TIMEOUT_MS)
+    )
+  );
+  const d = snap.exists() ? snap.data() : undefined;
   return {
-    userCount: users.data().count,
-    propertyCount: properties.data().count,
-    activeListingCount: active.data().count,
-    pendingReports: pending.data().count,
+    users: toCount(d?.users),
+    properties: toCount(d?.properties),
+    propertiesActive: toCount(d?.propertiesActive),
+    propertiesPending: toCount(d?.propertiesPending),
+    propertiesSold: toCount(d?.propertiesSold),
+    propertiesInactive: toCount(d?.propertiesInactive),
+    reportsPending: toCount(d?.reportsPending),
+    reportsDismissed: toCount(d?.reportsDismissed),
+    reportsResolved: toCount(d?.reportsResolved),
+  };
+}
+
+/** Aggregated platform metrics — projected from the maintained doc. */
+export async function getAdminMetrics(): Promise<AdminMetrics> {
+  const m = await getPlatformMetrics();
+  return {
+    userCount: m.users,
+    propertyCount: m.properties,
+    activeListingCount: m.propertiesActive,
+    pendingReports: m.reportsPending,
   };
 }
 
