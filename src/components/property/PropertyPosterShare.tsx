@@ -5,7 +5,6 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import QRCode from 'qrcode';
-import { useTheme } from '../../context/ThemeContext';
 import { Property } from '../../types';
 import {
   formatPrice,
@@ -31,7 +30,6 @@ import { showToast } from '../../utils/ui/toast';
  * back to the regular link share so the button never dead-ends.
  */
 export default function PropertyPosterShare({ property }: { property: Property }) {
-  const { colors } = useTheme();
   const posterRef = useRef<View>(null);
   const [rendering, setRendering] = useState(false);
   const [qrModules, setQrModules] = useState<{ size: number; data: Uint8Array } | null>(null);

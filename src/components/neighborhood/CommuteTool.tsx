@@ -25,7 +25,7 @@ interface CommuteResult {
 }
 
 export default function CommuteTool({ originLat, originLng }: CommuteToolProps) {
-  const { colors, fontSize, spacing, radius } = useTheme();
+  const { colors, fontSize, radius } = useTheme();
   const [address, setAddress] = useState('');
   const [mode, setMode] = useState<ModeKey>('driving');
   const [result, setResult] = useState<CommuteResult | null>(null);

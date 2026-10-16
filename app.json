@@ -7,9 +7,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "splash": {
-      "backgroundColor": "#FFFFFF"
-    },
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -21,10 +18,12 @@
       "bundleIdentifier": "com.househunter.app"
     },
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png"
-      },
       "package": "com.househunter.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#061023"
+      },
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
@@ -33,6 +32,15 @@
       ]
     },
     "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "imageWidth": 220,
+          "resizeMode": "contain",
+          "backgroundColor": "#061023"
+        }
+      ],
       [
         "expo-location",
         {
@@ -54,14 +62,7 @@
         }
       ],
       "expo-font",
-      "expo-sharing",
-      [
-        "@sentry/react-native",
-        {
-          "organization": "TODO_YOUR_SENTRY_ORG",
-          "project": "TODO_YOUR_SENTRY_PROJECT"
-        }
-      ]
+      "expo-sharing"
     ],
     "extra": {
       "eas": {

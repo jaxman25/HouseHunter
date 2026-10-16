@@ -8,12 +8,11 @@ import {
   ScrollView,
   StyleSheet,
   Alert,
-  Platform,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuthContext } from '../../context/AuthContext';
-import { createTour, isSlotAvailable, getAvailability } from '../../services/tourService';
+import { createTour, getAvailability } from '../../services/tourService';
 import { getProperty } from '../../services/propertyService';
 
 interface TourRequestModalProps {
@@ -33,7 +32,7 @@ export default function TourRequestModal({
   onClose,
   onSuccess,
 }: TourRequestModalProps) {
-  const { colors, fontSize, spacing, radius } = useTheme();
+  const { colors, fontSize, radius } = useTheme();
   const { user } = useAuthContext();
 
   const [selectedDate, setSelectedDate] = useState('');
@@ -44,7 +43,7 @@ export default function TourRequestModal({
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
 
   const generateTimeSlots = useCallback((start: string, end: string) => {
-    const [startH, startM] = start.split(':').map(Number);
+    const [startH,  ] = start.split(':').map(Number);
     const [endH] = end.split(':').map(Number);
     const slots: string[] = [];
     for (let h = startH; h < endH; h++) {

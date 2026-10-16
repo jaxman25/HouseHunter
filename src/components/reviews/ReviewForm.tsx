@@ -24,7 +24,7 @@ interface ReviewFormProps {
 }
 
 export default function ReviewForm({ propertyId, sellerId, onSuccess, onCancel }: ReviewFormProps) {
-  const { colors, fontSize, spacing, radius } = useTheme();
+  const { colors, fontSize } = useTheme();
   const { user } = useAuthContext();
 
   const [rating, setRating] = useState(0);
@@ -77,9 +77,8 @@ export default function ReviewForm({ propertyId, sellerId, onSuccess, onCancel }
         cons: cons.filter((c) => c.trim()),
         isVerifiedPurchase: true,
       });
-      Alert.alert('Review Submitted', 'Your review has been posted successfully.');
-      onSuccess?.();
-    } catch (error) {
+      Alert.alert('Review Submitted', 'Your review has been posted successfully.');        onSuccess?.();
+      } catch {
       Alert.alert('Error', 'Failed to submit review. Please try again.');
     } finally {
       setLoading(false);

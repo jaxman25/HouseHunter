@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Tour, TourAvailability } from '../types';
-import { getUserTours, getAvailability, subscribeToUserTours } from '../services/tourService';
+import { getAvailability, subscribeToUserTours } from '../services/tourService';
 
 export function useUserTours(userId: string, role: 'buyer' | 'seller' = 'buyer') {
   const [tours, setTours] = useState<Tour[]>([]);

@@ -22,7 +22,7 @@ export default function ReviewList({
   onFlagged,
   onResponseAdded,
 }: ReviewListProps) {
-  const { colors, fontSize, spacing } = useTheme();
+  const { colors, fontSize } = useTheme();
 
   if (reviews.length === 0) {
     return (

@@ -23,7 +23,7 @@ const DATA_TYPES = [
 ];
 
 export default function DataExportModal({ visible, onClose, onRequestSubmitted }: DataExportModalProps) {
-  const { colors, fontSize, spacing, radius } = useTheme();
+  const { colors, fontSize, radius } = useTheme();
   const { user } = useAuthContext();
   const [loading, setLoading] = useState(false);
 

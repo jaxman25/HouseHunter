@@ -29,7 +29,7 @@ export default function NeighborhoodInsightsSection({
   latitude,
   longitude,
 }: NeighborhoodInsightsSectionProps) {
-  const { colors, fontSize, spacing, radius, shadow } = useTheme();
+  const { colors, fontSize, radius, shadow } = useTheme();
   const [insights, setInsights] = useState<NeighborhoodInsights | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'hidden'>('loading');
 

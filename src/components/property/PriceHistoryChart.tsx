@@ -20,7 +20,7 @@ export default function PriceHistoryChart({
   entries,
   listingType,
 }: PriceHistoryChartProps) {
-  const { colors, fontSize, radius } = useTheme();
+  const { colors } = useTheme();
 
   if (entries.length < 2) return null;
 

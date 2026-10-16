@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Switch, TextInput, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -18,7 +18,7 @@ export default function TourSettingsScreen() {
   const { user } = useAuthContext();
   const insets = useSafeAreaInsets();
 
-  const { availability, loading, refresh } = useSellerAvailability(user?.uid || '');
+  const { availability, refresh } = useSellerAvailability(user?.uid || '');
 
   const [selectedDays, setSelectedDays] = useState<number[]>([1, 2, 3, 4, 5]); // Mon-Fri
   const [startTime, setStartTime] = useState('09:00');
@@ -59,9 +59,8 @@ export default function TourSettingsScreen() {
         maxToursPerDay: parseInt(maxTours) || 3,
         bufferMinutes: parseInt(bufferMinutes) || 30,
       });
-      Alert.alert('Saved', 'Your availability settings have been saved');
-      refresh();
-    } catch (error) {
+      Alert.alert('Saved', 'Your availability settings have been saved');        refresh();
+      } catch {
       Alert.alert('Error', 'Failed to save settings');
     } finally {
       setSaving(false);

@@ -6,8 +6,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { RootStackParamList } from '../../types';
-import { LanguageCode } from '../../types';
+import { RootStackParamList, LanguageCode } from '../../types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 

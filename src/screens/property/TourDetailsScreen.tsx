@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { RootStackParamList, Tour } from '../../types';
 import { useAuthContext } from '../../context/AuthContext';
-import { getTour, updateTourStatus, rescheduleTour } from '../../services/tourService';
+import { getTour, updateTourStatus } from '../../services/tourService';
 import { formatDateTime } from '../../utils/formatters';
 import AddToCalendarButton from '../../components/tours/AddToCalendarButton';
 import Badge from '../../components/common/Badge';

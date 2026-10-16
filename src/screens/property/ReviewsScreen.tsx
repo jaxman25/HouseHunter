@@ -6,10 +6,9 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { RootStackParamList } from '../../types';
-import { usePropertyReviews } from '../../hooks/useReviews';
+import { usePropertyReviews, useSellerRating } from '../../hooks/useReviews';
 import ReviewList from '../../components/reviews/ReviewList';
 import RatingBreakdown from '../../components/reviews/RatingBreakdown';
-import { useSellerRating } from '../../hooks/useReviews';
 
 type RouteProps = RouteProp<RootStackParamList, 'Reviews'>;
 
@@ -20,7 +19,7 @@ export default function ReviewsScreen() {
   const { propertyId } = route.params;
   const insets = useSafeAreaInsets();
 
-  const { reviews, loading } = usePropertyReviews(propertyId);
+  const { reviews } = usePropertyReviews(propertyId);
   // Get sellerId from first review
   const sellerId = reviews.length > 0 ? reviews[0].sellerId : '';
   const { rating } = useSellerRating(sellerId);

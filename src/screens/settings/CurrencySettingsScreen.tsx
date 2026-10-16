@@ -7,8 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { useCurrencyContext } from '../../context/CurrencyContext';
 import { RootStackParamList } from '../../types';
-import { CurrencyCode } from '../../services/currencyService';
-import { CURRENCIES, getExchangeRates } from '../../services/currencyService';
+import { CurrencyCode, CURRENCIES, getExchangeRates } from '../../services/currencyService';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 

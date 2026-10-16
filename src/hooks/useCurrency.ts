@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useCurrencyContext } from '../context/CurrencyContext';
 import { CurrencyCode, convertFromKES, formatCurrencyAmount, getListingSuffix } from '../services/currencyService';
 

@@ -19,8 +19,15 @@ module.exports = defineConfig([
     ],
   },
   {
-    // Plain Node.js scripts (no browser/module bundler globals here).
-    files: ['scripts/**/*.js'],
+    // Node-executed files: plain scripts (CommonJS/ESM) and the unit tests
+    // run with `node --test`. They are not bundled, so browser/module-bundler
+    // globals don't apply — Node's do (__dirname, process, Buffer, …).
+    files: [
+      'scripts/**/*.{js,mjs,cjs}',
+      'src/**/__tests__/**/*.{js,mjs,cjs}',
+      '**/*.test.{js,mjs,cjs}',
+      '**/*.spec.{js,mjs,cjs}',
+    ],
     languageOptions: {
       globals: globals.node,
     },

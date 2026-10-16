@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Review, ReviewRatingBreakdown } from '../types';
 import {
-  getPropertyReviews,
   getSellerReviews,
   getSellerRating,
   canUserReview,

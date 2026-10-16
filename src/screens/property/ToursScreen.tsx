@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -10,7 +10,6 @@ import { useAuthContext } from '../../context/AuthContext';
 import { useUserTours } from '../../hooks/useTours';
 import TourCard from '../../components/tours/TourCard';
 import { updateTourStatus } from '../../services/tourService';
-import { Alert } from 'react-native';
 
 type Tab = 'upcoming' | 'past';
 type Role = 'buyer' | 'seller';

@@ -38,7 +38,6 @@ export default function LoginScreen({ navigation }: Props) {
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const [loading, setLoading] = useState(false);
   const [generalError, setGeneralError] = useState('');
-  const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const [honeypot, setHoneypot] = useState('');
   // Mount time is captured in an effect (not during render) so the component
   // stays pure. 0 reads as "not too fast" until the effect runs.

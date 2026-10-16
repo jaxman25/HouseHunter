@@ -21,7 +21,7 @@ import { useResponsive } from '../../hooks/useResponsive';
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export default function FavoritesScreen() {
-  const { colors, fontSize, spacing, radius } = useTheme();
+  const { colors, fontSize, spacing } = useTheme();
   const { user, isFavorite, toggleFavorite } = useAuthContext();
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();

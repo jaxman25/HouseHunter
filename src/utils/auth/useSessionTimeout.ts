@@ -14,8 +14,7 @@
  */
 
 import { useEffect, useRef, useCallback } from 'react';
-import { Platform, AppState, AppStateStatus } from 'react-native';
-import { InteractionManager } from 'react-native';
+import { Platform, AppState, AppStateStatus, InteractionManager } from 'react-native';
 
 const WARNING_MINUTES_BEFORE = 5; // Show warning 5 minutes before timeout
 

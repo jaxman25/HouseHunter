@@ -11,7 +11,7 @@ interface ValueTrendsChartProps {
 }
 
 export default function ValueTrendsChart({ averagePrice, yearOverYearChange, yearlyData }: ValueTrendsChartProps) {
-  const { colors, fontSize, radius } = useTheme();
+  const { colors, fontSize } = useTheme();
 
   const maxPrice = Math.max(...yearlyData.map((d) => d.price), 1);
 

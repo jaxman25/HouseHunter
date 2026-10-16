@@ -1,4 +1,3 @@
-/* global __dirname */
 // Lightweight babel-register shim for running the app's .ts/.tsx tests under
 // Node's built-in test runner without a bundler. Parses TS with @babel/parser
 // (using the @babel/plugin-syntax-typescript plugin object, since the string-form

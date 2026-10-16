@@ -19,7 +19,7 @@ export default function SellerReviewsScreen() {
   const { sellerId } = route.params;
   const insets = useSafeAreaInsets();
 
-  const { reviews, loading, refresh } = useSellerReviews(sellerId);
+  const { reviews, refresh } = useSellerReviews(sellerId);
   const { rating } = useSellerRating(sellerId);
 
   return (

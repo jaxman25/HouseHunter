@@ -5,10 +5,9 @@ import { useTheme } from '../../context/ThemeContext';
 import { PlatformAnalytics as PlatformAnalyticsType } from '../../types';
 import { getPlatformAnalytics } from '../../services/analyticsService';
 import MetricCard from './MetricCard';
-import ActivityChart from './ActivityChart';
 
 export default function PlatformAnalytics() {
-  const { colors, fontSize, spacing, radius } = useTheme();
+  const { colors, fontSize, radius } = useTheme();
   const [data, setData] = useState<PlatformAnalyticsType | null>(null);
   const [loading, setLoading] = useState(true);
 

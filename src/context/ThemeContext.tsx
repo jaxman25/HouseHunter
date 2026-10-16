@@ -1,6 +1,6 @@
 import React, { createContext, useContext, ReactNode, useMemo, useState, useEffect, useCallback } from 'react';
 import { Platform, useWindowDimensions, Appearance } from 'react-native';
-import { LIGHT_COLORS, DARK_COLORS, SPACING, RADIUS, FONT_SIZE, SHADOW, getColorsForMode } from '../config/theme';
+import { LIGHT_COLORS, DARK_COLORS, SPACING, RADIUS, FONT_SIZE, SHADOW } from '../config/theme';
 import { ThemeColors, ThemeMode } from '../types';
 import { getSavedTheme, saveTheme } from '../services/themeService';
 

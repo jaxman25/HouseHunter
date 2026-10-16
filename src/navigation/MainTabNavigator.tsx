@@ -13,7 +13,7 @@ import ProfileScreen from '../screens/main/ProfileScreen';
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 export default function MainTabNavigator() {
-  const { colors, radius } = useTheme();
+  const { colors } = useTheme();
 
   const getTabBarIcon = (route: string, focused: boolean) => {
     let iconName: string;

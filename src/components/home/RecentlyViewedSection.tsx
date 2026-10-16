@@ -20,7 +20,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
  * whole feature degrades to nothing on any failure.
  */
 export default function RecentlyViewedSection() {
-  const { colors, fontSize, spacing, radius, shadow } = useTheme();
+  const { colors, fontSize, spacing, radius } = useTheme();
   const navigation = useNavigation<Nav>();
   const responsive = useResponsive();
   const { items, loading, refresh } = useRecentlyViewed();

@@ -37,7 +37,7 @@ const RESEND_COOLDOWN_SECONDS = 60;
 const POLL_INTERVAL_MS = 5_000;
 
 export default function EmailVerificationGate() {
-  const { colors, fontSize, spacing, radius } = useTheme();
+  const { colors, fontSize, spacing } = useTheme();
   const { user, firebaseUser, logout } = useAuthContext();
   const insets = useSafeAreaInsets();
 

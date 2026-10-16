@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { Tour } from '../../types';
-import { formatDateTime, formatTime } from '../../utils/formatters';
+import { formatDateTime } from '../../utils/formatters';
 import Badge from '../common/Badge';
 
 interface TourCardProps {
@@ -23,7 +23,7 @@ const STATUS_META: Record<string, { label: string; variant: 'success' | 'warning
 };
 
 export default function TourCard({ tour, onPress, onConfirm, onDecline }: TourCardProps) {
-  const { colors, fontSize, spacing, radius } = useTheme();
+  const { colors, fontSize, radius } = useTheme();
   const statusMeta = STATUS_META[tour.status] || STATUS_META.pending;
   const isUpcoming = new Date(tour.datetime) > new Date() && tour.status !== 'canceled';
 

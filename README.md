@@ -108,8 +108,8 @@ A full-featured real estate app built with **React Native (Expo)**, **Firebase**
 ##  Quick Start
 
 ```bash
-# 1. Install dependencies (use --legacy-peer-deps, required by this project)
-npm install --legacy-peer-deps
+# 1. Install dependencies
+npm install
 
 # 2. Configure Firebase (see "Firebase Setup" below), then create .env:
 cp .env.example .env
@@ -241,7 +241,9 @@ firebase functions:secrets:set CLOUDINARY_API_SECRET
 | `npm run build:web` | Export the web bundle to `dist/` |
 | `npm run check:indexes` | Verify Firestore indexes cover all queries |
 
-> **Installing dependencies:** always use `npm install --legacy-peer-deps` — the project's React Native / React peer versions require it.
+> **Installing dependencies:** `npm install` (the lockfile is strict-resolution clean — no `--legacy-peer-deps` flag or `.npmrc` needed).
+
+> **Android builds:** see [ANDROID_BUILD.md](./ANDROID_BUILD.md) for EAS login, building the installable preview **APK**, and producing the **AAB** for Google Play.
 
 ---
 
@@ -283,9 +285,8 @@ HouseHunter/
 You haven't deployed the composite indexes yet. Run `npx firebase-tools deploy --only firestore:indexes` (or click the index link in the error message and hit **Create index**). See [Firebase Setup → Step 5](#5-deploy-firestore-indexes--dont-skip).
 
 **`npm install` fails with peer dependency errors**
-```bash
-npm install --legacy-peer-deps
-```
+Re-run `npm install` — the lockfile is kept strict-resolution clean. If it persists, the
+peer ranges in `package.json` need attention (report it rather than forcing flags).
 
 **App crashes on startup with Firebase errors**
 Verify every `EXPO_PUBLIC_*` value in `.env` is filled in (no placeholder text), and that Authentication, Firestore, and Storage are enabled in the Firebase project.

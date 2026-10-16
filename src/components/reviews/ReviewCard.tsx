@@ -17,7 +17,7 @@ interface ReviewCardProps {
 }
 
 export default function ReviewCard({ review, isSeller = false, onFlagged, onResponseAdded }: ReviewCardProps) {
-  const { colors, fontSize, spacing, radius } = useTheme();
+  const { colors, fontSize, radius } = useTheme();
   const { user } = useAuthContext();
   const [showResponseInput, setShowResponseInput] = useState(false);
   const [responseText, setResponseText] = useState('');
@@ -29,9 +29,8 @@ export default function ReviewCard({ review, isSeller = false, onFlagged, onResp
     try {
       await respondToReview(review.id, user.uid, responseText.trim());
       setResponseText('');
-      setShowResponseInput(false);
-      onResponseAdded?.();
-    } catch (error) {
+      setShowResponseInput(false);        onResponseAdded?.();
+      } catch {
       Alert.alert('Error', 'Failed to post response');
     } finally {
       setLoading(false);

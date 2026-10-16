@@ -11,8 +11,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuthContext } from '../../context/AuthContext';
 import { SavedSearch } from '../../types';
-import { getSavedSearches } from '../../services/savedSearchService';
-import { summarizeFilters } from '../../services/savedSearchService';
+import { getSavedSearches, summarizeFilters } from '../../services/savedSearchService';
 
 interface MapSavedSearchOverlayProps {
   /** Currently active saved search id, or null when showing all properties. */

@@ -11,7 +11,6 @@ import StatusBadge from '../common/StatusBadge';
 import VerificationBadge from '../reviews/VerificationBadge';
 import { shareProperty } from '../../utils/share';
 import { useCompare } from '../../hooks/useCompare';
-import { COMPARE_MAX } from '../../services/compareService';
 
 /** Statuses where the listing is no longer available to new buyers. */
 const UNAVAILABLE_STATUSES: Property['status'][] = ['sold', 'rented', 'inactive'];

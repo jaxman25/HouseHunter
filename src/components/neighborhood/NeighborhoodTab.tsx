@@ -20,7 +20,7 @@ interface NeighborhoodTabProps {
 }
 
 export default function NeighborhoodTab({ city, state, zipCode, latitude, longitude }: NeighborhoodTabProps) {
-  const { colors, fontSize, spacing, radius } = useTheme();
+  const { colors, fontSize, radius } = useTheme();
   const [data, setData] = useState<NeighborhoodData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
