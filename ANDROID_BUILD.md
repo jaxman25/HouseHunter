@@ -264,21 +264,50 @@ eas build:version:set --platform android   # e.g. if you migrate from another st
 
 ## 6. Push notifications (FCM V1) — needed for real device pushes
 
-`src/services/notificationService.ts` calls `Notifications.getExpoPushTokenAsync()`. On
-Android that requires **FCM V1 credentials** registered for the project; without them the
-build still succeeds but push registration fails at runtime.
+`src/services/notificationService.ts` calls `Notifications.getExpoPushTokenAsync({ projectId })`,
+where `projectId` is the `app.json` value at `extra.eas.projectId`, and `AuthContext`
+persists the token to `users/{uid}.expoPushToken` on sign-in. On Android that call needs
+**FCM V1 credentials** registered against the EAS project; without them the build still
+succeeds but registration fails at runtime and the saved-search Cloud Function has no
+token to push to.
+
+### Register the FCM V1 key (one-time)
 
 1. Firebase Console → project **househunter-f3ff3** → ⚙ Project settings → **Service
-   accounts** → **Generate new private key** (downloads a JSON file).
+   accounts** → **Generate new private key** (downloads a JSON file). Treat it as a
+   secret and keep it *outside* the repo (e.g. `~/Desktop/keys/`) —
+   `scripts/pre-commit-secrets-check.sh` blocks committing service-account keys.
 2. Register it with EAS — either in the CLI:
 
    ```bash
    eas credentials --platform android
-   # → choose the app → Google Service Account → manage/upload the FCM V1 key
+   # → app: com.househunter.app → Google Service Account → Upload/Manage FCM V1 key → pick the JSON
    ```
 
    or in the browser: <https://expo.dev/accounts/johnbundi/projects/house-hunter/credentials>
    → Android → *Google Service Account Key for Push Notifications (FCM V1)*.
+3. Confirm it stuck: re-run the same `eas credentials --platform android` and check the
+   FCM V1 entry shows a service-account address and the Firebase project.
+
+The key is injected during prebuild, so artifacts built before it never carry it —
+**rebuild after registering**:
+
+```bash
+eas build --profile preview --platform android
+```
+
+### Verify on a device
+
+Use a real phone; images and emulators without Play services register nothing.
+
+1. Install the APK and sign in.
+2. Firestore → `users/{uid}` → the `expoPushToken` field should appear
+   (`persistPushToken` writes it on sign-in and re-writes it on foreground).
+   Missing while the permission is granted = registration failed: check the Metro log
+   for the `No extra.eas.projectId` warning first (the code names the id explicitly
+   instead of letting expo-notifications infer it).
+3. Send a test push to that token from <https://expo.dev/notifications>, or wait for the
+   scheduled saved-search Cloud Function.
 
 Reference: <https://docs.expo.dev/push-notifications/fcm-credentials/>
 
@@ -343,19 +372,56 @@ error: Auth token is required for this request.
 placeholders, so the upload could never have succeeded.) Until it is configured, JS
 stack traces in Sentry appear minified — native crashes are unaffected.
 
-To turn source-map upload on later:
+#### Turn source-map upload on — step by step
 
-1. `npx expo install @sentry/react-native/config` — no: the plugin ships with the SDK
-   package, so just add the entry to `app.json` → `plugins`:
+Do steps 1–4 *before* your next build: the plugin present without a token breaks every
+release build.
 
-   ```json
-   ["@sentry/react-native", { "organization": "<your-org>", "project": "<your-project>" }]
+1. **Sentry project** — create (or reuse) one with the *React Native* platform and copy
+   three values: the **DSN**, the **organization slug**, the **project slug**.
+2. **DSN (runtime)** — `.env` gets `EXPO_PUBLIC_SENTRY_DSN=<dsn>` (declared in
+   `.env.example`), then push the values to the build environments:
+
+   ```bash
+   grep -E "^EXPO_PUBLIC_[A-Z0-9_]+=.+" .env > .env.eas-push
+   eas env:push preview --path .env.eas-push --force
+   eas env:push production --path .env.eas-push --force
+   rm .env.eas-push
    ```
 
-2. Store a token with the `project:releases` scope as an EAS variable (never commit it):
-   `eas env:set --name SENTRY_AUTH_TOKEN --value <token> --environment production --visibility secret`
-3. Delete `android/` if it exists locally, then rebuild. The Gradle log then shows
-   `index.android.bundle.map` being uploaded.
+3. **Slugs (build time)** — add as the last entry of `app.json` → `plugins`:
+
+   ```json
+   ["@sentry/react-native", { "organization": "<org-slug>", "project": "<project-slug>" }]
+   ```
+
+   Nothing extra to install: the plugin ships inside `@sentry/react-native`. It is what
+   applies `sentry.gradle`, hooking `sentry-cli` into the release bundling task.
+4. **Token (secret, never committed)** — a token with the `project:releases` scope, for
+   *every* environment you build with:
+
+   ```bash
+   eas env:set --name SENTRY_AUTH_TOKEN --value <token> --environment development --visibility secret
+   eas env:set --name SENTRY_AUTH_TOKEN --value <token> --environment preview --visibility secret
+   eas env:set --name SENTRY_AUTH_TOKEN --value <token> --environment production --visibility secret
+   ```
+
+5. **Rebuild** — `android/` is untracked, so EAS prebuilds from `app.json` and applies
+   the plugin:
+
+   ```bash
+   eas build --profile preview --platform android     # and production for the AAB
+   ```
+
+6. **Verify**:
+   - the build log shows `Sentry-CLI arguments:` and the map upload;
+   - Sentry → *Releases* lists the release with `index.android.bundle` + `.map`;
+   - a triggered JS error resolves to file/line instead of minified names.
+
+To pause uploads *without* deleting the plugin entry (for example while a token is
+being rotated), set `SENTRY_DISABLE_AUTO_UPLOAD=true` as an **EAS environment variable**
+for that environment only — the switch then lives outside the repo instead of in
+`eas.json`.
 
 ### Dependency install: no flags, no `.npmrc`
 

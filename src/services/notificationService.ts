@@ -1,4 +1,5 @@
 import { Platform, AppState, AppStateStatus } from 'react-native';
+import Constants from 'expo-constants';
 import {
   collection,
   query,
@@ -66,7 +67,19 @@ export async function registerForPushNotifications(
     return null;
   }
 
-  const token = (await Notifications.getExpoPushTokenAsync()).data;
+  // Pass the EAS project id explicitly instead of letting expo-notifications
+  // infer it: it is the value app.json stores at extra.eas.projectId, and
+  // token registration throws (rather than silently returning nothing) when
+  // the runtime cannot resolve one — worth naming loudly here instead.
+  const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+  if (!projectId) {
+    console.warn(
+      '[notifications] No extra.eas.projectId in the app config — Expo push token registration will fail.'
+    );
+    return null;
+  }
+
+  const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
   return token;
 }
 
