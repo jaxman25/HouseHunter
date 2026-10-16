@@ -34,30 +34,32 @@ export default function MapSavedSearchOverlay({
 }: MapSavedSearchOverlayProps) {
   const { colors, fontSize, radius, shadow } = useTheme();
   const { user } = useAuthContext();
-  const [searches, setSearches] = useState<SavedSearch[]>([]);
-  const [loading, setLoading] = useState(true);
+  const uid = user?.uid;
+  const [loadedSearches, setLoadedSearches] = useState<SavedSearch[]>([]);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    if (!user?.uid) {
-      setSearches([]);
-      setLoading(false);
-      return;
-    }
+    if (!uid) return;
     let ignore = false;
-    getSavedSearches(user.uid)
+    getSavedSearches(uid)
       .then((list) => {
-        if (!ignore) setSearches(list);
+        if (!ignore) setLoadedSearches(list);
       })
       .catch(() => {
         // Non-critical: chips just stay hidden on failure.
       })
       .finally(() => {
-        if (!ignore) setLoading(false);
+        if (!ignore) setLoaded(true);
       });
     return () => {
       ignore = true;
     };
-  }, [user?.uid]);
+  }, [uid]);
+
+  // Signed-out (or not yet loaded) means "nothing to show, not loading" —
+  // derived here so the effect never writes state itself.
+  const searches = uid ? loadedSearches : [];
+  const loading = Boolean(uid) && !loaded;
 
   const active = searches.find((s) => s.id === activeSearchId) ?? null;
 

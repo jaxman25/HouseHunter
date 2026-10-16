@@ -1,16 +1,43 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
-import { RootStackParamList } from '../../types';
+import { RootStackParamList, TourAvailability } from '../../types';
 import { useAuthContext } from '../../context/AuthContext';
 import { useSellerAvailability } from '../../hooks/useTours';
 import { setAvailability } from '../../services/tourService';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+interface TourForm {
+  days: number[];
+  startTime: string;
+  endTime: string;
+  maxTours: string;
+  bufferMinutes: string;
+}
+
+/** Fallback shown while the saved availability is still loading. */
+const TOUR_FORM_DEFAULTS: TourForm = {
+  days: [1, 2, 3, 4, 5], // Mon-Fri
+  startTime: '09:00',
+  endTime: '17:00',
+  maxTours: '3',
+  bufferMinutes: '30',
+};
+
+function formFromAvailability(availability: TourAvailability): TourForm {
+  return {
+    days: availability.daysOfWeek,
+    startTime: availability.startTime,
+    endTime: availability.endTime,
+    maxTours: String(availability.maxToursPerDay),
+    bufferMinutes: String(availability.bufferMinutes),
+  };
+}
 
 export default function TourSettingsScreen() {
   const { colors, fontSize, spacing, radius } = useTheme();
@@ -20,27 +47,21 @@ export default function TourSettingsScreen() {
 
   const { availability, refresh } = useSellerAvailability(user?.uid || '');
 
-  const [selectedDays, setSelectedDays] = useState<number[]>([1, 2, 3, 4, 5]); // Mon-Fri
-  const [startTime, setStartTime] = useState('09:00');
-  const [endTime, setEndTime] = useState('17:00');
-  const [maxTours, setMaxTours] = useState('3');
-  const [bufferMinutes, setBufferMinutes] = useState('30');
+  // The form shows the saved availability until the seller edits a field: the
+  // draft stays null while untouched, so nothing has to be copied into state
+  // when it arrives (react-hooks/set-state-in-effect).
+  const [draft, setDraft] = useState<TourForm | null>(null);
+  const form: TourForm = draft ?? (availability ? formFromAvailability(availability) : TOUR_FORM_DEFAULTS);
+  const { days: selectedDays, startTime, endTime, maxTours, bufferMinutes } = form;
+  const patchForm = (values: Partial<TourForm>) => setDraft({ ...form, ...values });
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (availability) {
-      setSelectedDays(availability.daysOfWeek);
-      setStartTime(availability.startTime);
-      setEndTime(availability.endTime);
-      setMaxTours(String(availability.maxToursPerDay));
-      setBufferMinutes(String(availability.bufferMinutes));
-    }
-  }, [availability]);
-
   const toggleDay = (day: number) => {
-    setSelectedDays((prev) =>
-      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day].sort()
-    );
+    patchForm({
+      days: selectedDays.includes(day)
+        ? selectedDays.filter((d) => d !== day)
+        : [...selectedDays, day].sort(),
+    });
   };
 
   const handleSave = async () => {
@@ -128,7 +149,7 @@ export default function TourSettingsScreen() {
               <Text style={[styles.timeLabel, { color: colors.textLight, fontSize: fontSize.xs }]}>Start</Text>
               <TextInput
                 value={startTime}
-                onChangeText={setStartTime}
+                onChangeText={(v) => patchForm({ startTime: v })}
                 placeholder="09:00"
                 style={[styles.timeInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.gray100, fontSize: fontSize.md }]}
                 placeholderTextColor={colors.gray400}
@@ -139,7 +160,7 @@ export default function TourSettingsScreen() {
               <Text style={[styles.timeLabel, { color: colors.textLight, fontSize: fontSize.xs }]}>End</Text>
               <TextInput
                 value={endTime}
-                onChangeText={setEndTime}
+                onChangeText={(v) => patchForm({ endTime: v })}
                 placeholder="17:00"
                 style={[styles.timeInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.gray100, fontSize: fontSize.md }]}
                 placeholderTextColor={colors.gray400}
@@ -155,7 +176,7 @@ export default function TourSettingsScreen() {
           </Text>
           <TextInput
             value={maxTours}
-            onChangeText={setMaxTours}
+            onChangeText={(v) => patchForm({ maxTours: v })}
             keyboardType="number-pad"
             style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.gray100, fontSize: fontSize.md }]}
             placeholderTextColor={colors.gray400}
@@ -169,7 +190,7 @@ export default function TourSettingsScreen() {
           </Text>
           <TextInput
             value={bufferMinutes}
-            onChangeText={setBufferMinutes}
+            onChangeText={(v) => patchForm({ bufferMinutes: v })}
             keyboardType="number-pad"
             style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.gray100, fontSize: fontSize.md }]}
             placeholderTextColor={colors.gray400}

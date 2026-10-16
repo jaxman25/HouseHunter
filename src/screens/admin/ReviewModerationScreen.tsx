@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
@@ -12,21 +12,24 @@ export default function ReviewModerationScreen() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadReviews = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await getFlaggedReviews();
-      setReviews(data);
-    } catch {
-      setReviews([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
+  // Commits from the promise callbacks so the effect body writes no state
+  // synchronously (react-hooks/set-state-in-effect).
   useEffect(() => {
-    loadReviews();
-  }, [loadReviews]);
+    let active = true;
+    getFlaggedReviews()
+      .then((data) => {
+        if (active) setReviews(data);
+      })
+      .catch(() => {
+        if (active) setReviews([]);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleRemove = (reviewId: string) => {
     Alert.alert('Remove Review', 'Are you sure you want to remove this review?', [

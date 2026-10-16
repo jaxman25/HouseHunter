@@ -31,11 +31,11 @@ export default function NeighborhoodInsightsSection({
 }: NeighborhoodInsightsSectionProps) {
   const { colors, fontSize, radius, shadow } = useTheme();
   const [insights, setInsights] = useState<NeighborhoodInsights | null>(null);
-  const [state, setState] = useState<'loading' | 'ready' | 'hidden'>('loading');
+  const [phase, setPhase] = useState<{ key: string; value: 'ready' | 'hidden' } | null>(null);
+  const key = `${latitude},${longitude}`;
 
   useEffect(() => {
     let ignore = false;
-    setState('loading');
     // Cached read (7-day client TTL on top of the Firestore cache) —
     // revisiting the same property serves instantly with zero reads.
     getNeighborhoodInsightsCached(latitude, longitude)
@@ -43,18 +43,22 @@ export default function NeighborhoodInsightsSection({
         if (ignore) return;
         if (result) {
           setInsights(result);
-          setState('ready');
+          setPhase({ key, value: 'ready' });
         } else {
-          setState('hidden');
+          setPhase({ key, value: 'hidden' });
         }
       })
       .catch(() => {
-        if (!ignore) setState('hidden');
+        if (!ignore) setPhase({ key, value: 'hidden' });
       });
     return () => {
       ignore = true;
     };
-  }, [latitude, longitude]);
+  }, [latitude, longitude, key]);
+
+  // Derived: a new coordinate pair reports "loading" again without the effect
+  // writing state synchronously (react-hooks/set-state-in-effect).
+  const state = phase?.key === key ? phase.value : 'loading';
 
   if (state === 'hidden') return null;
 

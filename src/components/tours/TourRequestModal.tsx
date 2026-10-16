@@ -53,24 +53,28 @@ export default function TourRequestModal({
     setAvailableSlots(slots);
   }, []);
 
-  const loadAvailability = useCallback(async () => {
-    try {
-      const avail = await getAvailability(sellerId);
-      if (avail) {
-        generateTimeSlots(avail.startTime, avail.endTime);
-      } else {
-        generateTimeSlots('09:00', '17:00');
-      }
-    } catch {
-      generateTimeSlots('09:00', '17:00');
-    }
-  }, [sellerId, generateTimeSlots]);
-
+  // Seeding the slot list from a promise callback keeps the effect body free of
+  // synchronous state writes (react-hooks/set-state-in-effect); `active` drops a
+  // late result when the modal closes or the seller changes mid-flight.
   useEffect(() => {
-    if (visible && sellerId) {
-      loadAvailability();
-    }
-  }, [visible, sellerId, loadAvailability]);
+    if (!visible || !sellerId) return;
+    let active = true;
+    getAvailability(sellerId)
+      .then((avail) => {
+        if (!active) return;
+        if (avail) {
+          generateTimeSlots(avail.startTime, avail.endTime);
+        } else {
+          generateTimeSlots('09:00', '17:00');
+        }
+      })
+      .catch(() => {
+        if (active) generateTimeSlots('09:00', '17:00');
+      });
+    return () => {
+      active = false;
+    };
+  }, [visible, sellerId, generateTimeSlots]);
 
   const handleSubmit = async () => {
     if (!user) return;

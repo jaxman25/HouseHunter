@@ -27,24 +27,36 @@ export function useUserTours(userId: string, role: 'buyer' | 'seller' = 'buyer')
 
 export function useSellerAvailability(sellerId: string) {
   const [availability, setAvailability] = useState<TourAvailability | null>(null);
-  const [loading, setLoading] = useState(true);
+  // `loading` is derived, not stored: true until the fetch for the current
+  // sellerId has landed (and while a manual refresh is in flight).
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
 
-  const loadAvailability = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await getAvailability(sellerId);
-      setAvailability(data);
-    } catch {
-      setAvailability(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [sellerId]);
+  // Pure fetcher (no state): null means "nothing to show for this seller".
+  const loadAvailability = useCallback(
+    () => getAvailability(sellerId).catch(() => null),
+    [sellerId]
+  );
 
   useEffect(() => {
     if (!sellerId) return;
-    loadAvailability();
+    let active = true;
+    loadAvailability().then((data) => {
+      if (!active) return;
+      setAvailability(data);
+      setLoadedFor(sellerId);
+    });
+    return () => {
+      active = false;
+    };
   }, [sellerId, loadAvailability]);
 
-  return { availability, loading, refresh: loadAvailability };
+  /** Manual refresh: clears the marker so the spinner shows again. */
+  const refresh = useCallback(async () => {
+    setLoadedFor(null);
+    const data = await loadAvailability();
+    setAvailability(data);
+    setLoadedFor(sellerId);
+  }, [loadAvailability, sellerId]);
+
+  return { availability, loading: loadedFor !== sellerId, refresh };
 }

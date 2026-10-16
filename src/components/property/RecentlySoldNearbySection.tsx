@@ -35,7 +35,9 @@ export default function RecentlySoldNearbySection({ property }: { property: Prop
     return () => {
       ignore = true;
     };
-  }, [property.id]);
+    // The cached read is keyed by `property.id`, but the loader needs the
+    // whole listing, so `property` is the honest dependency here.
+  }, [property]);
 
   if (sold.length === 0) return null;
 

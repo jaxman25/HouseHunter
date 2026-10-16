@@ -173,7 +173,7 @@ Audit date: 2026-09-04. Companion docs: [`PRODUCTION_READINESS.md`](./PRODUCTION
 | Terraform | ➖ | Not applicable — Firebase CLI + `gcloud` are the IaC here (documented commands). |
 | Helm Charts | ➖ | Not applicable. |
 | Build Caching | ✅ | GitHub Actions `npm` cache; Metro cache; `expo export` incremental builds; EAS build cache for native. |
-| Dependency Hell | 🟡 | `npm install --legacy-peer-deps` is required (React 19 / RN peer mismatch) — pinned by `package-lock.json`; ⚠️ revisit on the next SDK upgrade to drop the legacy flag. |
+| Dependency Hell | 🟢 | Resolved: the React 19 / RN peer ranges now resolve strictly, and `package-lock.json` is kept strict-resolution clean — plain `npm install` / `npm ci` (as EAS Build runs) needs no `--legacy-peer-deps` flag and no `.npmrc`. |
 
 ## Operations
 

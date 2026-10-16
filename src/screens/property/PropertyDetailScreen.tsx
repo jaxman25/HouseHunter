@@ -104,24 +104,24 @@ export default function PropertyDetailScreen() {
 
   // "View Agent" affordance: only when the listing owner is an agent role.
   // The seller card becomes tappable and routes to the public agent profile.
-  const [sellerIsAgent, setSellerIsAgent] = useState(false);
+  const [sellerRoleIsAgent, setSellerRoleIsAgent] = useState(false);
+  const sellerId = property?.userId;
+  // No listing means no agent affordance: derived, not written by the effect.
+  const sellerIsAgent = property ? sellerRoleIsAgent : false;
   useEffect(() => {
+    if (!sellerId) return;
     let ignore = false;
-    if (!property) {
-      setSellerIsAgent(false);
-      return;
-    }
-    getUserProfile(property.userId)
+    getUserProfile(sellerId)
       .then((profile) => {
-        if (!ignore) setSellerIsAgent(profile?.role === 'agent');
+        if (!ignore) setSellerRoleIsAgent(profile?.role === 'agent');
       })
       .catch(() => {
-        if (!ignore) setSellerIsAgent(false);
+        if (!ignore) setSellerRoleIsAgent(false);
       });
     return () => {
       ignore = true;
     };
-  }, [property?.userId]);
+  }, [sellerId]);
 
   useEffect(() => {
     let ignore = false;

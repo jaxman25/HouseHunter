@@ -22,8 +22,9 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        # This project's React Native / React peer versions require legacy deps.
-        run: npm ci --legacy-peer-deps
+        # The lockfile is kept strict-resolution clean, so no peer-dep flag (and
+        # no .npmrc) is needed — the same install EAS Build runs.
+        run: npm ci
 
       - name: Check Firestore index coverage
         run: node scripts/check-indexes.js

@@ -32,24 +32,42 @@ export default function TourDetailsScreen() {
   const insets = useSafeAreaInsets();
 
   const [tour, setTour] = useState<Tour | null>(null);
-  const [loading, setLoading] = useState(true);
+  // `loading` is derived: true until the tour for this route id has landed.
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const loading = loadedFor !== tourId;
 
+  /** Reload after an action (cancel/reschedule). */
   const loadTour = useCallback(async () => {
-    setLoading(true);
     try {
       const data = await getTour(tourId);
       setTour(data);
     } catch {
       Alert.alert('Error', 'Failed to load tour details');
       navigation.goBack();
-    } finally {
-      setLoading(false);
     }
+    setLoadedFor(tourId);
   }, [tourId, navigation]);
 
+  // Initial load commits from a promise callback so the effect body writes no
+  // state synchronously (react-hooks/set-state-in-effect).
   useEffect(() => {
-    loadTour();
-  }, [tourId, loadTour]);
+    let active = true;
+    getTour(tourId)
+      .then((data) => {
+        if (active) setTour(data);
+      })
+      .catch(() => {
+        if (!active) return;
+        Alert.alert('Error', 'Failed to load tour details');
+        navigation.goBack();
+      })
+      .finally(() => {
+        if (active) setLoadedFor(tourId);
+      });
+    return () => {
+      active = false;
+    };
+  }, [tourId, navigation]);
 
   const handleCancel = () => {
     Alert.alert('Cancel Tour', 'Are you sure you want to cancel this tour?', [

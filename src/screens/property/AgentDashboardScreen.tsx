@@ -53,32 +53,45 @@ export default function AgentDashboardScreen() {
 
   // The single precomputed agent stats doc — no client-side deal aggregation.
   const [agentStats, setAgentStats] = useState<{ ytdCommission: number; avgDealSize: number; closedCount: number; pipelineValue: number } | null>(null);
-  // Initial-load + pull-to-refresh flags — the screen reads only the stats doc.
-  const [loading, setLoading] = useState(true);
+  // Pull-to-refresh flag — the screen reads only the stats doc.
   const [refreshing, setRefreshing] = useState(false);
+  // `loading` is derived: still true until the signed-in uid's stats land.
+  const uid = user?.uid;
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const loading = !uid || loadedFor !== uid;
 
-  const loadStats = useCallback(async () => {
-    const uid = user?.uid;
-    if (!uid) return;
+  // Pure fetcher (no state writes): the effect commits it from a promise
+  // callback, and pull-to-refresh reuses it (react-hooks/set-state-in-effect).
+  const fetchStats = useCallback(async () => {
+    if (!uid) return null;
     try {
-      const s = await getAgentStats(uid);
-      setAgentStats(s);
+      return await getAgentStats(uid);
     } catch (error) {
       console.error('Error loading agent stats:', error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+      return null;
     }
-  }, [user?.uid]);
+  }, [uid]);
 
   useEffect(() => {
-    void loadStats();
-  }, [loadStats]);
+    if (!uid) return;
+    let active = true;
+    fetchStats().then((s) => {
+      if (!active) return;
+      if (s) setAgentStats(s);
+      setLoadedFor(uid);
+    });
+    return () => {
+      active = false;
+    };
+  }, [uid, fetchStats]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadStats();
-  }, [loadStats]);
+    const s = await fetchStats();
+    if (s) setAgentStats(s);
+    setLoadedFor(uid ?? null);
+    setRefreshing(false);
+  }, [fetchStats, uid]);
 
   // ─── Metrics ──────────────────────────────────────────────────
   // Metrics come from the precomputed stats doc (written nightly and
@@ -157,7 +170,8 @@ export default function AgentDashboardScreen() {
         notes: formNotes.trim() || undefined,
       });
       setFormVisible(false);
-      await loadStats();
+      const fresh = await fetchStats();
+      if (fresh) setAgentStats(fresh);
     } catch (error) {
       console.error('createDeal failed:', error);
       setFormError('Could not save the deal. Please try again.');

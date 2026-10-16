@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -23,6 +23,15 @@ interface MortgageCalculatorModalProps {
   property: Property;
 }
 
+interface MortgageInputs {
+  downPercent: string;
+  rate: string;
+  termYears: string;
+}
+
+/** Sensible starting point each time the calculator is opened. */
+const MORTGAGE_DEFAULTS: MortgageInputs = { downPercent: '20', rate: '6.5', termYears: '30' };
+
 /**
  * "What will this home really cost?" calculator, opened from the property
  * detail screen. Pure client-side math (see src/utils/mortgage.ts) — price
@@ -39,18 +48,19 @@ export default function MortgageCalculatorModal({
 
   const fmt = (n: number) => formatCurrencyAmount(Math.round(n), currency);
 
-  const [downPercent, setDownPercent] = useState('20');
-  const [rate, setRate] = useState('6.5');
-  const [termYears, setTermYears] = useState('30');
+  // The inputs live in one draft object, where `null` means "untouched, show the
+  // defaults". Every close path drops the draft, so reopening starts from the
+  // defaults again — the reset the effect used to do — without an effect
+  // writing state synchronously (react-hooks/set-state-in-effect).
+  const [draft, setDraft] = useState<MortgageInputs | null>(null);
+  const { downPercent, rate, termYears } = draft ?? MORTGAGE_DEFAULTS;
+  const patchInputs = (values: Partial<MortgageInputs>) =>
+    setDraft({ ...(draft ?? MORTGAGE_DEFAULTS), ...values });
 
-  // Reset toward sensible defaults each time the modal is (re)opened.
-  useEffect(() => {
-    if (visible) {
-      setDownPercent('20');
-      setRate('6.5');
-      setTermYears('30');
-    }
-  }, [visible]);
+  const handleClose = () => {
+    setDraft(null);
+    onClose();
+  };
 
   const down = parseFloat(downPercent) || 0;
   const rateNum = parseFloat(rate) || 0;
@@ -78,12 +88,12 @@ export default function MortgageCalculatorModal({
   ];
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         {/* Header */}
         <View style={[styles.header, { borderBottomColor: colors.border, backgroundColor: colors.surface }]}>
           <TouchableOpacity
-            onPress={onClose}
+            onPress={handleClose}
             style={[styles.backBtn, { backgroundColor: colors.gray100 }]}
             accessibilityRole="button"
             accessibilityLabel="Close mortgage calculator"
@@ -118,7 +128,7 @@ export default function MortgageCalculatorModal({
             <LabeledInput
               label="Down payment (%)"
               value={downPercent}
-              onChangeText={setDownPercent}
+              onChangeText={(v) => patchInputs({ downPercent: v })}
               keyboardType="decimal-pad"
               colors={colors}
               fontSize={fontSize}
@@ -127,7 +137,7 @@ export default function MortgageCalculatorModal({
             <LabeledInput
               label="Interest rate (%)"
               value={rate}
-              onChangeText={setRate}
+              onChangeText={(v) => patchInputs({ rate: v })}
               keyboardType="decimal-pad"
               colors={colors}
               fontSize={fontSize}
@@ -136,7 +146,7 @@ export default function MortgageCalculatorModal({
             <LabeledInput
               label="Term (years)"
               value={termYears}
-              onChangeText={setTermYears}
+              onChangeText={(v) => patchInputs({ termYears: v })}
               keyboardType="number-pad"
               colors={colors}
               fontSize={fontSize}
@@ -149,7 +159,7 @@ export default function MortgageCalculatorModal({
             {[15, 20, 30].map((t) => (
               <TouchableOpacity
                 key={t}
-                onPress={() => setTermYears(String(t))}
+                onPress={() => patchInputs({ termYears: String(t) })}
                 style={[
                   styles.termChip,
                   {
@@ -204,7 +214,7 @@ export default function MortgageCalculatorModal({
         </ScrollView>
 
         <View style={[styles.footer, { borderTopColor: colors.border, backgroundColor: colors.surface }]}>
-          <Button title="Done" onPress={onClose} />
+          <Button title="Done" onPress={handleClose} />
         </View>
       </View>
     </Modal>

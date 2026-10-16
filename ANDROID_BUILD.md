@@ -373,7 +373,7 @@ run `npm audit fix --force` (it rewrites major versions).
 npx expo-doctor                 # 21/21 checks pass
 npx expo config --type public   # resolved config: package, versionCode, plugins, permissions
 npx tsc --noEmit                # type-check
-npm run lint                    # ESLint (pre-existing warnings; see repo notes)
+npm run lint                    # ESLint (0 errors, 0 warnings)
 npx expo prebuild --platform android --no-install --clean   # prove app.json still generates a valid native project
 ```
 
@@ -457,4 +457,11 @@ A real preview build was executed end-to-end and its artifact downloaded and ins
 - `assets/loader.png` is byte-identical to `assets/icon.png`, which is how the original
   committed assets related to each other (all five files were the same blob). Nothing
   in `app.json` or `src/` references it.
-- `npm run lint` → **0 errors**, `npx tsc --noEmit` → 0, `node --test` → **210/210** pass.
+- `npm run lint` → **0 problems**, `npx tsc --noEmit` → 0, `node --test` → **210/210** pass.
+  The 25 `react-hooks/set-state-in-effect` / `exhaustive-deps` warnings are gone: the
+  data-loading effects now commit their results from promise callbacks (or derive
+  `loading` from which key the held data belongs to) instead of writing state
+  synchronously, which is what the rule flags.
+- CI (`.github/workflows/*.yml`) now runs plain `npm ci` like EAS Build — the lockfile
+  is strict-resolution clean, and `docs/PRODUCTION_READINESS.md` / `SYSTEM_DESIGN_AUDIT.md`
+  were updated to stop recommending `--legacy-peer-deps`.

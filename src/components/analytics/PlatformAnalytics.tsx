@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
@@ -11,21 +11,25 @@ export default function PlatformAnalytics() {
   const [data, setData] = useState<PlatformAnalyticsType | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadAnalytics = useCallback(async () => {
-    setLoading(true);
-    try {
-      const result = await getPlatformAnalytics();
-      setData(result);
-    } catch {
-      // Use default empty data
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
+  // Fetches straight from the effect and commits inside the promise callbacks,
+  // so nothing writes state synchronously in the effect body
+  // (react-hooks/set-state-in-effect). `active` drops a late result.
   useEffect(() => {
-    loadAnalytics();
-  }, [loadAnalytics]);
+    let active = true;
+    getPlatformAnalytics()
+      .then((result) => {
+        if (active) setData(result);
+      })
+      .catch(() => {
+        // Use default empty data
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   if (loading) {
     return (

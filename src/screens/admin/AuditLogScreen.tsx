@@ -56,40 +56,47 @@ export default function AuditLogScreen() {
 
   const [entries, setEntries] = useState<AuditLogEntry[]>([]);
   const [actorNames, setActorNames] = useState<Map<string, string>>(new Map());
-  const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [lastDoc, setLastDoc] = useState<any>(null);
   const [activeFilter, setActiveFilter] = useState('');
 
+  // Pure fetcher (no state writes), so the effect can commit its result from a
+  // promise callback (react-hooks/set-state-in-effect).
   const fetchEntries = useCallback(async () => {
-    setLoading(true);
-    try {
-      const result = await getAuditLog(
-        { actionPrefix: activeFilter || undefined },
-        50
-      );
-      setEntries(result.entries);
-      setLastDoc(result.lastDoc);
-      setHasMore(result.entries.length === 50);
-
-      const uids = result.entries
-        .map((e) => e.actorUid || e.uid)
-        .filter(Boolean) as string[];
-      if (uids.length > 0) {
-        const names = await resolveActorNames(uids);
-        setActorNames(names);
-      }
-    } catch (error) {
-      console.error('Failed to load audit log:', error);
-    } finally {
-      setLoading(false);
-    }
+    const result = await getAuditLog({ actionPrefix: activeFilter || undefined }, 50);
+    const uids = result.entries
+      .map((e) => e.actorUid || e.uid)
+      .filter(Boolean) as string[];
+    const names = uids.length > 0 ? await resolveActorNames(uids) : null;
+    return { result, names };
   }, [activeFilter]);
 
+  // `loading` is derived: true until the current filter's first page lands.
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+
   useEffect(() => {
-    void fetchEntries();
-  }, [fetchEntries]);
+    let active = true;
+    fetchEntries()
+      .then(({ result, names }) => {
+        if (!active) return;
+        setEntries(result.entries);
+        setLastDoc(result.lastDoc);
+        setHasMore(result.entries.length === 50);
+        if (names) setActorNames(names);
+        setLoadedFor(activeFilter);
+      })
+      .catch((error) => {
+        if (!active) return;
+        console.error('Failed to load audit log:', error);
+        setLoadedFor(activeFilter);
+      });
+    return () => {
+      active = false;
+    };
+  }, [activeFilter, fetchEntries]);
+
+  const loading = loadedFor !== activeFilter;
 
   const loadMore = async () => {
     if (loadingMore || !hasMore || !lastDoc) return;

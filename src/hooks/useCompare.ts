@@ -21,13 +21,24 @@ export function useCompare() {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    setItems(await readCompareList());
+    const stored = await readCompareList();
+    setItems(stored);
     setLoading(false);
   }, []);
 
+  // Reads from a promise callback so the effect body sets no state directly
+  // (react-hooks/set-state-in-effect).
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    let active = true;
+    readCompareList().then((stored) => {
+      if (!active) return;
+      setItems(stored);
+      setLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   /** Add a property snapshot; toasts when the tray is full. */
   const add = useCallback(

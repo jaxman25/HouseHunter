@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -39,39 +39,45 @@ export default function AgentProfileScreen() {
   const [agent, setAgent] = useState<AgentUser | null>(null);
   const [listings, setListings] = useState<Property[]>([]);
   const [rating, setRating] = useState<UserRatingSummary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setNotFound(false);
-    try {
-      const [profile, properties, peerRating] = await Promise.all([
-        // Cached reads (profile 15 min, rating 5 min, user-tagged) — repeat
-        // mounts within the windows issue zero Firestore reads.
-        getUserProfileCached(agentId),
-        getUserProperties(agentId).catch(() => [] as Property[]),
-        getUserRatingCached(agentId).catch(() => null),
-      ]);
-      if (!profile) {
-        setNotFound(true);
-      } else {
-        setAgent(profile as AgentUser);
-        // Public profile shows the agent's active book only.
-        setListings(properties.filter((p) => p.status === 'active' && !p.archived));
-        setRating(peerRating);
-      }
-    } catch (error) {
-      console.warn('Failed to load agent profile:', error);
-      setNotFound(true);
-    } finally {
-      setLoading(false);
-    }
-  }, [agentId]);
+  // `loading`/`notFound` are derived per agentId ("not loaded yet" and "missing"
+  // for *this* agent), so switching agents resets both without the effect
+  // writing state synchronously (react-hooks/set-state-in-effect).
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const [notFoundFor, setNotFoundFor] = useState<string | null>(null);
+  const loading = loadedFor !== agentId;
+  const notFound = notFoundFor === agentId;
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    let active = true;
+    Promise.all([
+      // Cached reads (profile 15 min, rating 5 min, user-tagged) — repeat
+      // mounts within the windows issue zero Firestore reads.
+      getUserProfileCached(agentId),
+      getUserProperties(agentId).catch(() => [] as Property[]),
+      getUserRatingCached(agentId).catch(() => null),
+    ])
+      .then(([profile, properties, peerRating]) => {
+        if (!active) return;
+        if (!profile) {
+          setNotFoundFor(agentId);
+        } else {
+          setAgent(profile as AgentUser);
+          // Public profile shows the agent's active book only.
+          setListings(properties.filter((p) => p.status === 'active' && !p.archived));
+          setRating(peerRating);
+        }
+      })
+      .catch((error) => {
+        console.warn('Failed to load agent profile:', error);
+        if (active) setNotFoundFor(agentId);
+      })
+      .finally(() => {
+        if (active) setLoadedFor(agentId);
+      });
+    return () => {
+      active = false;
+    };
+  }, [agentId]);
 
   // Response-time badge: average across listings the sellerResponseTracking
   // Cloud Function has stats for; gated on enough conversations to be meaningful.

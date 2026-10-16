@@ -25,26 +25,38 @@ export function usePropertyReviews(propertyId: string) {
 
 export function useSellerReviews(sellerId: string) {
   const [reviews, setReviews] = useState<Review[]>([]);
-  const [loading, setLoading] = useState(true);
+  // `loading` is derived, not stored: true until the fetch for the current
+  // sellerId has landed (and while a manual refresh is in flight).
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
 
-  const loadReviews = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await getSellerReviews(sellerId);
-      setReviews(data);
-    } catch {
-      setReviews([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [sellerId]);
+  // Pure fetcher (no state): an empty array means "this read failed".
+  const loadReviews = useCallback(
+    () => getSellerReviews(sellerId).catch(() => [] as Review[]),
+    [sellerId]
+  );
 
   useEffect(() => {
     if (!sellerId) return;
-    loadReviews();
+    let active = true;
+    loadReviews().then((data) => {
+      if (!active) return;
+      setReviews(data);
+      setLoadedFor(sellerId);
+    });
+    return () => {
+      active = false;
+    };
   }, [sellerId, loadReviews]);
 
-  return { reviews, loading, refresh: loadReviews };
+  /** Manual refresh: clears the marker so the spinner shows again. */
+  const refresh = useCallback(async () => {
+    setLoadedFor(null);
+    const data = await loadReviews();
+    setReviews(data);
+    setLoadedFor(sellerId);
+  }, [loadReviews, sellerId]);
+
+  return { reviews, loading: loadedFor !== sellerId, refresh };
 }
 
 export function useSellerRating(sellerId: string) {
@@ -53,53 +65,84 @@ export function useSellerRating(sellerId: string) {
     totalReviews: 0,
     breakdown: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
   });
-  const [loading, setLoading] = useState(true);
+  // `loading` is derived: true until the fetch for the current sellerId lands.
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
 
-  const loadRating = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await getSellerRating(sellerId);
-      setRating(data);
-    } catch {
-      // Keep default
-    } finally {
-      setLoading(false);
-    }
-  }, [sellerId]);
+  // Pure fetcher (no state): null means "this read failed" (keep the default).
+  const loadRating = useCallback(
+    () => getSellerRating(sellerId).catch(() => null),
+    [sellerId]
+  );
 
   useEffect(() => {
     if (!sellerId) return;
-    loadRating();
+    let active = true;
+    loadRating().then((data) => {
+      if (!active) return;
+      if (data !== null) setRating(data);
+      setLoadedFor(sellerId);
+    });
+    return () => {
+      active = false;
+    };
   }, [sellerId, loadRating]);
 
-  return { rating, loading, refresh: loadRating };
+  /** Manual refresh: clears the marker so the spinner shows again. */
+  const refresh = useCallback(async () => {
+    setLoadedFor(null);
+    const data = await loadRating();
+    if (data !== null) setRating(data);
+    setLoadedFor(sellerId);
+  }, [loadRating, sellerId]);
+
+  return { rating, loading: loadedFor !== sellerId, refresh };
 }
 
 export function useCanReview(propertyId: string, userId: string | undefined) {
   const [canReview, setCanReview] = useState(false);
   const [reason, setReason] = useState<string | undefined>();
-  const [loading, setLoading] = useState(true);
+  // Without both ids there is nothing to check — never report "loading".
+  const enabled = Boolean(propertyId && userId);
+  const key = `${propertyId}:${userId ?? ''}`;
+  // `loading` is derived: true only while enabled and still awaiting this pair.
+  const [checkedFor, setCheckedFor] = useState<string | null>(null);
 
-  const check = useCallback(async () => {
-    setLoading(true);
-    try {
-      const result = await canUserReview(propertyId, userId!);
-      setCanReview(result.canReview);
-      setReason(result.reason);
-    } catch {
-      setCanReview(false);
-    } finally {
-      setLoading(false);
-    }
-  }, [propertyId, userId]);
+  // Pure fetcher (no state): null means "this check failed".
+  const check = useCallback(
+    () => canUserReview(propertyId, userId!).catch(() => null),
+    [propertyId, userId]
+  );
 
   useEffect(() => {
-    if (!propertyId || !userId) {
-      setLoading(false);
-      return;
-    }
-    check();
-  }, [propertyId, userId, check]);
+    if (!enabled) return;
+    let active = true;
+    check().then((result) => {
+      if (!active) return;
+      if (result) {
+        setCanReview(result.canReview);
+        setReason(result.reason);
+      } else {
+        setCanReview(false);
+      }
+      setCheckedFor(key);
+    });
+    return () => {
+      active = false;
+    };
+  }, [enabled, check, key]);
 
-  return { canReview, reason, loading, refresh: check };
+  /** Manual refresh: clears the marker so the spinner shows again. */
+  const refresh = useCallback(async () => {
+    setCheckedFor(null);
+    const result = await check();
+    if (result) {
+      setCanReview(result.canReview);
+      setReason(result.reason);
+    } else {
+      setCanReview(false);
+    }
+    setCheckedFor(key);
+  }, [check, key]);
+
+  return { canReview, reason, loading: enabled && checkedFor !== key, refresh };
 }

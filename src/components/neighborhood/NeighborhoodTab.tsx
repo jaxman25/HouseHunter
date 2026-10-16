@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
@@ -22,25 +22,32 @@ interface NeighborhoodTabProps {
 export default function NeighborhoodTab({ city, state, zipCode, latitude, longitude }: NeighborhoodTabProps) {
   const { colors, fontSize, radius } = useTheme();
   const [data, setData] = useState<NeighborhoodData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [phase, setPhase] = useState<{ key: string; error: boolean } | null>(null);
+  const key = `${city}|${state}|${zipCode}`;
 
-  const loadNeighborhoodData = useCallback(async () => {
-    setLoading(true);
-    setError(false);
-    try {
-      const result = await getNeighborhoodData(city, state, zipCode);
-      setData(result);
-    } catch {
-      setError(true);
-    } finally {
-      setLoading(false);
-    }
-  }, [city, state, zipCode]);
-
+  // Commits from a promise callback instead of writing state synchronously in
+  // the effect body (react-hooks/set-state-in-effect); `active` drops a late
+  // result when the location changes mid-flight.
   useEffect(() => {
-    loadNeighborhoodData();
-  }, [city, state, zipCode, loadNeighborhoodData]);
+    let active = true;
+    getNeighborhoodData(city, state, zipCode)
+      .then((result) => {
+        if (!active) return;
+        setData(result);
+        setPhase({ key, error: false });
+      })
+      .catch(() => {
+        if (active) setPhase({ key, error: true });
+      });
+    return () => {
+      active = false;
+    };
+  }, [city, state, zipCode, key]);
+
+  // Derived: a new location starts a fresh load — and clears the previous
+  // error — without the effect touching state itself.
+  const loading = phase?.key !== key;
+  const error = phase?.key === key && phase.error;
 
   if (loading) {
     return (

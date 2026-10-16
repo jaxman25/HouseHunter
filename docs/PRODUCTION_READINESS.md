@@ -6,8 +6,9 @@ and wired into the service layer — see the [Phase 1 summary](#phase-1-done) at
 the bottom.
 
 > **Stack note:** this project runs **Expo SDK 57 / React Native 0.86 / Firebase 12
-> (modular v9+ API)**, not SDK 51 / Firebase v10. Package installs below use
-> `npm install --legacy-peer-deps`.
+> (modular v9+ API)**, not SDK 51 / Firebase v10. Package installs below use a plain
+> `npm install` — the lockfile is kept strict-resolution clean, so no
+> `--legacy-peer-deps` flag and no `.npmrc` are needed.
 
 ---
 
@@ -171,7 +172,7 @@ enforcement off for platforms that can't mint tokens.
 
 **Status: CI + deploy workflows done.**
 
-- ✅ `.github/workflows/ci.yml` — on push/PR: `npm ci --legacy-peer-deps` →
+- ✅ `.github/workflows/ci.yml` — on push/PR: `npm ci` →
   `npx tsc --noEmit` → `npx expo export --platform web`.
 - ✅ `.github/workflows/deploy.yml` — on push to `main`: export + `firebase-tools
   deploy --only hosting` (needs `FIREBASE_PROJECT_ID` + `FIREBASE_TOKEN`

@@ -54,33 +54,46 @@ export default function SellerPerformanceScreen() {
     staleCount: number;
     updatedAt: string;
   } | null>(null);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  // `loading` is derived: still true until the signed-in uid's stats land.
+  const uid = user?.uid;
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const loading = !uid || loadedFor !== uid;
 
   const contentWidth = Math.min(responsive.contentWidth, CONTENT_MAX_WIDTH);
 
-  const loadStats = useCallback(async () => {
-    const uid = user?.uid;
-    if (!uid) return;
+  // Pure fetcher (no state writes): the effect commits it from a promise
+  // callback, and pull-to-refresh reuses it (react-hooks/set-state-in-effect).
+  const fetchStats = useCallback(async () => {
+    if (!uid) return null;
     try {
-      const s = await getUserStats(uid);
-      setStats(s);
+      return await getUserStats(uid);
     } catch (error) {
       console.error('Error loading seller stats:', error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+      return null;
     }
-  }, [user?.uid]);
+  }, [uid]);
 
   useEffect(() => {
-    void loadStats();
-  }, [loadStats]);
+    if (!uid) return;
+    let active = true;
+    fetchStats().then((s) => {
+      if (!active) return;
+      if (s) setStats(s);
+      setLoadedFor(uid);
+    });
+    return () => {
+      active = false;
+    };
+  }, [uid, fetchStats]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadStats();
-  }, [loadStats]);
+    const s = await fetchStats();
+    if (s) setStats(s);
+    setLoadedFor(uid ?? null);
+    setRefreshing(false);
+  }, [fetchStats, uid]);
 
   // ─── Render helpers ───────────────────────────────────────────
   const renderMetricCard = (
