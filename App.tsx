@@ -2,7 +2,7 @@ import React from 'react';
 import { StatusBar, LogBox } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { AuthProvider } from './src/context/AuthContext';
+import { AuthProvider, useAuthContext } from './src/context/AuthContext';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { CurrencyProvider } from './src/context/CurrencyContext';
 import { LanguageProvider } from './src/context/LanguageContext';
@@ -12,6 +12,7 @@ import CookieConsentBanner from './src/components/common/CookieConsentBanner';
 import NoticeBanner from './src/components/common/NoticeBanner';
 import ToastHost from './src/components/common/ToastHost';
 import AppIconBadgeSync from './src/components/common/AppIconBadgeSync';
+import AppStartLoader from './src/components/common/AppStartLoader';
 import WebFrame from './src/components/common/WebFrame';
 import { initSentry } from './src/utils/monitoring/sentry';
 import { validateEnv } from './src/utils/env';
@@ -23,6 +24,9 @@ LogBox.ignoreLogs([
 
 function AppContent() {
   const { colors, isDark } = useTheme();
+  // Hold the first frame on the launch screen until AuthContext has resolved
+  // the session, so the app never flashes the auth screen to a signed-in user.
+  const { loading: authLoading } = useAuthContext();
 
   return (
     <>
@@ -30,12 +34,18 @@ function AppContent() {
         barStyle={isDark ? 'light-content' : 'dark-content'}
         backgroundColor={colors.background}
       />
-      <AppNavigator />
-      {/* Keeps the home-screen icon badge in sync with unread notifications. */}
-      <AppIconBadgeSync />
-      <CookieConsentBanner />
-      <NoticeBanner />
-      <ToastHost />
+      {authLoading ? (
+        <AppStartLoader />
+      ) : (
+        <>
+          <AppNavigator />
+          {/* Keeps the home-screen icon badge in sync with unread notifications. */}
+          <AppIconBadgeSync />
+          <CookieConsentBanner />
+          <NoticeBanner />
+          <ToastHost />
+        </>
+      )}
     </>
   );
 }

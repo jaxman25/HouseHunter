@@ -337,14 +337,19 @@ build is the file to hand to testers.
 | `android.package` | `com.househunter.app` | Google Play identity — changing it later means a new listing and new OAuth/Maps registrations |
 | `android.versionCode` | `1` | local default; the EAS value is authoritative (see above) |
 | `android.permissions` | location (fine/coarse), camera, external storage | `expo-location`, `expo-image-picker`, `expo-notifications` and `expo-calendar` add their own permissions (notifications, calendar, audio, vibrate, internet) during prebuild |
-| `icon` | `./assets/icon.png` | **1024×1024** launcher icon (dark `#061023` logo) |
-| `android.adaptiveIcon` | `./assets/adaptive-icon.png` + `#061023` | **1024×1024 with transparency**, artwork inside the 66 % safe zone so it survives every Android 8+ mask |
-| `expo-splash-screen` plugin | `./assets/splash.png`, `imageWidth: 220`, `#061023` | splash logo on the brand background colour |
+| `icon` | `./assets/icon.png` | **1024×1024** launcher icon — the badge mark on the opaque `#061023` brand background, filling ~79 % of the canvas |
+| `android.adaptiveIcon` | `./assets/adaptive-icon.png` + `#061023` | **1024×1024 with transparency**, badge at 58 % of the canvas so it survives every Android 8+ mask (66 % safe zone) |
+| `expo-splash-screen` plugin | `./assets/splash.png`, `imageWidth: 220`, `#061023` | transparent badge at 70 % of the canvas, centred on the brand background colour |
 | `expo-notifications` plugin | `./assets/notification-icon.png`, color `#22C55E` | **96×96 white-on-transparent silhouette** (Android tints and masks it) |
+| *(JS)* app-start screen | `./assets/loader.png` via `src/components/common/AppStartLoader.tsx` | **512×512** transparent badge; rendered on the launch colour while `AuthContext` resolves the session, so the native splash cross-fades instead of flashing |
 | `@sentry/react-native` plugin | *not configured* | deliberately absent from `plugins` — crash reporting still runs, JS source-map upload is off (see *Sentry source maps*) |
 
-`assets/loader.png` is not referenced by any config (kept in sync with the new
-artwork, but unused — safe to delete).
+All five files in `assets/` now have a consumer: the four in the table above plus
+`loader.png`, which only the app-start screen references (nothing in `app.json` reads
+it, so it is not installed as a native resource). The artwork itself is one source —
+the wordmark-free badge — so launcher icon, adaptive icon, splash, notification
+silhouette and the in-app loader all show the same mark. `AppStartLoader` hardcodes
+`#061023`; if you change the splash background, change it there too.
 
 > The splash and adaptive-icon background colour (`#061023`) is sampled from the brand
 > artwork's own background. If you want the old white splash instead, change
