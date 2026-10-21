@@ -7,7 +7,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
-  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -91,11 +90,12 @@ export default function RegisterScreen({ navigation }: Props) {
       return;
     }
     setTermsError('');
+    setGeneralError('');
     try {
       await signInWithGoogle();
     } catch (error: any) {
-      Alert.alert(
-        'Google Sign In',
+      // Inline banner: Alert.alert is a no-op in react-native-web.
+      setGeneralError(
         error?.message || 'Google sign-in failed. Please try again.'
       );
     }
@@ -112,16 +112,30 @@ export default function RegisterScreen({ navigation }: Props) {
     try {
       await register(email, password, displayName, role, TERMS_VERSION);
     } catch (error: any) {
+      const code = typeof error?.code === 'string' ? error.code : '';
       let message = 'Registration failed. Please try again.';
-      if (error.code === 'auth/email-already-in-use') {
+      if (code === 'auth/email-already-in-use') {
         message = 'An account with this email already exists.';
-      } else if (error.code === 'auth/weak-password') {
+      } else if (code === 'auth/weak-password') {
         message = 'Password is too weak.';
-      } else if (error.code === 'auth/invalid-email') {
+      } else if (code === 'auth/invalid-email') {
         message = 'Invalid email address.';
-      } else if (error.code === 'auth/operation-not-allowed') {
+      } else if (code === 'auth/operation-not-allowed') {
         message =
           'Email sign-up is temporarily disabled. Please try again later or sign in with Google.';
+      } else if (code === 'auth/network-request-failed') {
+        message = 'Network error. Check your internet connection and try again.';
+      } else if (
+        code === 'auth/api-key-not-valid' ||
+        code === 'auth/invalid-api-key' ||
+        code.startsWith('auth/api-key-')
+      ) {
+        message =
+          'Firebase rejected this app’s API key. Check the web app configuration in Firebase Console.';
+      }
+      if (__DEV__ && code) {
+        // Codes only — never log the email or password.
+        console.warn('[register] Firebase auth error code:', code);
       }
       setGeneralError(message);
     } finally {

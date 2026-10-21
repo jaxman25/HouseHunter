@@ -17,7 +17,7 @@
 /** Valid placeholder values for every env var the email channel reads. */
 const EMAIL_ENV_DEFAULTS = {
   RESEND_API_KEY: 're_test_key',
-  NOTIFICATION_FROM_EMAIL: 'House Hunter <no-reply@househunter.com>',
+  NOTIFICATION_FROM_EMAIL: 'Ascend Hunters <no-reply@househunter.com>',
 };
 
 /** Remove every env var the email channel reads. */

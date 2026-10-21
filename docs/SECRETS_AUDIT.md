@@ -162,7 +162,7 @@ git commit --no-verify -m "commit message"
    ```bash
    firebase functions:config:set \
      resend.api_key="re_YOUR_KEY" \
-     notification.from_email="House Hunter <no-reply@yourdomain.com>" \
+     notification.from_email="Ascend Hunters <no-reply@yourdomain.com>" \
      admin.alert_emails="ops@yourdomain.com" \
      app.origin="https://househunter.app"
    ```

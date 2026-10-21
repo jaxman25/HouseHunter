@@ -22,8 +22,6 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-const auth = getAuth(app);
-const db = getFirestore(app);
 
 // ─── App Check ────────────────────────────────────────────────────────────
 // SECURITY: App Check protects Firestore and Storage from unauthenticated
@@ -44,25 +42,39 @@ const db = getFirestore(app);
 
 let appCheckActive = false;
 
-// ─── App Check debug provider (DEVELOPMENT ONLY) ──────────────────────────
-// reCAPTCHA v3 rejects localhost / low-score requests, so App Check answers
-// with 403 and throttles the app for 24h (appCheck/initial-throttle).
-// Setting this global BEFORE initializeAppCheck() makes the SDK mint a debug
-// token instead of calling reCAPTCHA. On first run the console prints:
-//   AppCheck debug token: "xxxx-xxxx-xxxx-xxxx"
-// Register that token once in Firebase Console → App Check → Apps →
-// Manage debug tokens (it is ignored when __DEV__ is false).
-// SECURITY: never enable this in production builds.
 // (The web SDK only exposes this global from its internal types, so it is
 // re-declared here to keep strict mode happy.)
 declare global {
   var FIREBASE_APPCHECK_DEBUG_TOKEN: boolean | string | undefined;
 }
-if (__DEV__) {
-  globalThis.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
-}
 
 if (Platform.OS === 'web') {
+  // ─── App Check debug provider (DEVELOPMENT ONLY) ────────────────────────
+  // reCAPTCHA v3 often rejects localhost / low-score requests, so App Check
+  // answers with 403. Setting this global BEFORE initializeAppCheck() makes
+  // the SDK mint a debug token instead of calling reCAPTCHA.
+  //
+  // A token is NOT trusted until it is registered for this web app in
+  // Firebase Console → App Check → Apps → Manage debug tokens. Until then
+  // the token exchange itself returns the 403 you see in the terminal.
+  // Set EXPO_PUBLIC_APPCHECK_DEBUG_TOKEN to a fixed, registered dev token to
+  // keep it stable across browsers/profiles; otherwise the SDK generates one
+  // and prints it on first run. SECURITY: debug mode is ignored when __DEV__
+  // is false, so production builds always use the real provider below.
+  if (__DEV__) {
+    const configuredDebugToken =
+      process.env.EXPO_PUBLIC_APPCHECK_DEBUG_TOKEN?.trim();
+    globalThis.FIREBASE_APPCHECK_DEBUG_TOKEN = configuredDebugToken || true;
+    console.info(
+      configuredDebugToken
+        ? '[app-check] Using the debug token from EXPO_PUBLIC_APPCHECK_DEBUG_TOKEN. '
+          + 'It must be registered for this web app in Firebase Console → App Check → Apps.'
+        : '[app-check] Debug provider enabled. Copy the "AppCheck debug token" printed '
+          + 'by the SDK and register it once in Firebase Console → App Check → Apps → '
+          + 'Manage debug tokens (or set EXPO_PUBLIC_APPCHECK_DEBUG_TOKEN).'
+    );
+  }
+
   const enterpriseKey = process.env.EXPO_PUBLIC_RECAPTCHA_ENTERPRISE_SITE_KEY;
   const v3Key = process.env.EXPO_PUBLIC_RECAPTCHA_SITE_KEY;
   if (enterpriseKey || v3Key) {
@@ -101,6 +113,13 @@ if (Platform.OS === 'web') {
       + 'Ensure @react-native-firebase/app-check is configured.'
   );
 }
+
+// Create the service instances AFTER App Check initialization. The modular
+// SDK resolves the App Check provider lazily, but keeping this order makes
+// the requirement explicit and avoids surprises if a service starts a
+// request during module evaluation.
+const auth = getAuth(app);
+const db = getFirestore(app);
 
 /** Whether App Check tokens are being minted on this platform. */
 export { appCheckActive };

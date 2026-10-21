@@ -176,7 +176,7 @@ const TERMS_SECTIONS: Section[] = [
   {
     heading: 'The service',
     paragraphs: [
-      'House Hunter is a marketplace that lets users list and find properties and communicate with each other. By creating an account you agree to these Terms of Service. If you are registering on behalf of an organization, you confirm you have authority to bind it.',
+      'Ascend Hunters is a marketplace that lets users list and find properties and communicate with each other. By creating an account you agree to these Terms of Service. If you are registering on behalf of an organization, you confirm you have authority to bind it.',
     ],
   },
   {
@@ -206,7 +206,7 @@ const TERMS_SECTIONS: Section[] = [
   {
     heading: 'Refunds',
     paragraphs: [
-      'There are no paid features today, so there is nothing to pay for or refund while using the free version of House Hunter.',
+      'There are no paid features today, so there is nothing to pay for or refund while using the free version of Ascend Hunters.',
       'If a paid feature is introduced, the price, billing terms, cancellation process, and refund policy will be shown to you in full before you confirm any purchase. Unless a law where you live gives you a different right, requests for refunds of one-off purchases will be handled as described at the point of purchase, and subscription fees already used (for example, for a partial billing period already consumed) generally will not be refunded unless required by law.',
       'If you believe you were charged in error, contact us at ' + CONTACT_EMAIL + ' and we will investigate. Statutory rights — including any cooling-off or withdrawal rights you have under the law where you live — are never limited by this policy.',
     ],
@@ -214,7 +214,7 @@ const TERMS_SECTIONS: Section[] = [
   {
     heading: 'Intellectual property',
     paragraphs: [
-      'The House Hunter app and its content (excluding user content) are owned by us and protected by intellectual-property laws. You keep ownership of content you post and grant us a limited license to host and display it so the service can function.',
+      'The Ascend Hunters app and its content (excluding user content) are owned by us and protected by intellectual-property laws. You keep ownership of content you post and grant us a limited license to host and display it so the service can function.',
     ],
   },
   {
@@ -232,7 +232,7 @@ const TERMS_SECTIONS: Section[] = [
   {
     heading: 'Local law',
     paragraphs: [
-      'House Hunter is operated from the United States. If the law where you live gives you consumer, privacy, or other protections that cannot be waived by contract, those protections are not limited by these Terms or by our Privacy Policy.',
+      'Ascend Hunters is operated from the United States. If the law where you live gives you consumer, privacy, or other protections that cannot be waived by contract, those protections are not limited by these Terms or by our Privacy Policy.',
       'If any part of these Terms is unenforceable under the law where you live, that part will not apply to you and the rest of the Terms remain in effect.',
       'If you access or use the service from outside the United States, you are responsible for complying with the laws that apply to you where you are, and we make no claim that the service is available or lawful in any particular country.',
     ],

@@ -5,7 +5,7 @@
  * stays dependency-light. Configure in the functions environment:
  *
  *   RESEND_API_KEY            — API key from resend.com (required)
- *   NOTIFICATION_FROM_EMAIL   — verified sender, e.g. "House Hunter <no-reply@yourdomain.com>"
+ *   NOTIFICATION_FROM_EMAIL   — verified sender, e.g. "Ascend Hunters <no-reply@yourdomain.com>"
  */
 
 const RESEND_URL = 'https://api.resend.com/emails';
@@ -23,14 +23,14 @@ export interface EmailMessage {
 export function buildDeletionConfirmationMessage(email: string): EmailMessage {
   return {
     to: email,
-    subject: 'Your House Hunter account has been deleted',
+    subject: 'Your Ascend Hunters account has been deleted',
     text:
-      'This confirms that your House Hunter account and the data associated '
+      'This confirms that your Ascend Hunters account and the data associated '
       + 'with it (profile, listings, photos, messages, notifications) have '
       + 'been permanently deleted.\n\n'
       + 'If you did not request this deletion, please contact us immediately '
       + 'at support@househunter.com.\n\n'
-      + 'Thank you for having used House Hunter.',
+      + 'Thank you for having used Ascend Hunters.',
   };
 }
 
@@ -56,7 +56,7 @@ export function buildSellerInquiryMessage(data: SellerInquiryInput): EmailMessag
     to: data.sellerEmail,
     subject: `New inquiry: ${data.propertyTitle}`,
     text:
-      `You received a new inquiry about your listing on House Hunter.\n\n`
+      `You received a new inquiry about your listing on Ascend Hunters.\n\n`
       + `Property: ${data.propertyTitle}\n`
       + `Price: ${data.propertyPrice}\n`
       + `Location: ${data.propertyCity}, ${data.propertyState}\n`
@@ -64,7 +64,7 @@ export function buildSellerInquiryMessage(data: SellerInquiryInput): EmailMessag
       + `Message from ${data.buyerName} (${data.buyerEmail}):\n`
       + `"${data.buyerMessage}"\n\n`
       + `Reply to ${data.buyerEmail} to continue the conversation, or open `
-      + `the House Hunter app to chat with ${data.buyerName} directly.`,
+      + `the Ascend Hunters app to chat with ${data.buyerName} directly.`,
   };
 }
 
@@ -107,7 +107,7 @@ function htmlBody(text: string): string {
   return (
     '<div style="font-family:Arial,Helvetica,sans-serif;color:#1F2937;max-width:560px;margin:0 auto">' +
     '<div style="padding:20px 24px;background:#1B6EF3;border-radius:8px 8px 0 0">' +
-    '<span style="color:#fff;font-size:18px;font-weight:bold">House Hunter</span></div>' +
+    '<span style="color:#fff;font-size:18px;font-weight:bold">Ascend Hunters</span></div>' +
     `<div style="padding:24px;border:1px solid #E5E7EB;border-top:none;border-radius:0 0 8px 8px">${paragraphs}</div>` +
     '<p style="font-size:12px;color:#6B7280;padding:12px 4px 4px">' +
     'Questions? Reply to this email or contact support@househunter.com.</p></div>'
@@ -130,7 +130,7 @@ export async function sendEmail(message: EmailMessage): Promise<void> {
     // an address that may bounce or fail SPF/DKIM checks.
     throw new Error(
       'NOTIFICATION_FROM_EMAIL is not set. Configure a verified sender address '
-      + 'in the Cloud Functions environment (e.g. "House Hunter <no-reply@yourdomain.com>").'
+      + 'in the Cloud Functions environment (e.g. "Ascend Hunters <no-reply@yourdomain.com>").'
     );
   }
 

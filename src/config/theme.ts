@@ -1,78 +1,103 @@
 import { ThemeColors, ThemeMode } from '../types';
 
-// Kenya-inspired: green primary (Kenya flag), black accents, red accents
+// Ascend Hunters design system (implementations/DESIGN.md): editorial
+// architectural-modernism palette — emerald primary reserved for decisive
+// actions and verification, deep-slate headings, hairline borders, white
+// card surfaces on a cool-gray canvas.
 export const LIGHT_COLORS: ThemeColors = {
-  primary: '#00843D',
-  primaryLight: '#E6F5ED',
-  primaryDark: '#005C2B',
-  // Secondary: warm red (Kenya flag accent)
-  secondary: '#BB133E',
-  accent: '#F2A900', // Gold accent (Kenya flag sun)
-  background: '#F6F8FA',
+  primary: '#15803D',
+  primaryLight: '#DCFCE7',
+  primaryDark: '#166534',
+  // Secondary doubles as the structural/heading slate (DESIGN.md
+  // "Secondary / Headings") and the rent-badge fill.
+  secondary: '#0F172A',
+  // Tertiary / warm amber: premium tags, star ratings, featured banners.
+  accent: '#D97706',
+  background: '#F8FAFC',
   surface: '#FFFFFF',
   card: '#FFFFFF',
-  text: '#1A1D26',
-  // Secondary and light text are kept ≥ 4.5:1 against the lightest app
-  // backgrounds (white, #F8F9FB, #F9FAFB input fills).
-  textSecondary: '#5F6670',
-  textLight: '#6B7280',
-  border: '#E5E7EB',
-  // Semantic hues are darkened (error/success/warning/info) so white text on
-  // them (Badge chips, danger buttons) and their use as text pass WCAG AA.
-  error: '#B91C1C',
-  success: '#047857',
+  text: '#0F172A',
+  // Neutral foreground ramp from DESIGN.md. text/textSecondary/textLight
+  // stay ordered dark → light and all pass WCAG AA (≥4.5:1) on the lightest
+  // backgrounds (white, #F8FAFC canvas, #F1F5F9 input fills).
+  textSecondary: '#334155',
+  textLight: '#64748B',
+  border: '#E2E8F0',
+  // Semantic hues stay dark enough for white text on them (Badge chips,
+  // danger buttons) and their use as text — all ≥ 4.5:1.
+  error: '#BA1A1A',
+  success: '#166534',
   warning: '#B45309',
   info: '#1D4ED8',
   white: '#FFFFFF',
   black: '#000000',
-  gray100: '#F9FAFB',
-  gray200: '#F3F4F6',
-  gray300: '#E5E7EB',
+  // Slate neutral scale: inset containers, hairline borders, stronger strokes.
+  gray100: '#F1F5F9',
+  gray200: '#E2E8F0',
+  gray300: '#CBD5E1',
   // gray400/gray500 are used for icons and small foreground graphics, so they
   // are dark enough for 3:1 (WCAG AA graphics) — and 4.5:1 where used as text.
-  gray400: '#8A8F99',
-  gray500: '#717680',
-  gray600: '#5F6670',
-  gray700: '#374151',
-  gray800: '#1F2937',
-  shadow: '#000000',
-  // Banner surfaces: light tints paired with dark text of the same hue.
-  warningSurface: '#FEF3C7',
-  warningText: '#92400E',
-  errorSurface: '#FEF2F2',
-  errorText: '#B91C1C',
+  gray400: '#64748B',
+  gray500: '#475569',
+  gray600: '#334155',
+  gray700: '#1E293B',
+  gray800: '#0F172A',
+  shadow: '#0F172A',
+  // Banner surfaces: light tints paired with dark text of the same hue
+  // (DESIGN.md error-container / tertiary-fixed).
+  warningSurface: '#FFDCC3',
+  warningText: '#6E3900',
+  errorSurface: '#FFDAD6',
+  errorText: '#93000A',
 };
 
-// Dark mode: surfaces are darkened, text is lightened, but brand colors are
-// preserved so the Kenya-green primary still reads clearly. Contrast is kept
-// ≥ 4.5:1 for body text and ≥ 3:1 for large text/UI components.
+// Dark mode: DESIGN.md only specifies the light system, so this is its
+// derived counterpart — deep navy-slate canvas/surfaces (spec `on-surface`
+// #0B1C30 family) with the emerald anchor preserved. Fill tokens (primary,
+// secondary, error, success, warning, info) back WHITE text in Buttons and
+// Badges, so they're tuned into the AA window for that pairing (white-text
+// ≥ 4.5:1 AND ≥ 3:1 against the card surface): body text is ≥ 4.5:1 and
+// icons/placeholders ≥ 3:1 on every surface.
 export const DARK_COLORS: ThemeColors = {
-  primary: '#22C55E',
-  primaryLight: '#022C11',
-  primaryDark: '#16A34A',
-  secondary: '#F87171',
+  // Emerald anchor at the white-text-safe luminance (4.5:1 on white button/
+  // badge text, 3.1:1 against cards and inset trays).
+  primary: '#158840',
+  // Deep emerald container tint (spec primary-container direction).
+  primaryLight: '#02210E',
+  primaryDark: '#166534',
+  // Structural slate fill — the dark counterpart of the light `secondary`
+  // slate (spec secondary #565e74 lightened into the white-text AA window).
+  secondary: '#5A7196',
+  // Tertiary/amber stays bright for legibility on dark (star ratings, tags).
   accent: '#FBBF24',
-  background: '#111827',
-  surface: '#1F2937',
-  card: '#1F2937',
-  text: '#F9FAFB',
-  textSecondary: '#9CA3AF',
-  textLight: '#D1D5DB',
-  border: '#374151',
-  error: '#F87171',
-  success: '#34D399',
-  warning: '#FBBF24',
-  info: '#60A5FA',
+  background: '#0B1C30',
+  surface: '#152538',
+  card: '#152538',
+  text: '#EAF1FF',
+  // Neutral foreground ramp mirrors the light ordering (text → textSecondary
+  // → textLight, strong → subtle); all ≥ 4.5:1 on cards and inset trays.
+  textSecondary: '#A9B7CC',
+  textLight: '#8496AF',
+  // Hairline borders (spec: 1px structural framing, darkened for the canvas).
+  border: '#2B3B52',
+  // Semantic fills stay in the white-text AA window; as text they keep ≥ 3:1
+  // on cards (banner text uses the brighter warningText/errorText tokens).
+  error: '#DC2626',
+  success: '#0E8058',
+  warning: '#B45309',
+  info: '#2563EB',
   white: '#FFFFFF',
   black: '#000000',
-  gray100: '#1F2937',
-  gray200: '#374151',
-  gray300: '#4B5563',
-  gray400: '#6B7280',
-  gray500: '#9CA3AF',
-  gray600: '#D1D5DB',
-  gray700: '#E5E7EB',
-  gray800: '#F3F4F6',
+  // Slate ramp ascending lightness (gray100 = recessed inset → gray800 =
+  // lightest foreground), inverting the light ramp to match dark surfaces.
+  gray100: '#1E3149',
+  gray200: '#2B3B52',
+  gray300: '#3B4E6B',
+  gray400: '#64799C',
+  gray500: '#7488A3',
+  gray600: '#8496AF',
+  gray700: '#A9B7CC',
+  gray800: '#EAF1FF',
   shadow: '#000000',
   // Dark-mode banner surfaces: deep tinted fills with light hue text.
   warningSurface: '#3A2A08',
@@ -102,34 +127,41 @@ export const SPACING = {
   xxxl: 32,
 };
 
+// DESIGN.md rounded scale: buttons/inputs ~8-12px, cards/modals 16px,
+// pills/badges full.
 export const RADIUS = {
   sm: 8,
   md: 12,
   lg: 16,
-  xl: 16,
-  round: 999,
+  xl: 24,
+  round: 9999,
 };
 
+// DESIGN.md type scale: label-sm 11, body-sm 12, body-md 14, body-lg 16,
+// price-display 20, headline-md 22, headline-lg-mobile 26, headline-lg 32.
 export const FONT_SIZE = {
   xs: 11,
-  sm: 13,
-  md: 15,
-  lg: 17,
+  sm: 12,
+  md: 14,
+  lg: 16,
   xl: 20,
-  xxl: 24,
-  xxxl: 30,
-  title: 34,
+  xxl: 22,
+  xxxl: 26,
+  title: 32,
 };
 
+// DESIGN.md elevation hierarchy: cards sit on shadow-sm over the canvas,
+// floating actions/press states on shadow-md, modals/overlays higher — all
+// tinted with the slate shadow color rather than pure black.
 export const SHADOW = {
   sm: {
-    boxShadow: '0px 1px 3px rgba(0,0,0,0.06)',
+    boxShadow: '0px 1px 2px rgba(15,23,42,0.05)',
   },
   md: {
-    boxShadow: '0px 2px 8px rgba(0,0,0,0.08)',
+    boxShadow: '0px 4px 6px -1px rgba(15,23,42,0.08), 0px 2px 4px -2px rgba(15,23,42,0.04)',
   },
   lg: {
-    boxShadow: '0px 4px 20px rgba(0,0,0,0.10)',
+    boxShadow: '0px 12px 24px rgba(15,23,42,0.12)',
   },
 };
 

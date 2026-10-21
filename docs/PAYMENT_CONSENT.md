@@ -1,6 +1,6 @@
-# Payment Consent — House Hunter
+# Payment Consent — Ascend Hunters
 
-House Hunter does not charge users today. This page is the contract for the
+Ascend Hunters does not charge users today. This page is the contract for the
 day it does: charging requires **explicit, informed consent**, and the UI for
 that already exists so it cannot be skipped.
 

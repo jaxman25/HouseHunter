@@ -2,7 +2,7 @@
   "name": "househunter-functions",
   "version": "1.0.0",
   "private": true,
-  "description": "House Hunter transactional email channel (security alerts, breach broadcasts, account notices) via Resend.",
+  "description": "Ascend Hunters transactional email channel (security alerts, breach broadcasts, account notices) via Resend.",
   "main": "lib/index.js",
   "engines": {
     "node": "20"

@@ -1,5 +1,5 @@
 /**
- * House Hunter — transactional email channel (Firebase Cloud Functions v2).
+ * Ascend Hunters — transactional email channel (Firebase Cloud Functions v2).
  *
  * Turns documented workflows into runnable triggers so the moment a breach is
  * confirmed the team can notify users without standing up new infrastructure:
@@ -133,7 +133,7 @@ export const emailOnSecurityAlert = onDocumentCreated(
       }
       await sendEmail({
         to: recipients,
-        subject: `[House Hunter ${data.severity ?? 'alert'}] ${data.title ?? 'Security alert'}`,
+        subject: `[Ascend Hunters ${data.severity ?? 'alert'}] ${data.title ?? 'Security alert'}`,
         text: formatSecurityAlertText(data),
       });
       await snap.ref.update({
@@ -409,8 +409,8 @@ export const sendSellerInquiry = onCall(async (request) => {
 
   const buyerSnap = await db.doc(`users/${uid}`).get();
   const buyerName = buyerSnap.exists
-    ? (buyerSnap.data()?.displayName as string | undefined) || 'A House Hunter user'
-    : 'A House Hunter user';
+    ? (buyerSnap.data()?.displayName as string | undefined) || 'An Ascend Hunters user'
+    : 'An Ascend Hunters user';
   const buyerEmail: string = auth.token.email ?? '';
 
   const origin = process.env.APP_ORIGIN ?? 'https://househunter.app';

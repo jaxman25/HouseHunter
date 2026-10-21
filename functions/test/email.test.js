@@ -66,13 +66,13 @@ test('sendEmail posts the Resend payload with an auth header and HTML body', asy
   assert.equal(init.headers['Content-Type'], 'application/json');
 
   const body = JSON.parse(init.body);
-  assert.equal(body.from, 'House Hunter <no-reply@househunter.com>');
+  assert.equal(body.from, 'Ascend Hunters <no-reply@househunter.com>');
   assert.deepEqual(body.to, ['user@example.com']);
   assert.equal(body.subject, 'Test subject');
   assert.equal(body.text, 'First paragraph.\n\nSecond & <line>.');
   // HTML wrapper escapes markup but keeps paragraph breaks.
   assert.match(body.html, /Second &amp; &lt;line&gt;/);
-  assert.match(body.html, /House Hunter/);
+  assert.match(body.html, /Ascend Hunters/);
   assert.doesNotMatch(body.html, /Second & <line>/);
 });
 
@@ -136,7 +136,7 @@ test('sendEmail throws with the API detail on a non-2xx response', async () => {
 test('buildDeletionConfirmationMessage wires the recipient and subject', () => {
   const message = buildDeletionConfirmationMessage('user@example.com');
   assert.equal(message.to, 'user@example.com');
-  assert.equal(message.subject, 'Your House Hunter account has been deleted');
+  assert.equal(message.subject, 'Your Ascend Hunters account has been deleted');
   assert.match(message.text, /permanently deleted/);
   assert.match(message.text, /support@househunter\.com/);
 });

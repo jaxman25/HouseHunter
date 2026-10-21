@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "House Hunter",
+    "name": "Ascend Hunters",
     "slug": "house-hunter",
     "scheme": "househunter",
     "version": "1.0.0",
@@ -35,8 +35,8 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/splash.png",
-          "imageWidth": 220,
+          "image": "./assets/loader-anime.png",
+          "imageWidth": 280,
           "resizeMode": "contain",
           "backgroundColor": "#061023"
         }
@@ -44,14 +44,14 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow House Hunter to access your location."
+          "locationAlwaysAndWhenInUsePermission": "Allow Ascend Hunters to access your location."
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow House Hunter to access your photos.",
-          "cameraPermission": "Allow House Hunter to access your camera."
+          "photosPermission": "Allow Ascend Hunters to access your photos.",
+          "cameraPermission": "Allow Ascend Hunters to access your camera."
         }
       ],
       [

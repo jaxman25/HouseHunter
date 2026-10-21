@@ -184,8 +184,8 @@ export const exportUserData = onCall(async (request) => {
     if (userEmail) {
       await sendEmail({
         to: userEmail,
-        subject: 'Your House Hunter Data Export is Ready',
-        text: `Hello,\n\nYour requested data export is now ready for download.\n\nDownload link: ${signedUrl}\n\nThis link will expire on ${expiresAt.toLocaleDateString()}.\n\nIf you did not request this export, please contact support immediately.\n\nBest regards,\nHouse Hunter Team`,
+        subject: 'Your Ascend Hunters Data Export is Ready',
+        text: `Hello,\n\nYour requested data export is now ready for download.\n\nDownload link: ${signedUrl}\n\nThis link will expire on ${expiresAt.toLocaleDateString()}.\n\nIf you did not request this export, please contact support immediately.\n\nBest regards,\nAscend Hunters Team`,
       });
     }
 

@@ -1,4 +1,4 @@
-/* House Hunter web service worker (PWA).
+/* Ascend Hunters web service worker (PWA).
  *
  * Deliberately conservative — aggressive service workers are a common source
  * of "stuck on an old version" bugs, so:

@@ -1,6 +1,6 @@
 # Security Deployment Configuration
 
-This document covers all security-related deployment settings for House Hunter.
+This document covers all security-related deployment settings for Ascend Hunters.
 Every item here is either automated in code or requires manual Firebase Console configuration.
 
 ---
@@ -67,7 +67,7 @@ These are **never exposed to clients**:
 2. Set each secret using the Firebase CLI or Console:
    ```bash
    firebase functions:config:set resend.api_key="re_xxx" \
-     notification.from_email="House Hunter <no-reply@yourdomain.com>" \
+     notification.from_email="Ascend Hunters <no-reply@yourdomain.com>" \
      admin.alert_emails="ops@yourdomain.com" \
      app.origin="https://househunter.app"
    ```

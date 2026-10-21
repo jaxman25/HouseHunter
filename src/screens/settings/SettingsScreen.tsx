@@ -112,7 +112,7 @@ export default function SettingsScreen() {
         {
           icon: 'file-document',
           label: 'Terms of Service',
-          subtitle: 'The rules for using House Hunter',
+          subtitle: 'The rules for using Ascend Hunters',
           type: 'link' as const,
           onPress: () => navigation.navigate('Terms'),
         },
@@ -354,7 +354,7 @@ export default function SettingsScreen() {
         ))}
 
         <Text style={[styles.version, { color: colors.textLight, fontSize: fontSize.xs }]}>
-          House Hunter v1.0.0
+          Ascend Hunters v1.0.0
         </Text>
       </ScrollView>
     </View>

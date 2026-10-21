@@ -1,5 +1,5 @@
 /**
- * House Hunter — platform metrics maintained in `config/metrics`.
+ * Ascend Hunters — platform metrics maintained in `config/metrics`.
  *
  * The admin dashboard/analytics screens used to run client-side
  * `getCountFromServer` aggregation queries per metric. Those are replaced by

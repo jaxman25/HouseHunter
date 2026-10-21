@@ -1,4 +1,4 @@
-export const APP_NAME = 'House Hunter';
+export const APP_NAME = 'Ascend Hunters';
 
 /** Version + effective date of the Terms of Service users agree to. */
 export const TERMS_VERSION = '2';

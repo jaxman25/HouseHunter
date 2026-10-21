@@ -50,7 +50,7 @@ export default function DataExportScreen() {
               GDPR Data Export
             </Text>
             <Text style={[styles.infoText, { color: colors.primary, fontSize: fontSize.xs, lineHeight: 18 }]}>
-              Under the General Data Protection Regulation (GDPR), you have the right to export all your personal data from House Hunter.
+              Under the General Data Protection Regulation (GDPR), you have the right to export all your personal data from Ascend Hunters.
             </Text>
           </View>
         </View>

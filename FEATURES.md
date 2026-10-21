@@ -1,4 +1,4 @@
-# House Hunter — Feature Inventory
+# Ascend Hunters — Feature Inventory
 
 A complete inventory of everything this codebase entails. Built with **React
 Native (Expo SDK 57) + TypeScript** on one codebase targeting **iOS, Android,

@@ -179,7 +179,7 @@ export default function ContactSellerModal({
                 accessibilityLabel="I agree to the Terms of Service"
               />
               <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, flex: 1, marginLeft: 10 }}>
-                I agree to House Hunter&apos;s Terms of Service
+                I agree to Ascend Hunters&apos;s Terms of Service
               </Text>
             </View>
 

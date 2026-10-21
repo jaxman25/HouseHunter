@@ -22,7 +22,37 @@
       same-origin assets stale-while-revalidate keyed on the full URL, so an
       unversioned URL would be served one load behind after a deploy.
     -->
-    <link rel="stylesheet" href="/web-styles.css?v=2" />
+    <link rel="stylesheet" href="/web-styles.css?v=3" />
+    <style>
+      /*
+        Web boot splash: shown before the JS bundle finishes loading (and
+        before React can render AppStartLoader). The artwork is the same
+        animated SVG used by AppStartLoader, so the hand-off is seamless.
+        React replaces #root's contents on mount; the small observer below
+        removes the splash if the renderer appends instead of replacing.
+      */
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: #061023;
+      }
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #061023;
+      }
+      #boot-splash img {
+        display: block;
+        width: 84vw;
+        max-width: 280px;
+        height: auto;
+      }
+    </style>
     <script>
       // Register the service worker for offline support (see /sw.js).
       if ('serviceWorker' in navigator) {
@@ -46,6 +76,29 @@
       You need to enable JavaScript to run this app.
     </noscript>
     <!-- The root element for your Expo app. -->
-    <div id="root"></div>
+    <div id="root">
+      <!-- Shown until the JS bundle mounts the React tree. -->
+      <div id="boot-splash" role="img" aria-label="Ascend Hunters">
+        <img src="/loader-anime.svg" alt="" />
+      </div>
+    </div>
+    <script>
+      // Remove the static boot splash as soon as React renders a child that
+      // is not the splash (whether it replaces #root's children or appends).
+      (function () {
+        var root = document.getElementById('root');
+        if (!root) return;
+        var observer = new MutationObserver(function () {
+          var appMounted = Array.prototype.some.call(root.children, function (child) {
+            return child.id !== 'boot-splash';
+          });
+          if (!appMounted) return;
+          observer.disconnect();
+          var splash = document.getElementById('boot-splash');
+          if (splash && splash.parentNode) splash.parentNode.removeChild(splash);
+        });
+        observer.observe(root, { childList: true });
+      })();
+    </script>
   </body>
 </html>

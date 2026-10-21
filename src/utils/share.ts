@@ -47,7 +47,7 @@ export function buildShareMessage(property: Property): string {
       property.listingType === 'rent' ? 'For Rent' : 'For Sale'
     }`,
     '',
-    'View this property on House Hunter:',
+    'View this property on Ascend Hunters:',
     getPropertyDeepLink(property.id),
   ];
   return lines.join('\n');

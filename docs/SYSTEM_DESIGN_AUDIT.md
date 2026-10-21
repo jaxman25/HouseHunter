@@ -1,4 +1,4 @@
-# System Design Audit — House Hunter
+# System Design Audit — Ascend Hunters
 
 Every item from the production-readiness checklist, audited against this codebase
 (Expo SDK 57 / React Native 0.86 / Firebase 12 client SDK, web + native).

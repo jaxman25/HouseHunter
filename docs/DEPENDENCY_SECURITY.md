@@ -1,4 +1,4 @@
-# Dependency Security Status — House Hunter
+# Dependency Security Status — Ascend Hunters
 
 Last checked: 2026-09-04
 

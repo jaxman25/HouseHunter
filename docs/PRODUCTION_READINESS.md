@@ -1,4 +1,4 @@
-# Production Readiness Plan — House Hunter
+# Production Readiness Plan — Ascend Hunters
 
 Implementation plans for **Phase 2–5**. Phase 1 (retry/backoff, caching, error
 boundaries, timeouts, circuit breaker) is already implemented in `src/utils/`

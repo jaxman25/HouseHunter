@@ -1,5 +1,5 @@
 /**
- * House Hunter utilities.
+ * Ascend Hunters utilities.
  *
  * Barrel export for every utility module:
  *  - network:    retries, timeouts, circuit breakers, health checks

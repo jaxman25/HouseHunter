@@ -1,4 +1,4 @@
-# House Hunter — Admin Guide
+# Ascend Hunters — Admin Guide
 
 The admin suite is a set of moderation tools for platform staff. Access is
 **role-gated**: an account only sees the admin UI when its uid is listed in

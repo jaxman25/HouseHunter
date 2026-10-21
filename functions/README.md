@@ -1,4 +1,4 @@
-# House Hunter — Cloud Functions (email channel)
+# Ascend Hunters — Cloud Functions (email channel)
 
 Transactional email for the workflows documented in `docs/BREACH_NOTIFICATION.md`:
 
@@ -34,7 +34,7 @@ auth and is designed to run from serverless functions.
    | Variable                | Purpose                                        |
    | ----------------------- | ---------------------------------------------- |
    | `RESEND_API_KEY`        | Resend API key (required to send)              |
-   | `NOTIFICATION_FROM_EMAIL` | Verified sender, e.g. `House Hunter <no-reply@your-domain.com>` |
+   | `NOTIFICATION_FROM_EMAIL` | Verified sender, e.g. `Ascend Hunters <no-reply@your-domain.com>` |
    | `ADMIN_ALERT_EMAILS`    | Comma-separated on-call inbox(es) for alerts   |
 
    Prefer Firebase Secrets for production:
@@ -98,7 +98,7 @@ Collection: admin_breach_broadcasts
 Doc id:     <anything unique>
 Fields:
   status:   "pending"
-  subject:  "Security notice regarding your House Hunter account"
+  subject:  "Security notice regarding your Ascend Hunters account"
   body:     "Plain-text message for users (see the template in docs/BREACH_NOTIFICATION.md §5)."
   recipientUids:    optional — email only these uids
   recipientEmails:  optional — explicit email list (overrides uids)
@@ -138,7 +138,7 @@ function and a real Resend key. Run this after the first `firebase deploy`:
 
 1. **Deletion confirmation email** — in the app, sign in with a throwaway
    account and delete it (Settings → Delete Account). Within seconds the
-   account's email should receive "Your House Hunter account has been
+   account's email should receive "Your Ascend Hunters account has been
    deleted".
    - Confirm the callable was invoked: `firebase functions:log --only
      sendAccountDeletionConfirmation`.
@@ -161,7 +161,7 @@ Watch failures on the docs themselves: each trigger records `status` plus an
 | Variable | Used by |
 |---|---|
 | `RESEND_API_KEY` | All email (required) |
-| `NOTIFICATION_FROM_EMAIL` | All email (defaults to House Hunter <no-reply@househunter.com>) |
+| `NOTIFICATION_FROM_EMAIL` | All email (defaults to Ascend Hunters <no-reply@househunter.com>) |
 | `ADMIN_ALERT_EMAILS` | Security alerts (comma-separated on-call inboxes) |
 | `APP_ORIGIN` | `sendSellerInquiry` deep link in the email (defaults to https://househunter.app) |
 

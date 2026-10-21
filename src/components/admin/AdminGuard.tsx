@@ -33,7 +33,7 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
           Admin access required
         </Text>
         <Text style={[styles.body, { color: colors.textSecondary, fontSize: fontSize.sm, textAlign: 'center' }]}>
-          This area is restricted to House Hunter administrators. If you believe
+          This area is restricted to Ascend Hunters administrators. If you believe
           this is a mistake, contact support@househunter.com.
         </Text>
         <View style={{ width: '100%', marginTop: spacing.xl }}>

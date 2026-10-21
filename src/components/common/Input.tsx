@@ -38,11 +38,11 @@ export default function Input({
 
   return (
     <View style={[styles.container, style]}>
-      {label && (
+      {label ? (
         <Text style={[styles.label, { color: colors.text, fontSize: fontSize.sm }]}>
           {label}
         </Text>
-      )}
+      ) : null}
       <View
         style={[
           styles.inputContainer,
@@ -57,14 +57,14 @@ export default function Input({
           },
         ]}
       >
-        {leftIcon && (
+        {leftIcon ? (
           <MaterialCommunityIcons
             name={leftIcon as any}
             size={20}
             color={focused ? colors.primary : colors.gray500}
             style={styles.leftIcon}
           />
-        )}
+        ) : null}
         <TextInput
           style={[
             styles.input,
@@ -81,7 +81,7 @@ export default function Input({
           secureTextEntry={isPassword && !secureVisible}
           {...props}
         />
-        {isPassword && (
+        {isPassword ? (
           <TouchableOpacity
             onPress={() => setSecureVisible(!secureVisible)}
             style={styles.rightIcon}
@@ -94,8 +94,8 @@ export default function Input({
               color={colors.gray500}
             />
           </TouchableOpacity>
-        )}
-        {rightIcon && !isPassword && (
+        ) : null}
+        {rightIcon && !isPassword ? (
           <TouchableOpacity
             onPress={onRightIconPress}
             style={styles.rightIcon}
@@ -106,13 +106,13 @@ export default function Input({
               color={colors.gray500}
             />
           </TouchableOpacity>
-        )}
+        ) : null}
       </View>
-      {error && (
+      {error ? (
         <Text style={[styles.error, { color: colors.error, fontSize: fontSize.xs }]}>
           {error}
         </Text>
-      )}
+      ) : null}
     </View>
   );
 }

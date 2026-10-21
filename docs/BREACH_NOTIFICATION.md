@@ -1,4 +1,4 @@
-# Breach Detection & User Notification — House Hunter
+# Breach Detection & User Notification — Ascend Hunters
 
 How the team learns a security breach happened the moment it does, and the
 pre-agreed plan for telling users — written before it is needed, per
@@ -105,10 +105,10 @@ within 72 h) using the same facts.
 
 ## 5. User notification template
 
-Subject: Security notice regarding your House Hunter account
+Subject: Security notice regarding your Ascend Hunters account
 
 > We are writing to let you know about a security incident that involved
-> House Hunter data. [What happened — date, what was accessed, how we found
+> Ascend Hunters data. [What happened — date, what was accessed, how we found
 > it.] [What data was involved — e.g. names, email addresses, listing
 > content. Be specific about what was NOT involved, e.g. passwords are
 > stored only as irreversible hashes / payment details are not stored.]

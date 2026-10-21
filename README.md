@@ -1,4 +1,4 @@
-#  House Hunter
+#  Ascend Hunters
 
 A full-featured real estate app built with **React Native (Expo)**, **Firebase**, and **Google Maps** — browse listings, search with filters, chat with sellers in real time, save favorites, and publish your own properties.
 

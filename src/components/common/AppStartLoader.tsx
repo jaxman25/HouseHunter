@@ -1,5 +1,6 @@
 import React from 'react';
-import { ActivityIndicator, Image, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
 
 /**
  * App-start screen: the brand mark on the launch background.
@@ -9,20 +10,31 @@ import { ActivityIndicator, Image, StyleSheet, View } from 'react-native';
  * resolves the existing session. The background is fixed to the launch colour
  * instead of taking it from the theme, so the native splash cross-fades into
  * this screen instead of flashing a light frame for dark-theme users.
+ *
+ * Web renders the animated SVG directly (the browser runs its CSS
+ * animations). Native uses the matching PNG frame because React Native image
+ * views cannot run SVG/CSS animations; the native splash is static too, so
+ * the hand-off stays seamless.
  */
 const LAUNCH_BACKGROUND = '#061023'; // keep in sync with app.json splash/adaptiveIcon
+
+// Web uses the same /loader-anime.svg file as the static boot splash in
+// public/index.html, so the hand-off is instant and the SVG stays animated.
+// Native image views cannot run SVG/CSS animations, so they use the matching
+// PNG frame (the native splash is static too).
+const SPLASH_ART = Platform.OS === 'web'
+  ? { uri: '/loader-anime.svg' }
+  : require('../../../assets/loader-anime.png');
 
 export default function AppStartLoader() {
   return (
     <View style={styles.screen}>
       <Image
-        source={require('../../../assets/loader.png')}
+        source={SPLASH_ART}
         style={styles.mark}
-        resizeMode="contain"
+        contentFit="contain"
         accessible={false}
-        importantForAccessibility="no-hide-descendants"
       />
-      <ActivityIndicator size="large" color="#FFFFFF" style={styles.spinner} />
     </View>
   );
 }
@@ -34,12 +46,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: LAUNCH_BACKGROUND,
   },
-  /** Matches the splash image width configured in app.json (220). */
+  /** Keeps the logo inside the card at the same visual size as the splash. */
   mark: {
-    width: 220,
-    height: 220,
-  },
-  spinner: {
-    marginTop: 24,
+    width: '84%',
+    maxWidth: 280,
+    aspectRatio: 1,
   },
 });

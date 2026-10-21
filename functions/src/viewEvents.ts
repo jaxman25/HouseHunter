@@ -1,5 +1,5 @@
 /**
- * House Hunter — view-count tracking (Firebase Cloud Functions v2).
+ * Ascend Hunters — view-count tracking (Firebase Cloud Functions v2).
  *
  * The client records a counted view as a create-only document
  * `properties/{propertyId}/viewEvents/{uid}_{yyyy-mm-dd}` (UTC day; see

@@ -1,5 +1,5 @@
 /**
- * House Hunter — chat activity meta + batched read receipts.
+ * Ascend Hunters — chat activity meta + batched read receipts.
  *
  * `users/{uid}/meta/chat` = { lastMessageAt, unreadCount } is the ONLY
  * real-time change signal for the conversations list (the previous design

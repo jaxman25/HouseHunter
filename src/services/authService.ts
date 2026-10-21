@@ -4,6 +4,8 @@ import {
   signInWithPopup,
   signInWithCredential,
   GoogleAuthProvider,
+  browserLocalPersistence,
+  setPersistence,
   signOut,
   sendPasswordResetEmail,
   sendEmailVerification,
@@ -20,6 +22,7 @@ import {
   arrayUnion,
   arrayRemove,
 } from 'firebase/firestore';
+import { Platform } from 'react-native';
 import {
   trackedSetDoc,
   trackedGetDoc,
@@ -65,6 +68,14 @@ import {
   logPasswordReset,
 } from './securityLogService';
 import { sanitize, sanitizeStrict } from '../utils/security/sanitize';
+
+/**
+ * Google's account chooser/consent screen is interactive: a user can easily
+ * spend more than the 10s default timeout picking an account or completing
+ * 2FA. The popup itself is abandoned after this limit (the browser may keep
+ * it open), so keep it generous.
+ */
+const GOOGLE_POPUP_TIMEOUT_MS = 120_000;
 
 export async function register(
   email: string,
@@ -179,19 +190,46 @@ export async function login(email: string, password: string): Promise<User> {
   }
 }
 
+/**
+ * Explicitly select the browser persistence strategy.
+ *
+ * Call this BEFORE the user clicks sign-in (see useGoogleSignIn's mount
+ * effect), not inside the click handler: awaiting storage here would delay
+ * `signInWithPopup` past the browser's transient user-activation window and
+ * can make the popup be treated as blocked. The web SDK default is already
+ * local persistence, so this is a documented safety net, not a requirement.
+ */
+export async function ensureGoogleWebPersistence(): Promise<void> {
+  if (Platform.OS !== 'web') return;
+  try {
+    await setPersistence(auth, browserLocalPersistence);
+  } catch (error) {
+    console.warn(
+      '[google-signin] Could not enable browser persistence; continuing with the SDK default:',
+      error
+    );
+  }
+}
+
 export async function signInWithGoogleWeb(): Promise<User> {
-  const credential = await authCircuitBreaker.execute(() =>
-    withRetry(() =>
-      withTimeout(
-        (async () => {
-          const provider = new GoogleAuthProvider();
-          provider.addScope('email');
-          provider.addScope('profile');
-          return signInWithPopup(auth, provider);
-        })(),
-        DEFAULT_TIMEOUT_MS
-      )
-    )
+  if (Platform.OS !== 'web') {
+    throw new Error('Google popup sign-in is only available on web');
+  }
+
+  const provider = new GoogleAuthProvider();
+  provider.addScope('email');
+  provider.addScope('profile');
+
+  // Do NOT wrap this in withRetry or the circuit breaker: a retry opens a
+  // second popup and fails with `auth/cancelled-popup-request` while the
+  // first one is still open, and a user cancellation is not a network
+  // failure that should trip the auth circuit. It also must not use the 10s
+  // network timeout — the user is interacting with Google's account picker,
+  // not waiting on a Firestore read.
+  const credential = await withTimeout(
+    signInWithPopup(auth, provider),
+    GOOGLE_POPUP_TIMEOUT_MS,
+    'Google sign-in timed out. Please try again.'
   );
   return credential.user;
 }

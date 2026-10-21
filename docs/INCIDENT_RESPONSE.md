@@ -1,4 +1,4 @@
-# Incident Response — House Hunter
+# Incident Response — Ascend Hunters
 
 How to detect, respond to, and learn from production incidents. This is the
 human-runbook companion to the automated recovery steps in

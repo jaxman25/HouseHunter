@@ -26,12 +26,12 @@ export default function AddToCalendarButton({ tour }: AddToCalendarButtonProps) 
     const content = [
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
-      'PRODID:-//House Hunter//Tour//EN',
+      'PRODID:-//Ascend Hunters//Tour//EN',
       'BEGIN:VEVENT',
       `DTSTART:${formatICSDate(startDate)}`,
       `DTEND:${formatICSDate(endDate)}`,
       `SUMMARY:Property Viewing - ${tour.propertyTitle}`,
-      `DESCRIPTION:${tour.notes || 'Property viewing scheduled through House Hunter'}`,
+      `DESCRIPTION:${tour.notes || 'Property viewing scheduled through Ascend Hunters'}`,
       'END:VEVENT',
       'END:VCALENDAR',
     ].join('\r\n');
@@ -85,7 +85,7 @@ export default function AddToCalendarButton({ tour }: AddToCalendarButtonProps) 
         title: `Property Viewing — ${tour.propertyTitle}`,
         startDate: start,
         endDate: end,
-        notes: tour.notes || 'Scheduled through House Hunter',
+        notes: tour.notes || 'Scheduled through Ascend Hunters',
         timeZone: undefined, // device local time
       });
 

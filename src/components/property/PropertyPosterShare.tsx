@@ -116,7 +116,7 @@ export default function PropertyPosterShare({ property }: { property: Property }
               </View>
               <View style={styles.qrTextWrap}>
                 <Text style={styles.qrTitle}>Scan to view</Text>
-                <Text style={styles.qrSubtitle}>this listing in the{'\n'}House Hunter app</Text>
+                <Text style={styles.qrSubtitle}>this listing in the{'\n'}Ascend Hunters app</Text>
               </View>
             </View>
           </View>

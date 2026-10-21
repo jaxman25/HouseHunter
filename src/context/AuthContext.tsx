@@ -3,7 +3,7 @@ import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { auth, db } from '../config/firebase';
 import { User } from '../types';
 import * as authService from '../services/authService';
-import { USERS_COLLECTION } from '../utils/constants';
+import { USERS_COLLECTION, DEFAULT_AVATAR } from '../utils/constants';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { persistPushToken, clearPushToken, startForegroundTokenWatch, stopForegroundTokenWatch } from '../services/notificationService';
 
@@ -28,6 +28,31 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/**
+ * Minimal profile for an authenticated Firebase user whose Firestore profile
+ * could not be loaded (App Check 403, rules denial, offline). Keeping the
+ * user signed in is important: a profile read failure happens *after* a
+ * successful sign-in and must not bounce them back to the login screen.
+ * Access is still enforced by Firestore rules, and the TermsGate / email
+ * verification gates still run based on this data.
+ */
+function buildFallbackProfile(fbUser: FirebaseUser): User {
+  return {
+    uid: fbUser.uid,
+    email: fbUser.email ?? '',
+    displayName:
+      fbUser.displayName || fbUser.email?.split('@')[0] || 'User',
+    phoneNumber: fbUser.phoneNumber ?? '',
+    photoURL: fbUser.photoURL || DEFAULT_AVATAR,
+    bio: '',
+    role: 'buyer',
+    favorites: [],
+    emailVerified: fbUser.emailVerified,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
@@ -37,8 +62,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       setFirebaseUser(fbUser);
       if (fbUser) {
+        let profile: User | null = null;
         try {
-          let profile = await authService.getUserProfile(fbUser.uid);
+          profile = await authService.getUserProfile(fbUser.uid);
           if (!profile) {
             // The email/password register() flow writes the profile document
             // only AFTER createUser resolves, so this handler can fire while
@@ -60,11 +86,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             await authService.ensureUserDocument(fbUser);
             profile = await authService.getUserProfile(fbUser.uid);
           }
-          setUser(profile);
         } catch (error) {
+          // A Firestore/App Check error here is NOT an authentication
+          // failure — Firebase Auth has already established the session.
           console.error('Error loading profile:', error);
-          setUser(null);
         }
+
+        // Keep the authenticated session even when the profile document is
+        // unavailable. Otherwise a Google sign-in that succeeded looks like
+        // it failed (the navigator falls back to the auth stack).
+        setUser(profile ?? buildFallbackProfile(fbUser));
       } else {
         setUser(null);
       }

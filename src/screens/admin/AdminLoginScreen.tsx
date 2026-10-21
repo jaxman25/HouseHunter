@@ -54,7 +54,7 @@ export default function AdminLoginScreen() {
           <MaterialCommunityIcons name="shield-account" size={44} color={colors.primary} />
         </View>
         <Text style={[styles.title, { color: colors.text, fontSize: fontSize.xl }]}>
-          House Hunter Admin
+          Ascend Hunters Admin
         </Text>
         <Text style={[styles.body, { color: colors.textSecondary, fontSize: fontSize.sm }]}>
           Admin tools cover platform moderation: user management, reported

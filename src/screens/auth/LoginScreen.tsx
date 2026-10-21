@@ -7,12 +7,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
-  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../types';
+import { APP_NAME } from '../../utils/constants';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuthContext } from '../../context/AuthContext';
 import { useGoogleSignIn } from '../../hooks/useGoogleSignIn';
@@ -56,11 +57,13 @@ export default function LoginScreen({ navigation }: Props) {
   };
 
   const handleGoogleSignIn = async () => {
+    setGeneralError('');
     try {
       await signInWithGoogle();
     } catch (error: any) {
-      Alert.alert(
-        'Google Sign In',
+      // Inline banner instead of Alert: react-native-web implements
+      // Alert.alert as a no-op, which made popup failures invisible.
+      setGeneralError(
         error?.message || 'Google sign-in failed. Please try again.'
       );
     }
@@ -88,24 +91,40 @@ export default function LoginScreen({ navigation }: Props) {
     try {
       await login(email, password);
     } catch (error: any) {
+      const code = typeof error?.code === 'string' ? error.code : '';
       let message = 'An error occurred. Please try again.';
-      if (error.code === 'auth/user-not-found') {
+      if (code === 'auth/user-not-found') {
         message = 'No account found with this email.';
       } else if (
-        error.code === 'auth/wrong-password' ||
+        code === 'auth/wrong-password' ||
         // Modern Firebase identity platform returns this single merged code
-        // for both missing accounts and wrong passwords (anti-enumeration).
-        error.code === 'auth/invalid-login-credentials' ||
-        error.code === 'auth/invalid-credential'
+        // for both missing accounts and wrong passwords (anti-enumeration),
+        // and for accounts that only have a Google provider.
+        code === 'auth/invalid-login-credentials' ||
+        code === 'auth/invalid-credential'
       ) {
-        message = 'Incorrect email or password.';
-      } else if (error.code === 'auth/too-many-requests') {
+        message =
+          'Incorrect email or password. If you created your account with Google, use “Continue with Google.”';
+      } else if (code === 'auth/too-many-requests') {
         message = 'Too many attempts. Please try again later.';
-      } else if (error.code === 'auth/invalid-email') {
+      } else if (code === 'auth/invalid-email') {
         message = 'Invalid email address.';
-      } else if (error.code === 'auth/operation-not-allowed') {
+      } else if (code === 'auth/operation-not-allowed') {
         message =
           'Email sign-in is temporarily disabled. Please try again later or use Google.';
+      } else if (code === 'auth/network-request-failed') {
+        message = 'Network error. Check your internet connection and try again.';
+      } else if (
+        code === 'auth/api-key-not-valid' ||
+        code === 'auth/invalid-api-key' ||
+        code.startsWith('auth/api-key-')
+      ) {
+        message =
+          'Firebase rejected this app’s API key. Check the web app configuration in Firebase Console.';
+      }
+      if (__DEV__ && code) {
+        // Codes only — never log the email or password.
+        console.warn('[login] Firebase auth error code:', code);
       }
       setGeneralError(message);
     } finally {
@@ -130,11 +149,14 @@ export default function LoginScreen({ navigation }: Props) {
       >
         {/* Logo & Welcome */}
         <View style={styles.logoSection}>
-          <View style={[styles.logoIcon, { backgroundColor: colors.primary }]}>
-            <MaterialCommunityIcons name="home-search" size={40} color={colors.white} />
-          </View>
+          <Image
+            source={require('../../../assets/loader.png')}
+            style={styles.logoMark}
+            contentFit="contain"
+            accessibilityLabel={`${APP_NAME} logo`}
+          />
           <Text style={[styles.title, { color: colors.text, fontSize: fontSize.title }]}>
-            House Hunter
+            {APP_NAME}
           </Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary, fontSize: fontSize.lg }]}>
             Find your perfect home
@@ -239,12 +261,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 40,
   },
-  logoIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
+  /** The brand mark (loader.png) replaces the old glyph-in-a-tile icon. */
+  logoMark: {
+    width: 96,
+    height: 96,
     marginBottom: 16,
   },
   title: {

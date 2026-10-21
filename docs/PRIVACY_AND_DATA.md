@@ -1,4 +1,4 @@
-# Privacy & Data — House Hunter
+# Privacy & Data — Ascend Hunters
 
 This is the engineering companion to the in-app Privacy Policy
 (`src/screens/legal/LegalScreens.tsx`). If you change what data the app

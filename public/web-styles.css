@@ -1,4 +1,4 @@
-/* House Hunter — web-only global stylesheet.
+/* Ascend Hunters — web-only global stylesheet.
  * =====================================================================
  * Loaded by public/index.html. Expo copies public/ verbatim into the
  * web build root, so this file is served at /web-styles.css.
@@ -56,8 +56,8 @@ body {
  * project-owned and cannot collide with anything the bundler injects.
  * ------------------------------------------------------------------ */
 :root {
-  --hh-field-fill: #f9fafb; /* colors.gray100 — the input fill */
-  --hh-field-text: #1a1d26; /* colors.text                     */
+  --hh-field-fill: #f1f5f9; /* colors.gray100 — the input fill */
+  --hh-field-text: #0f172a; /* colors.text                     */
 }
 
 @media (prefers-color-scheme: dark) {

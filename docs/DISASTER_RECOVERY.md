@@ -1,4 +1,4 @@
-# Disaster Recovery & Backups — House Hunter
+# Disaster Recovery & Backups — Ascend Hunters
 
 Operational runbook for the Firebase backend (Cloud Firestore data, Storage
 images, Auth). Follow it when setting up backups, restoring after data loss,

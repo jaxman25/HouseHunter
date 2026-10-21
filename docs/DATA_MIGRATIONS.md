@@ -1,4 +1,4 @@
-# Data Migrations & Schema Versioning — House Hunter
+# Data Migrations & Schema Versioning — Ascend Hunters
 
 How document shapes evolve in this Firestore-backed app without breaking
 running clients, the security rules, or the indexes.

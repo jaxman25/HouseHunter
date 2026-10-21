@@ -1,5 +1,5 @@
 /**
- * House Hunter — peer-review counter maintained on the reviewee's user doc.
+ * Ascend Hunters — peer-review counter maintained on the reviewee's user doc.
  *
  * `getUserRating` (profile screens) used a client-side `getCountFromServer`
  * aggregation over `userReviews`. It now reads the trigger-maintained
